@@ -1,0 +1,51 @@
+Collect list of vaults
+* By querying one more perspectives?
+* Maintain this list over time to detect new vaults
+Monitor vaults for new positions, and changes to positions
+Query accounts to determine if they are liquidate-able
+Accounts with low health scores should be queried more often
+
+Gather list of accounts & logs from EVC, aggregate unique address list
+
+
+High Level Components
+
+Contract to liquidate positions
+
+-Top level 'execute liquidation function'
+-Swap
+    -DEX/other swapping destination
+    -EVK Periphery Swapper
+-Repay
+    -Vault address
+-Returning funds
+    -Either target to send proceeds to or just store with withdrawal method
+
+
+Logic to decide when/what to liquidate
+-Basic needs
+    -Monitor health of accounts
+        -List of accounts
+            -Via EVC logs/events
+            -Generate unique address list
+            -Relevant events:
+                -EVC:
+                    -ControllerStatus(address indexed account, address indexed controller, bool enabled);
+                    -AccountStatusCheck(address indexed account, address indexed controller);
+                -EVK:
+                    -EVaultCreated(address indexed creator, address indexed asset, address dToken);
+                    -Borrow(address indexed account, uint256 assets);
+        -List of vaults
+            -Via EVC logs/events
+            -Unique vault listx
+            -May also be able to do this via perspectives
+    -Simulate liquidation given: account health, cost to swap/slippage, cost for flashloan, gas
+        -Underlying position in account
+        -Account health
+            -Eulerscan sorted by account health via proritiy queue to decide how often to ping
+            -Smart way would be to monitor price changes given account positions and check health score after price deviations
+        -Target DEX/pool for swapping
+        -Flashloan source
+        -Gas cost
+    -Liquidate if that's profitable
+        -MEV resistance (maybe just flashbots)

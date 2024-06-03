@@ -1,0 +1,92 @@
+from dotenv import load_dotenv
+from web3 import Web3
+
+import os
+import json
+
+class Liquidator:
+    def __init__(self, rpc_url: str, liquidation_contract_address: str):
+
+        LIQUIDATOR_ABI_PATH = 'out/Liquidator.sol/Liquidator.json'
+        with open(LIQUIDATOR_ABI_PATH, 'r') as file:
+            liquidation_interface = json.load(file)
+
+        liquidation_abi = liquidation_interface['abi']
+
+        w3 = Web3(Web3.HTTPProvider(rpc_url))
+
+        self.w3 = w3
+        self.liquidation_contract_address = liquidation_contract_address
+        self.liquidation_abi = liquidation_abi
+
+        self.liquidator_contract = w3.eth.contract(address=liquidation_contract_address, abi=liquidation_abi)
+
+
+    def execute_liquidation(self,
+                            vault_address,
+                            violator_address,
+                            borrowed_asset_address,
+                            collateral_asset_address, 
+                            amount_to_repay,
+                            expected_collateral,
+                            swap_data,
+                            caller_public_key,
+                            caller_private_key):
+        print(f"Trying to liquidate {violator_address} in vault {vault_address} with borrowed asset {borrowed_asset_address} and collateral asset {collateral_asset_address}...\n")
+
+        try:
+            liquidation_tx = self.liquidator_contract.functions.liquidate({'vaultAddress': vault_address,
+                                                                        'violatorAddress': violator_address,
+                                                                        'borrowedAsset': borrowed_asset_address,
+                                                                        'colllateralAsset': collateral_asset_address,
+                                                                        'amountToRepay': amount_to_repay,
+                                                                        'expectedCollateral': expected_collateral,
+                                                                        'swapData': swap_data}).buildTransaction({
+                                                                            'chainId': 1,
+                                                                            'gasPrice': self.w3.eth.gas_price,
+                                                                            'from': caller_public_key,
+                                                                            'nonce': self.w3.eth.get_transaction_count(caller_public_key)
+                                                                            })
+
+            signed_tx = self.w3.eth.account.sign_transaction(liquidation_tx, caller_private_key)
+
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+
+            result = self.liquidator_contract.events.Liquidation().processReceipt(tx_receipt)
+
+            print("Liquidation successful.\n\n")
+            print("Liquidation details:\n")
+            print(result[0]['args'])
+
+            return True
+        except Exception as e:
+
+            print("Liquidation failed, see error:\n\n")
+            
+            print(e)
+
+            return False
+    
+    def test_contract_deployment(self):
+        print("Testing contract deployment...\n")
+
+        print("Trying to get swapper address from liquidator...\n")
+        print("Swapper address: " + self.liquidator_contract.functions.swapperAddress().call())
+    
+
+if __name__ == "__main__":
+    load_dotenv()
+
+    rpc_url = os.getenv('RPC_URL')
+
+    liquidator_address = os.getenv('LIQUIDATOR_ADDRESS')
+    
+   
+
+    genesis_block = int(os.getenv('GENESIS_BLOCK'))
+
+    liquidator = Liquidator(rpc_url, liquidator_address)
+
+    liquidator.test_contract_deployment()
