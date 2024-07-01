@@ -36,7 +36,7 @@ rpds-py==0.18.1
 solc-select==1.0.4
 toolz==0.12.1
 typing_extensions==4.12.1
-urllib3==2.2.1
+urllib3==2.2.2
 web3==6.19.0
 websockets==12.0
 yarl==1.9.4
