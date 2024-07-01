@@ -5,13 +5,15 @@ import os
 import json
 
 class Liquidator:
-    def __init__(self, rpc_url: str, liquidation_contract_address: str):
-
+    def __init__(self, liquidation_contract_address: str):
+        load_dotenv()
         LIQUIDATOR_ABI_PATH = 'out/Liquidator.sol/Liquidator.json'
         with open(LIQUIDATOR_ABI_PATH, 'r') as file:
             liquidation_interface = json.load(file)
 
         liquidation_abi = liquidation_interface['abi']
+        
+        rpc_url = os.getenv('RPC_URL')
 
         w3 = Web3(Web3.HTTPProvider(rpc_url))
 
@@ -33,6 +35,8 @@ class Liquidator:
                             caller_public_key,
                             caller_private_key):
         print(f"Trying to liquidate {violator_address} in vault {vault_address} with borrowed asset {borrowed_asset_address} and collateral asset {collateral_asset_address}...\n")
+        
+        #TODO: enable collateral & controller at EVC level for liquidation
 
         try:
             liquidation_tx = self.liquidator_contract.functions.liquidate({'vaultAddress': vault_address,
@@ -76,17 +80,17 @@ class Liquidator:
         print("Swapper address: " + self.liquidator_contract.functions.swapperAddress().call())
     
 
-if __name__ == "__main__":
-    load_dotenv()
+# if __name__ == "__main__":
+#     load_dotenv()
 
-    rpc_url = os.getenv('RPC_URL')
+#     rpc_url = os.getenv('RPC_URL')
 
-    liquidator_address = os.getenv('LIQUIDATOR_ADDRESS')
+#     liquidator_address = os.getenv('LIQUIDATOR_ADDRESS')
     
    
 
-    genesis_block = int(os.getenv('GENESIS_BLOCK'))
+#     genesis_block = int(os.getenv('GENESIS_BLOCK'))
 
-    liquidator = Liquidator(rpc_url, liquidator_address)
+#     liquidator = Liquidator(rpc_url, liquidator_address)
 
-    liquidator.test_contract_deployment()
+#     liquidator.test_contract_deployment()

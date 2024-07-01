@@ -6,6 +6,8 @@ import {SwapVerifier} from "./SwapVerifier.sol";
 import {IEVC} from "./IEVC.sol";
 
 import {IERC4626} from "./IEVault.sol";
+import {IEVault} from "./IEVault.sol";
+import {ILiquidation} from "./IEVault.sol";
 
 contract Liquidator {
     address public immutable owner;
@@ -66,7 +68,13 @@ contract Liquidator {
         LiquidationParams calldata params
     ) external onlyOwner returns (bool success) {
         bytes[] memory multicallItems = new bytes[](1); // for now just doing single swap, but setting up to handle multiple down the line
-        
+
+        // enable collateral and controller for liquidation
+        evc.enableCollateral(msg.sender, params.collateralAsset);
+        evc.enableController(msg.sender, params.vaultAddress);
+
+        // TODO: use swapper in correct way
+        // TODO: correctly use sub account instead of msg.sender
         multicallItems[0] = abi.encodeCall(
             ISwapper.swap,
             ISwapper.SwapParams({
@@ -82,10 +90,26 @@ contract Liquidator {
             })
         );
 
-        IEVC.BatchItem[] memory items = new IEVC.BatchItem[](3);
+        IEVC.BatchItem[] memory items = new IEVC.BatchItem[](4);
 
+        // TODO: get the ordering of these correct
         items[0] = IEVC.BatchItem({
-            onBehalfOfAccount: params.violatorAddress,
+            onBehalfOfAccount: msg.sender,
+            targetContract: params.vaultAddress,
+            value: 0,
+            data: abi.encodeCall(
+                ILiquidation.liquidate,
+                (
+                    params.violatorAddress,
+                    params.collateralAsset,
+                    params.repayAmount,
+                    params.expectedCollateralAmount
+                )
+            )
+        });
+
+        items[1] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
             targetContract: params.vaultAddress,
             value: 0,
             data: abi.encodeCall(
@@ -93,27 +117,27 @@ contract Liquidator {
                 (
                     params.expectedCollateralAmount,
                     swapperAddress,
-                    params.violatorAddress
+                    msg.sender
                 )
             )
         });
 
-        items[1] = IEVC.BatchItem({
-            onBehalfOfAccount: params.violatorAddress,
+        items[2] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
             targetContract: swapperAddress,
             value: 0,
             data: abi.encodeCall(ISwapper.multicall, multicallItems)
         });
 
-        items[2] = IEVC.BatchItem({
-            onBehalfOfAccount: params.violatorAddress,
+        items[3] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
             targetContract: swapVerifierAddress,
             value: 0,
             data: abi.encodeCall(
                 SwapVerifier.verifyDebtMax,
                 (
                     params.vaultAddress,
-                    params.violatorAddress,
+                    msg.sender,
                     0,
                     type(uint256).max
                 )
@@ -121,7 +145,7 @@ contract Liquidator {
         });
 
         evc.batch(items);
-        
+
         emit Liquidation(
             params.vaultAddress,
             params.violatorAddress,

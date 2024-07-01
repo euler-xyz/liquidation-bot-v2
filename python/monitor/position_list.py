@@ -70,12 +70,15 @@ class PositionList:
 
             if pos.health_score < 1:
                 max_repay, expected_yield = pos.check_liquidation()
+                
+                #TODO: add filter to exclude small size positions
+
                 profitable = check_if_liquidation_profitable(pos.vault_address, pos.borrower_address, pos.borrow_asset_address, pos.collateral_asset_address, max_repay, expected_yield)
                 if profitable:
                     print(f"Position in vault {pos.vault_address} is profitable to liquidate.")
     
     # Update medium risk positions
-    # These are positions with a health score <= 1.15
+    # These are positions with a health score <= 1.15 that have potential to move to high risk
     def update_medium_risk_positions(self):
         for id, pos in self.medium_risk_positions.items():
             pos.update_liquidity()

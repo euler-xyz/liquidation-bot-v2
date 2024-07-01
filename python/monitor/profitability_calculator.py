@@ -2,8 +2,6 @@ from dotenv import load_dotenv
 
 from web3 import Web3
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 import os
 import json
@@ -11,6 +9,7 @@ import json
 def check_if_liquidation_profitable(vault_address: str, violator_address: str, repay_asset_address: str, collateral_asset_address: str, amount_to_repay: int, expected_collateral: int):
     load_dotenv()
 
+    # TODO: adjust for overswapping, currently assumes we swap everything into repay asset
     swap_output = get_1inch_quote(collateral_asset_address, repay_asset_address, expected_collateral)
 
     if swap_output < amount_to_repay:
@@ -49,7 +48,7 @@ def check_if_liquidation_profitable(vault_address: str, violator_address: str, r
 
     assets_remaining_post_repay = swap_output - amount_to_repay
 
-    WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+    WETH_ADDRESS = os.getenv('WETH_ADDRESS')
     
     if get_1inch_quote(repay_asset_address, WETH_ADDRESS, assets_remaining_post_repay) > estimated_gas:
         return True
@@ -78,9 +77,3 @@ def get_1inch_quote(asset_in: str, asset_out: str, amount_in: int):
     response_json = requests.get(apiUrl, headers=headers, params=params).json()
 
     return int(response_json['dstAmount'])
-
-# USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-# WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-# amount = 10**18
-
-# print(get_1inch_quote(USDC, WETH, amount))

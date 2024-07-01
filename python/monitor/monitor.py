@@ -30,6 +30,9 @@ class Monitor:
         rpc = os.getenv('RPC_URL')
         self.w3 = Web3(Web3.HTTPProvider(rpc))
 
+    # Start the monitoring process
+    # Currently using a naive health score based "sorting" into groups, then simple monitoring at specific intervals
+    # TODO: Implement more sophisticated filtering/sorting
     def start(self):
         self.new_position_listener_thread = threading.Thread(target=self.start_new_position_listener)
         self.new_position_listener_thread.start()
@@ -46,7 +49,7 @@ class Monitor:
         self.vault_creation_listener_thread = threading.Thread(target=self.start_vault_creation_listener)
         self.vault_creation_listener_thread.start()
 
-        print("Successfully started monitoring threads...\n")
+        print("Successfully started monitoring threads!\n")
     
     # Scan for new positions every 5 minutes
     def start_new_position_listener(self):
