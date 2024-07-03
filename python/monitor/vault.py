@@ -6,7 +6,6 @@ import json
 
 class Vault:
     def __init__(self, vault_address: str):
-        load_dotenv()
         self.vault_address = vault_address
 
         EVAULT_ABI_PATH = 'lib/evk-periphery/out/EVault.sol/EVault.json'
@@ -18,6 +17,6 @@ class Vault:
 
         w3 = Web3(Web3.HTTPProvider(os.getenv('RPC_URL')))
 
-        self.vault_instance = w3.eth.contract(address=vault_address, abi=vault_abi)
+        self.instance = w3.eth.contract(address=vault_address, abi=vault_abi)
 
-        self.underlying_asset_address = self.vault_instance.functions.asset().call()
+        self.underlying_asset_address = self.instance.functions.asset().call()

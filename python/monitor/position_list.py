@@ -8,35 +8,31 @@ import json
 from monitor.position import Position
 
 from monitor.profitability_calculator import *
+from monitor.vault_list import VaultList
+
+from monitor.evc import EVC
 
 class PositionList:
-    def __init__(self):
-        load_dotenv()
-    
+    def __init__(self, vault_list: VaultList, evc: EVC):
         self.high_risk_positions = {}
         self.medium_risk_positions = {}
         self.other_positions = {}
 
         self.all_positions = {}
 
-        EVC_ABI_PATH = 'lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json'
-
-        with open(EVC_ABI_PATH, 'r') as file:
-            evc_interface = json.load(file)
-
-        evc_abi = evc_interface['abi']
+        self.vault_list = vault_list
 
         rpc = os.getenv('RPC_URL')
         self.w3 = Web3(Web3.HTTPProvider(rpc))
 
-        self.evc = self.w3.eth.contract(address=os.getenv('EVC_ADDRESS'), abi=evc_abi)
+        self.evc = evc
 
         self.scan_for_new_positions(int(os.getenv('GENESIS_BLOCK')))
     
     # Scan for new positions
     def scan_for_new_positions(self, from_block_number: int, to_block_number: int = 'latest'):
 
-        logs = self.evc.events.AccountStatusCheck().get_logs(fromBlock=from_block_number, toBlock=to_block_number)
+        logs = self.evc.instance.events.AccountStatusCheck().get_logs(fromBlock=from_block_number, toBlock=to_block_number)
 
         for log in logs:
             vault_address = log['args']['controller']
@@ -46,8 +42,13 @@ class PositionList:
 
             if new_position_id in self.all_positions:
                 continue
+            
+            collaterals = self.evc.get_collaterals(borrower_address)
+            print("Collaterals: ", collaterals)
 
-            new_position = Position(vault_address, borrower_address)
+            new_position = Position(self.vault_list.get_vault(vault_address), borrower_address, collateral_asset_address=collaterals[0])
+
+            self.all_positions[new_position_id] = new_position
             
             print(f"New position found! Vault address: {vault_address}, borrower address: {borrower_address}")
 
@@ -70,12 +71,16 @@ class PositionList:
 
             if pos.health_score < 1:
                 max_repay, expected_yield = pos.check_liquidation()
-                
+                print(f"Possible liquidation found in vault {pos.vault.vault_address} for borrower {pos.borrower_address}...")
+                print(f"Max repay: {max_repay}, Expected yield: {expected_yield}")
+
                 #TODO: add filter to exclude small size positions
 
-                profitable = check_if_liquidation_profitable(pos.vault_address, pos.borrower_address, pos.borrow_asset_address, pos.collateral_asset_address, max_repay, expected_yield)
+                profitable = check_if_liquidation_profitable(pos.vault.vault_address, pos.borrower_address, pos.vault.underlying_asset_address, self.vault_list.get_vault(pos.collateral_asset_address).underlying_asset_address, max_repay, expected_yield)
                 if profitable:
-                    print(f"Position in vault {pos.vault_address} is profitable to liquidate.")
+                    print(f"Position in vault {pos.vault.vault_address} is profitable to liquidate.")
+                    print(f"Borrower: {pos.borrower_address}")
+                    print(f"Max repay: {max_repay}, Expected yield: {expected_yield}")
     
     # Update medium risk positions
     # These are positions with a health score <= 1.15 that have potential to move to high risk

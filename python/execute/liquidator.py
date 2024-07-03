@@ -6,7 +6,6 @@ import json
 
 class Liquidator:
     def __init__(self, liquidation_contract_address: str):
-        load_dotenv()
         LIQUIDATOR_ABI_PATH = 'out/Liquidator.sol/Liquidator.json'
         with open(LIQUIDATOR_ABI_PATH, 'r') as file:
             liquidation_interface = json.load(file)
@@ -45,7 +44,7 @@ class Liquidator:
                                                                         'colllateralAsset': collateral_asset_address,
                                                                         'amountToRepay': amount_to_repay,
                                                                         'expectedCollateral': expected_collateral,
-                                                                        'swapData': swap_data}).buildTransaction({
+                                                                        'swapData': swap_data}).build_transaction({
                                                                             'chainId': 1,
                                                                             'gasPrice': self.w3.eth.gas_price,
                                                                             'from': caller_public_key,

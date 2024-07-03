@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import time
 
 from web3 import Web3
 import requests
@@ -7,8 +8,6 @@ import os
 import json
 
 def check_if_liquidation_profitable(vault_address: str, violator_address: str, repay_asset_address: str, collateral_asset_address: str, amount_to_repay: int, expected_collateral: int):
-    load_dotenv()
-
     # TODO: adjust for overswapping, currently assumes we swap everything into repay asset
     swap_output = get_1inch_quote(collateral_asset_address, repay_asset_address, expected_collateral)
 
@@ -28,20 +27,21 @@ def check_if_liquidation_profitable(vault_address: str, violator_address: str, r
 
     liquidator_contract = w3.eth.contract(address=liquidation_contract_address, abi=liquidation_abi)
 
-    public_key = os.getenv('PUBLIC_KEY')
+    public_key = os.getenv('LIQUIDATOR_PUBLIC_KEY')
 
-    liquidation_simulation_tx = liquidator_contract.functions.liquidate({'vaultAddress': vault_address,
-                                                                        'violatorAddress': violator_address,
-                                                                        'borrowedAsset': repay_asset_address,
-                                                                        'colllateralAsset': collateral_asset_address,
-                                                                        'amountToRepay': amount_to_repay,
-                                                                        'expectedCollateral': expected_collateral,
-                                                                        'swapData': []
-                                                                        }).buildTransaction({
-                                                                            'chainId': 1,
+    liquidation_simulation_tx = liquidator_contract.functions.liquidate((vault_address,
+                                                                        violator_address,
+                                                                        repay_asset_address,
+                                                                        collateral_asset_address,
+                                                                        amount_to_repay,
+                                                                        expected_collateral,
+                                                                        b''
+                                                                        )).build_transaction({
+                                                                            'chainId': 41337,
                                                                             'gasPrice': w3.eth.gas_price,
                                                                             'from': public_key,
-                                                                            'nonce': w3.eth.get_transaction_count(public_key)
+                                                                            'nonce': w3.eth.get_transaction_count(public_key),
+                                                                            'to': liquidation_contract_address
                                                                             })
     
     estimated_gas = w3.eth.estimate_gas(liquidation_simulation_tx)
@@ -49,7 +49,7 @@ def check_if_liquidation_profitable(vault_address: str, violator_address: str, r
     assets_remaining_post_repay = swap_output - amount_to_repay
 
     WETH_ADDRESS = os.getenv('WETH_ADDRESS')
-    
+    time.sleep(1)
     if get_1inch_quote(repay_asset_address, WETH_ADDRESS, assets_remaining_post_repay) > estimated_gas:
         return True
 
@@ -57,23 +57,28 @@ def get_optimal_swap_path(asset_in: str, asset_out: str, amount: int):
     return []
 
 def get_1inch_quote(asset_in: str, asset_out: str, amount_in: int):
-    load_dotenv()
-
     api_key = os.getenv('1INCH_API_KEY')
-
     apiUrl = "https://api.1inch.dev/swap/v6.0/1/quote"
-
-    requestOptions = {
-        "headers": { "Authorization": f"Bearer {api_key}" },
-        "params": {
-            "src": asset_in,
-            "dst": asset_out,
-            "amount": amount_in
-            }
+    headers = { "Authorization": f"Bearer {api_key}" }
+    params = {
+        "src": asset_in,
+        "dst": asset_out,
+        "amount": amount_in
     }
-    headers = requestOptions.get("headers", {})
-    params = requestOptions.get("params", {})
 
-    response_json = requests.get(apiUrl, headers=headers, params=params).json()
+    print(f"Requesting 1inch quote for {amount_in} {asset_in} to {asset_out}")
 
-    return int(response_json['dstAmount'])
+    response = requests.get(apiUrl, headers=headers, params=params)
+
+    if response.status_code == 200:
+        try:
+            response_json = response.json()
+            print("1inch response: ", response_json)
+            return int(response_json['dstAmount'])
+        except ValueError as e:
+            print(f"Error decoding JSON: {e}")
+            return None
+    else:
+        print(f"API request failed with status code {response.status_code}: {response.text}")
+        return None
+

@@ -47,6 +47,9 @@ class VaultList:
     def get_vault_dict(self):
         return self.vault_dict
     
+    def get_vault(self, vault_address: str):
+        return self.vault_dict[vault_address]
+    
     def __str__(self) -> str:
         output = ''
         for vault_address, vault in self.vault_dict.items():

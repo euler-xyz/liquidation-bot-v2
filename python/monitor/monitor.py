@@ -7,12 +7,11 @@ from web3 import Web3
 
 from monitor.position_list import PositionList
 from monitor.vault_list import VaultList
+from monitor.evc import EVC
 
 
 class Monitor:
     def __init__(self, high_update_frequency, medium_update_frequency, other_update_frequency, new_position_scan_frequency, vault_scan_frequency):
-        load_dotenv()
-
         self.high_update_frequency = high_update_frequency
         self.medium_update_frequency = medium_update_frequency
         self.other_update_frequency = other_update_frequency
@@ -23,12 +22,13 @@ class Monitor:
         self.factory_address = os.getenv('FACTORY_ADDRESS')
         self.genesis_block = int(os.getenv('GENESIS_BLOCK'))
 
-        self.vaultList = VaultList(self.rpc_url, self.factory_address, self.genesis_block)
+        self.vault_list = VaultList(self.rpc_url, self.factory_address, self.genesis_block)
 
-        self.positionList = PositionList()
+        self.evc = EVC(os.getenv('EVC_ADDRESS'))
 
-        rpc = os.getenv('RPC_URL')
-        self.w3 = Web3(Web3.HTTPProvider(rpc))
+        self.positionList = PositionList(self.vault_list, self.evc)
+
+        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
 
     # Start the monitoring process
     # Currently using a naive health score based "sorting" into groups, then simple monitoring at specific intervals
@@ -82,7 +82,7 @@ class Monitor:
     def start_vault_creation_listener(self):
         while True:
             print("Scanning for new vaults...\n")
-            self.vaultList.scan_for_new_vaults()
+            self.vault_list.scan_for_new_vaults()
             time.sleep(self.vault_scan_frequency * 60)
 
 

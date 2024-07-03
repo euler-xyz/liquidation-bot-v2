@@ -8,7 +8,7 @@ class LiquidationBot():
     def __init__(self):
         load_dotenv()
 
-        self.monitor = Monitor(0.5, 5, 10, 5, 10)
+        self.monitor = Monitor(0.1, 0.2, 0.2, 0.2, 1)
         self.liquidator = Liquidator(os.getenv('LIQUIDATOR_ADDRESS'))
 
     def start(self):

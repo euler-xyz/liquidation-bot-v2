@@ -23,8 +23,9 @@ Configuration through `.env` file:
 - `RPC_URL` - RPC provider endpoint (Infura, Rivet, Alchemy etc.).
 - `EVC_ADDRESS, FACTORY_ADDRESS, SWAPPER_ADDRESS, SWAP_VERIFIER_ADDRESS` - Relevant EVC/EVK Addresses
 - `GENESIS_BLOCK` - EVC deployment block number
-- `PUBLIC_KEY, PRIVATE_KEY` - public/private key of EOA executing transactions
-- `LIQUIDATOR_ADDRESS` - address of deployed liquidator contract
+- `DEPLOYER_PUBLIC_KEY, DEPLOYER_PRIVATE_KEY` - public/private key of EOA that deployed accounts for testing
+- `LIQUIDATOR_PUBLIC_KEY, LIQUIDATOR_PRIVATE_KEY` - public/private key of EOA that will be used to liquidate
+- `LIQUIDATOR_CONTRACT_ADDRESS` - address of deployed liquidator contract
 - `1INCH_API_KEY` - key for 1inch API
 
 
