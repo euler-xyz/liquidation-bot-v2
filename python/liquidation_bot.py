@@ -9,7 +9,7 @@ class LiquidationBot():
         load_dotenv()
 
         self.monitor = Monitor(0.1, 0.2, 0.2, 0.2, 1)
-        self.liquidator = Liquidator(os.getenv('LIQUIDATOR_ADDRESS'))
+        self.liquidator = Liquidator(os.getenv('LIQUIDATOR_ADDRESS'), self.monitor)
 
     def start(self):
         self.monitor.start()

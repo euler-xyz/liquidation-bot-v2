@@ -26,7 +26,7 @@ class Monitor:
 
         self.evc = EVC(os.getenv('EVC_ADDRESS'))
 
-        self.positionList = PositionList(self.vault_list, self.evc)
+        self.position_list = PositionList(self.vault_list, self.evc)
 
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
 
@@ -55,28 +55,28 @@ class Monitor:
     def start_new_position_listener(self):
         while True:
             print("Scanning for new positions...\n")
-            self.positionList.scan_for_new_positions(self.w3.eth.block_number - 30) # scan 30 blocks behind = 6 minutes
+            self.position_list.scan_for_new_positions(self.w3.eth.block_number - 30) # scan 30 blocks behind = 6 minutes
             time.sleep(self.new_position_scan_frequency * 60)
     
     # Check high risk positions every 30 seconds
     def start_high_risk_listener(self):
         while True:
             print("Checking high risk positions...\n")
-            self.positionList.update_high_risk_positions()
+            self.position_list.update_high_risk_positions()
             time.sleep(self.high_update_frequency * 60)
     
     # Check medium risk positions every 5 minutes
     def start_medium_risk_listener(self):
         while True:
             print("Checking medium risk positions...\n")
-            self.positionList.update_medium_risk_positions()
+            self.position_list.update_medium_risk_positions()
             time.sleep(self.medium_update_frequency * 60)
     
     # Check other positions every 20 minutes
     def start_other_position_listener(self):
         while True:
             print("Checking other positions...\n")
-            self.positionList.update_other_positions()
+            self.position_list.update_other_positions()
             time.sleep(self.other_update_frequency * 60)
     
     def start_vault_creation_listener(self):

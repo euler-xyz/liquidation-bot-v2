@@ -18,6 +18,8 @@ class PositionList:
         self.medium_risk_positions = {}
         self.other_positions = {}
 
+        self.profitable_liquidations_queue = []
+
         self.all_positions = {}
 
         self.vault_list = vault_list
@@ -77,10 +79,13 @@ class PositionList:
                 #TODO: add filter to exclude small size positions
 
                 profitable = check_if_liquidation_profitable(pos.vault.vault_address, pos.borrower_address, pos.vault.underlying_asset_address, self.vault_list.get_vault(pos.collateral_asset_address).underlying_asset_address, max_repay, expected_yield)
+
                 if profitable:
                     print(f"Position in vault {pos.vault.vault_address} is profitable to liquidate.")
                     print(f"Borrower: {pos.borrower_address}")
                     print(f"Max repay: {max_repay}, Expected yield: {expected_yield}")
+                    if id not in self.profitable_liquidations_queue:
+                        self.profitable_liquidations_queue.append(id)
     
     # Update medium risk positions
     # These are positions with a health score <= 1.15 that have potential to move to high risk
@@ -114,3 +119,9 @@ class PositionList:
         self.update_other_positions()
 
         return
+    
+    def get_position(self, position_id: int):
+        return self.all_positions[position_id]
+    
+    def pop_profitable_liquidation(self):
+        return self.profitable_liquidations_queue.pop(0)

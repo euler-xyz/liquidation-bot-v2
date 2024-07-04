@@ -28,6 +28,15 @@ class Position:
     def check_liquidation(self):
         (max_repay, expected_yield) = self.vault.instance.functions.checkLiquidation(Web3.to_checksum_address(os.getenv('LIQUIDATOR_PUBLIC_KEY')), self.borrower_address, self.collateral_asset_address).call()
         return (max_repay, expected_yield)
+    
+    def get_liquidation_data(self):
+        (amount_to_repay, expected_collateral) = self.check_liquidation()
+        return (self.vault.vault_address, 
+            self.borrower_address, 
+            self.vault.underlying_asset_address, 
+            self.collateral_asset_address, 
+            amount_to_repay,
+            expected_collateral)
 
     def __str__(self):
         toStr = f"Position in vault {self.vault_address}\n"

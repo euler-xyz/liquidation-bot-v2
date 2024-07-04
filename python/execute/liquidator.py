@@ -1,17 +1,23 @@
 from dotenv import load_dotenv
 from web3 import Web3
 
+import time
 import os
 import json
 
+from monitor.monitor import Monitor
+from monitor.position import Position
+
 class Liquidator:
-    def __init__(self, liquidation_contract_address: str):
+    def __init__(self, liquidation_contract_address: str, monitor_instance: Monitor, run_with_monitor: bool = False):
         LIQUIDATOR_ABI_PATH = 'out/Liquidator.sol/Liquidator.json'
         with open(LIQUIDATOR_ABI_PATH, 'r') as file:
             liquidation_interface = json.load(file)
 
         liquidation_abi = liquidation_interface['abi']
         
+        load_dotenv()
+
         rpc_url = os.getenv('RPC_URL')
 
         w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -21,6 +27,43 @@ class Liquidator:
         self.liquidation_abi = liquidation_abi
 
         self.liquidator_contract = w3.eth.contract(address=liquidation_contract_address, abi=liquidation_abi)
+
+        self.monitor_instance = monitor_instance
+        
+        if(run_with_monitor):
+            self.start()
+    
+    def start(self):
+        while True:
+            print("Checking for profitable liquidation opportunities to execute...\n")
+            try:
+
+                profitable_liquidation = self.monitor_instance.position_list.pop_profitable_liquidation()
+
+                (vault_address,
+                 violator_address, 
+                 borrowed_asset_address, 
+                 collateral_asset_address, 
+                 amount_to_repay, 
+                 expected_collateral) = profitable_liquidation.get_liquidation_data()
+                
+                liquidator_public_key = os.getenv('LIQUIDATOR_PUBLIC_KEY')
+                liquidator_private_key = os.getenv('LIQUIDATOR_PRIVATE_KEY')
+
+                self.execute_liquidation(vault_address,
+                                        violator_address,
+                                        borrowed_asset_address,
+                                        collateral_asset_address,
+                                        amount_to_repay,
+                                        expected_collateral,
+                                        b'',
+                                        liquidator_public_key,
+                                        liquidator_private_key)
+                
+            except Exception as e:
+                print("No profitable liquidation opportunities found.\n")
+                time.sleep(10)
+                continue
 
 
     def execute_liquidation(self,
