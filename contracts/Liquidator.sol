@@ -74,7 +74,7 @@ contract Liquidator {
         evc.enableController(msg.sender, params.vaultAddress);
 
         // TODO: use swapper in correct way
-        // TODO: correctly use sub account instead of msg.sender
+        // TODO: correctly use evc account instead of msg.sender
         multicallItems[0] = abi.encodeCall(
             ISwapper.swap,
             ISwapper.SwapParams({
@@ -86,7 +86,7 @@ contract Liquidator {
                 vaultIn: params.vaultAddress,
                 receiver: params.vaultAddress,
                 amountOut: 0,
-                data: params.swapData
+                data: injectReceiver(swapperAddress, params.swapData)
             })
         );
 
@@ -156,5 +156,17 @@ contract Liquidator {
         );
 
         return true;
+    }
+
+    // Need to understand this more
+    function injectReceiver(address receiver, bytes memory _payload) internal pure returns (bytes memory payload) {
+        payload = _payload;
+
+        // uint256 constant RECEIVER_OFFSET = 208;
+
+        assembly {
+            mstore(0, receiver)
+            mcopy(add(add(payload, 32), 208), 12, 20)
+        }
     }
 }

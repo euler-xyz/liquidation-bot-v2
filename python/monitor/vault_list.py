@@ -40,7 +40,7 @@ class VaultList:
 
             self.vault_dict[vault_address] = new_vault
 
-            print(f"New vault found! Address: {vault_address}, underlying asset: {new_vault.underlying_asset_address}")
+            print(f"Vault List: New vault found! Address: {vault_address}, underlying asset: {new_vault.underlying_asset_address}\n")
 
         self.latest_block_number = self.w3.eth.block_number
 

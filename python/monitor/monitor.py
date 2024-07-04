@@ -30,6 +30,8 @@ class Monitor:
 
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
 
+        self.start()
+
     # Start the monitoring process
     # Currently using a naive health score based "sorting" into groups, then simple monitoring at specific intervals
     # TODO: Implement more sophisticated filtering/sorting
@@ -49,41 +51,61 @@ class Monitor:
         self.vault_creation_listener_thread = threading.Thread(target=self.start_vault_creation_listener)
         self.vault_creation_listener_thread.start()
 
-        print("Successfully started monitoring threads!\n")
+        print("Monitor: Successfully started monitoring threads!\n")
     
     # Scan for new positions every 5 minutes
     def start_new_position_listener(self):
         while True:
-            print("Scanning for new positions...\n")
-            self.position_list.scan_for_new_positions(self.w3.eth.block_number - 30) # scan 30 blocks behind = 6 minutes
-            time.sleep(self.new_position_scan_frequency * 60)
+            try:
+                print("Monitor: Scanning for new positions...\n")
+                self.position_list.scan_for_new_positions(self.w3.eth.block_number - 30) # scan 30 blocks behind = 6 minutes
+                time.sleep(self.new_position_scan_frequency * 60)
+            except Exception as e:
+                print("ERROR: Monitor: Error scanning for new positions: ", e)
+                time.sleep(self.new_position_scan_frequency * 60)
     
     # Check high risk positions every 30 seconds
     def start_high_risk_listener(self):
         while True:
-            print("Checking high risk positions...\n")
-            self.position_list.update_high_risk_positions()
-            time.sleep(self.high_update_frequency * 60)
+            try:
+                print("Monitor: Checking high risk positions...\n")
+                self.position_list.update_high_risk_positions()
+                time.sleep(self.high_update_frequency * 60)
+            except Exception as e:
+                print("ERROR: Monitor: Error updating high risk positions: ", e)
+                time.sleep(self.high_update_frequency * 60)
     
     # Check medium risk positions every 5 minutes
     def start_medium_risk_listener(self):
         while True:
-            print("Checking medium risk positions...\n")
-            self.position_list.update_medium_risk_positions()
-            time.sleep(self.medium_update_frequency * 60)
-    
+            try:
+                print("Monitor: Checking medium risk positions...\n")
+                self.position_list.update_medium_risk_positions()
+                time.sleep(self.medium_update_frequency * 60)
+            except Exception as e:
+                print("ERROR: Monitor: Error updating medium risk positions: ", e)
+                time.sleep(self.medium_update_frequency * 60)
+
     # Check other positions every 20 minutes
     def start_other_position_listener(self):
         while True:
-            print("Checking other positions...\n")
-            self.position_list.update_other_positions()
-            time.sleep(self.other_update_frequency * 60)
-    
+            try:
+                print("Monitor: Checking other positions...\n")
+                self.position_list.update_other_positions()
+                time.sleep(self.other_update_frequency * 60)
+            except Exception as e:
+                print("ERROR: Monitor: Error updating other positions: ", e)
+                time.sleep(self.other_update_frequency * 60)
+
     def start_vault_creation_listener(self):
         while True:
-            print("Scanning for new vaults...\n")
-            self.vault_list.scan_for_new_vaults()
-            time.sleep(self.vault_scan_frequency * 60)
+            try:
+                print("Monitor: Scanning for new vaults...\n")
+                self.vault_list.scan_for_new_vaults()
+                time.sleep(self.vault_scan_frequency * 60)
+            except Exception as e:
+                print("ERROR: Monitor: Error scanning for new vaults: ", e)
+                time.sleep(self.vault_scan_frequency * 60)
 
 
 # if __name__ == "__main__":

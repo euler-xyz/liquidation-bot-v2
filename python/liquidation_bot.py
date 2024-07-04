@@ -9,13 +9,7 @@ class LiquidationBot():
         load_dotenv()
 
         self.monitor = Monitor(0.1, 0.2, 0.2, 0.2, 1)
-        self.liquidator = Liquidator(os.getenv('LIQUIDATOR_ADDRESS'), self.monitor)
-
-    def start(self):
-        self.monitor.start()
-
-        #TODO: change to IO model for reading outputs from monitor to trigger liquidation
+        self.liquidator = Liquidator(os.getenv('LIQUIDATOR_ADDRESS'), self.monitor, True)
 
 if __name__ == "__main__":
     bot = LiquidationBot()
-    bot.start()

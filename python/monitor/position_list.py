@@ -46,13 +46,12 @@ class PositionList:
                 continue
             
             collaterals = self.evc.get_collaterals(borrower_address)
-            print("Collaterals: ", collaterals)
 
             new_position = Position(self.vault_list.get_vault(vault_address), borrower_address, collateral_asset_address=collaterals[0])
 
             self.all_positions[new_position_id] = new_position
             
-            print(f"New position found! Vault address: {vault_address}, borrower address: {borrower_address}")
+            print(f"Position List: New position found! Vault address: {vault_address}, borrower address: {borrower_address}\n")
 
             if new_position.health_score <= 1:
                 self.high_risk_positions[new_position_id] = new_position
@@ -71,21 +70,20 @@ class PositionList:
             if pos.health_score > 1:
                 self.other_positions[id] = self.high_risk_positions.pop(id)
 
-            if pos.health_score < 1:
+            if pos.health_score < 1 and id not in self.profitable_liquidations_queue:
                 max_repay, expected_yield = pos.check_liquidation()
-                print(f"Possible liquidation found in vault {pos.vault.vault_address} for borrower {pos.borrower_address}...")
-                print(f"Max repay: {max_repay}, Expected yield: {expected_yield}")
+                print(f"Position List: Possible liquidation found in vault {pos.vault.vault_address} for borrower {pos.borrower_address}...\n")
+                print(f"Position List: Max repay: {max_repay}, Expected yield: {expected_yield}\n")
 
                 #TODO: add filter to exclude small size positions
 
                 profitable = check_if_liquidation_profitable(pos.vault.vault_address, pos.borrower_address, pos.vault.underlying_asset_address, self.vault_list.get_vault(pos.collateral_asset_address).underlying_asset_address, max_repay, expected_yield)
 
                 if profitable:
-                    print(f"Position in vault {pos.vault.vault_address} is profitable to liquidate.")
-                    print(f"Borrower: {pos.borrower_address}")
-                    print(f"Max repay: {max_repay}, Expected yield: {expected_yield}")
-                    if id not in self.profitable_liquidations_queue:
-                        self.profitable_liquidations_queue.append(id)
+                    print(f"Position List: Position in vault {pos.vault.vault_address} is profitable to liquidate.")
+                    print(f"Position List: Borrower: {pos.borrower_address}")
+                    print(f"Position List: Max repay: {max_repay}, Expected yield: {expected_yield}\n")
+                    self.profitable_liquidations_queue.append(id)
     
     # Update medium risk positions
     # These are positions with a health score <= 1.15 that have potential to move to high risk
@@ -124,4 +122,5 @@ class PositionList:
         return self.all_positions[position_id]
     
     def pop_profitable_liquidation(self):
-        return self.profitable_liquidations_queue.pop(0)
+        id = self.profitable_liquidations_queue.pop(0)
+        return self.all_positions[id]

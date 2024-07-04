@@ -66,19 +66,19 @@ def get_1inch_quote(asset_in: str, asset_out: str, amount_in: int):
         "amount": amount_in
     }
 
-    print(f"Requesting 1inch quote for {amount_in} {asset_in} to {asset_out}")
+    print(f"Profit Calculator: Requesting 1inch quote for {amount_in} {asset_in} to {asset_out}\n")
 
     response = requests.get(apiUrl, headers=headers, params=params)
 
     if response.status_code == 200:
         try:
             response_json = response.json()
-            print("1inch response: ", response_json)
+            print("Profit Calculator: 1inch response: ", response_json, "\n")
             return int(response_json['dstAmount'])
         except ValueError as e:
-            print(f"Error decoding JSON: {e}")
+            print(f"Profit Calculator: Error decoding JSON: {e}\n")
             return None
     else:
-        print(f"API request failed with status code {response.status_code}: {response.text}")
+        print(f"Profit Calculator: API request failed with status code {response.status_code}: {response.text}\n")
         return None
 
