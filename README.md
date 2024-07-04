@@ -13,6 +13,15 @@ forge build
 cd ..
 ```
 
+### TODO:
+- Add slack/discord webhook
+- Smarter oracle checking - pull based, pricing
+- Handle flow on vaults + swapper side - deposit and repay
+- Generating 1inch payloads
+- Fallback to Uniswap if no quote
+- Filter for smaller/non profitable positions
+- Handle multiple collaterals
+- Set up liquidation script as flask API
 
 ### Configuration
 
