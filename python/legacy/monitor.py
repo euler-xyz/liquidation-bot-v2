@@ -5,9 +5,9 @@ import threading
 
 from web3 import Web3
 
-from monitor.position_list import PositionList
-from monitor.vault_list import VaultList
-from monitor.evc import EVC
+from python.legacy.position_list import PositionList
+from python.legacy.vault_list import VaultList
+from python.legacy.evc import EVC
 
 
 class Monitor:

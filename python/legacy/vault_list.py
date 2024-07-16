@@ -5,7 +5,7 @@ from web3 import Web3
 import os
 import json
 
-from monitor.vault import Vault
+from python.legacy.vault import Vault
 
 class VaultList:
 

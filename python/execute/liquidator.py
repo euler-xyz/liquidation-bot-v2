@@ -6,8 +6,8 @@ import os
 import json
 import threading
 
-from monitor.monitor import Monitor
-from monitor.position import Position
+from python.legacy.monitor import Monitor
+from python.legacy.position import Position
 
 class Liquidator:
     def __init__(self, liquidator_contract_address: str, monitor_instance: Monitor, run_with_monitor: bool = False):

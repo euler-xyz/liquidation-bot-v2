@@ -6,10 +6,10 @@ from web3 import Web3
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from monitor.vault import Vault
-from monitor.token import Token
-from monitor.evc import EVC
-from monitor.mock_oracle import MockOracle
+from python.legacy.vault import Vault
+from python.legacy.token_test import Token
+from python.legacy.evc import EVC
+from python.legacy.mock_oracle import MockOracle
 
 def test_basic_deposit_liquidation_scenario():
     load_dotenv()

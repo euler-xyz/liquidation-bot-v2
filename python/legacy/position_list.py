@@ -5,12 +5,12 @@ from web3 import Web3
 import os
 import json
 
-from monitor.position import Position
+from python.legacy.position import Position
 
-from monitor.profitability_calculator import *
-from monitor.vault_list import VaultList
+from python.legacy.profitability_calculator import *
+from python.legacy.vault_list import VaultList
 
-from monitor.evc import EVC
+from python.legacy.evc import EVC
 
 class PositionList:
     def __init__(self, vault_list: VaultList, evc: EVC):
