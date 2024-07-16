@@ -7,17 +7,21 @@ import queue
 import logging
 import os
 import json
+import requests
+
+import numpy as np
 
 from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
 
+### ENVIRONMENT SETUP + CONSTANTS ###
 load_dotenv()
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 console_handler = logging.StreamHandler()
-file_handler = logging.FileHandler('account_monitor_logs.log', mode='w')
+file_handler = logging.FileHandler('logs/account_monitor_logs.log', mode='w')
 
 formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 console_handler.setFormatter(formatter)
@@ -28,47 +32,104 @@ logger.addHandler(file_handler)
 
 w3 = Web3(Web3.HTTPProvider(os.getenv('RPC_URL')))
 
+HS_LOWER_BOUND = 1.05 # Below this threshold check for liquidation with frequency min_update_interval
+HS_UPPER_BOUND = 3 # Above this threshold check for liquidation with frequency max_update_interval
+MIN_UPDATE_INTERVAL = 30 # 30 seconds
+MAX_UPDATE_INTERVAL = 30 * 60 # 30 minutes
+
+SAVE_INTERVAL = 30 * 60 # 30 minutes
+
+BATCH_SIZE = 1000
+
+API_KEY_1INCH = os.getenv('1INCH_API_KEY')
+SWAP_DELTA = 10 ** 6
+
+WETH_ADDRESS = os.getenv('WETH_ADDRESS')
+
+### MAIN CODE ###
+
+class Vault:
+    def __init__(self, address):
+        self.address = address
+        EVAULT_ABI_PATH = 'lib/evk-periphery/out/EVault.sol/EVault.json'
+
+        with open(EVAULT_ABI_PATH, 'r') as file:
+            vault_interface = json.load(file)
+
+        vault_abi = vault_interface['abi']
+
+        self.instance = w3.eth.contract(address=address, abi=vault_abi)
+
+        self.underlying_asset_address = self.instance.functions.asset().call()
+
+    def get_account_liquidity(self, account_address):
+        (collateral_value, liability_value) = self.instance.functions.accountLiquidity(Web3.to_checksum_address(account_address), False).call()
+
+        return (collateral_value, liability_value)
+    
+    def check_liquidation(self, borower_address, collateral_address, liquidator_address):
+        (max_repay, expected_yield) = self.instance.functions.checkLiquidation(Web3.to_checksum_address(liquidator_address), Web3.to_checksum_address(borower_address), Web3.to_checksum_address(collateral_address)).call()
+        return (max_repay, expected_yield)
+
 class Account:
-    def __init__(self, address, controller):
+    def __init__(self, address, controller: Vault):
         self.address = address
         self.controller = controller
-        self.time_of_last_update = time.time()
         self.time_of_next_update = time.time()
         self.current_health_score = 1
 
     """
     Check account liquidity and set when the next update should be
     """
-    def check_liquidity(self):
-        if time.time() < self.time_of_next_update:
-            # If we are here, that means the account has had a status check event prior to the scheduled update
-            # Need to determine what to do
-            pass
-
-        health_score = self.get_health_score()
+    def update_liquidity(self):
+        self.get_health_score()
         self.get_time_of_next_update()
         
-        return health_score
+        return self.current_health_score
     
     """
     Calculate the health score of this account
     """
     def get_health_score(self):
-        self.current_health_score = random.random() + .5
+        # self.current_health_score = random.random() + .5 # Placeholder for now
+
+        collateral_value, liability_value = self.controller.get_account_liquidity(self.address)
+        self.current_health_score = collateral_value / liability_value
+
         logger.info(f"Account: Account {self.address} health score: {self.current_health_score}")
         return self.current_health_score
     
+    """
+    Calculate the time of the next update for this account as a function of health score
+    """
     def get_time_of_next_update(self):
-        self.time_of_next_update = self.current_health_score * 10 + time.time()
+        # self.time_of_next_update = self.current_health_score * 10 + time.time() # Placeholder for now
+        time_gap = 0
+
+        # Simple linear interpolation between min and max update intervals
+        # TODO: make this smarter
+        if self.current_health_score < HS_LOWER_BOUND:
+            time_gap = MIN_UPDATE_INTERVAL
+        elif self.current_health_score > HS_UPPER_BOUND:
+            time_gap = MAX_UPDATE_INTERVAL
+        else:
+            slope = (MAX_UPDATE_INTERVAL - MIN_UPDATE_INTERVAL) / (HS_UPPER_BOUND - HS_LOWER_BOUND)
+            intercept = MIN_UPDATE_INTERVAL - slope * HS_LOWER_BOUND
+            time_gap = slope * self.current_health_score + intercept
+        
+        random_adjustment = random.random() / 5 + .9
+        self.time_of_next_update = time.time() + time_gap * random_adjustment # Randomly adjust the time by +/- 10% to avoid syncronized checks across accounts/deployments
 
         logger.info(f"Account: Account {self.address} next update scheduled for {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update))}")
         return self.time_of_next_update
 
     """
-    Simulate liquidation of this account to determine if it is profitable to liquidate
+    Simulate liquidation of this account to determine if it is profitable to liquidate.
+    Returns True if profitable
     """
     def simulate_liquidation(self):
-        pass
+        result = Liquidation.simulate_liquidation(self.controller, self.address)
+        return result
 
     """
     Convert to dict, used for saving state
@@ -77,7 +138,6 @@ class Account:
         return {
             "address": self.address,
             "controller": self.controller,
-            "time_of_last_update": self.time_of_last_update,
             "time_of_next_update": self.time_of_next_update,
             "current_health_score": self.current_health_score
         }
@@ -85,27 +145,30 @@ class Account:
     @staticmethod
     def from_dict(data):
         account = Account(address=data["address"], controller=data["controller"])
-        account.time_of_last_update = data["time_of_last_update"]
         account.time_of_next_update = data["time_of_next_update"]
         account.current_health_score = data["current_health_score"]
 
         return account
+    
 
 class AccountMonitor:
-    def __init__(self, save_interval = 30, save_path = "account_monitor_state.json"):
+    def __init__(self, save_path = "account_monitor_state.json", notify_discord = False, execute_liquidation = False):
         self.accounts = {}
+        self.vaults = {}
         self.update_queue = queue.PriorityQueue()
         self.condition = threading.Condition()
         self.executor = ThreadPoolExecutor(max_workers=32)
         self.running = True
-        self.save_interval = save_interval
         self.save_path = save_path
         self.latest_block = 0
         self.last_saved_block = 0
+        self.notify_discord = notify_discord
+        self.execute_liquidation = execute_liquidation
 
     def start_queue_monitoring(self):
         save_thread = threading.Thread(target=self.periodic_save)
         save_thread.start()
+        logger.info("AccountMonitor: Save thread started.")
 
         while self.running:
             with self.condition:
@@ -124,8 +187,14 @@ class AccountMonitor:
                 self.executor.submit(self.update_account_liquidity, address)
             
 
-    def update_account_on_status_check_event(self, address, vault):
-        if address not in self.accounts or self.accounts[address].controller != vault: # If the account is not in the list or the controller has changed
+    def update_account_on_status_check_event(self, address, vault_address):
+        if vault_address not in self.vaults: # If the vault is not already tracked in the list, create it
+            self.vaults[vault_address] = Vault(vault_address)
+            logger.info(f"AccountMonitor: Vault {vault_address} added to vault list.")
+        
+        vault = self.vaults[vault_address]
+
+        if address not in self.accounts or self.accounts[address].controller.address != vault_address: # If the account is not in the list or the controller has changed
             account = Account(address, vault)
             self.accounts[address] = account
 
@@ -135,7 +204,7 @@ class AccountMonitor:
         
         account = self.accounts[address]
 
-        account.check_liquidity()
+        account.update_liquidity()
 
         next_update_time = account.time_of_next_update
 
@@ -150,11 +219,26 @@ class AccountMonitor:
 
             logger.info(f"AccountMonitor: Updating account {address} liquidity.")
             
-            health_score = account.check_liquidity()
+            health_score = account.update_liquidity()
 
             if(health_score < 1):
                 logger.info(f"AccountMonitor: Account {address} is unhealthy, checking liquidation profitability.")
-                account.simulate_liquidation()
+                (result, liquidation_tx, remaining_seized_collateral, profit_in_eth) = account.simulate_liquidation()
+
+                if result:
+                    if self.notify_discord:
+                        # Notify discord
+                        # TODO: implement
+                        pass
+                    
+                    if self.execute_liquidation:
+                        # Execute liquidation
+                        # TODO: implement
+                        Liquidation.execute_liquidation(liquidation_tx)
+                        logger.info(f"AccountMonitor: Account {address} liquidated.")
+                else:
+                    logger.info(f"AccountMonitor: Account {address} is unhealthy but not profitable to liquidate.")
+                    # TODO: add some filter for small account/repeatedly seen accounts to avoid spam
                 
             next_update_time = self.accounts[address].time_of_next_update
 
@@ -172,6 +256,7 @@ class AccountMonitor:
     def save_state(self, local_save: bool = True):
         state = {
             'accounts': {address: account.to_dict() for address, account in self.accounts.items()},
+            'vaults': {address: vault.address for address, vault in self.vaults.items()},
             'queue': list(self.update_queue.queue),
             'last_saved_block': self.latest_block,
         }
@@ -196,6 +281,7 @@ class AccountMonitor:
             with open(save_path, 'r') as f:
                 state = json.load(f)
             self.accounts = {address: Account.from_dict(data) for address, data in state['accounts'].items()}
+            self.vaults = {address: Vault(address) for address in state['vaults'].values()}
             
             for item in state['queue']:
                 self.update_queue.put(tuple(item))
@@ -215,7 +301,7 @@ class AccountMonitor:
     """
     def periodic_save(self):
         while self.running:
-            time.sleep(self.save_interval)
+            time.sleep(SAVE_INTERVAL)
             self.save_state()
 
     """
@@ -278,7 +364,7 @@ class EVCListener:
 
         current_block = w3.eth.block_number
 
-        batch_block_size = 1000 # 1000 blocks per batch, need to decide if this is the right size
+        batch_block_size = BATCH_SIZE # 1000 blocks per batch, need to decide if this is the right size
 
         logger.info(f"EVCListener: Starting batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
 
@@ -293,19 +379,167 @@ class EVCListener:
         
         logger.info(f"EVCListener: Finished batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
 
+
+class Liquidation:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def simulate_liquidation(vault: Vault, violator_address: str, include_swap_to_eth: bool = False):
+        EVC_ABI_PATH = 'lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json'
+        EVC_ADDRESS = os.getenv('EVC_ADDRESS')
+
+        with open(EVC_ABI_PATH, 'r') as file:
+            evc_interface = json.load(file)
+        evc_abi = evc_interface['abi']
+        evc_instance = w3.eth.contract(address=EVC_ADDRESS, abi=evc_abi)
+
+        collateral_list = evc_instance.functions.getCollaterals(violator_address).call()
+        remaining_collateral_after_repay = {}
+
+        dust_liability_asset = 0
+        profit_in_eth = 0
+
+        tx_list = []
+        master_tx = None
+
+        profitable = False
+
+        for collateral in collateral_list:
+            (max_repay, expected_yield) = vault.check_liquidation(violator_address, collateral, os.getenv('LIQUIDATOR_PUBLIC_KEY'))
+            
+            if max_repay == 0 or expected_yield == 0:
+                continue
+            
+            #TODO: fallback to Uniswap (?) if 1inch fails
+            (swap_amount, swap_output, swap_data) = Liquidation.get_1inch_quote(collateral, vault.underlying_asset_address, expected_yield, max_repay)
+
+            dust_liability_asset += swap_output - max_repay # track dust liability due to overswapping
+
+            remaining_collateral_after_repay[collateral] = expected_yield - swap_amount # track remaining collateral after repay
+            
+            (swap_amount, swap_output, ) = Liquidation.get_1inch_quote(collateral, WETH_ADDRESS, amount, 0, True) # convert leftover asset to ETH
+            profit_in_eth += swap_output
+
+
+            # TODO: build transaction to liquidate and append
+
+        
+        if(include_swap_to_eth):
+            for(collateral, amount) in remaining_collateral_after_repay.items():
+                #TODO: add swap to ETH and include relevant gas cost
+                pass
+        
+        return (profitable, master_tx, remaining_collateral_after_repay, profit_in_eth)
+
+    """
+    Given a base asset and target asset, get a quote from 1INCH.
+    If target_amount_out == 0, it is treated as an exact in swap.
+
+    Returns swap in amount, swap out amount, and swap data needed to call 1INCH router in the swapper contract.
+    """
+    @staticmethod
+    def get_1inch_quote(asset_in: str, asset_out: str, amount_asset_in: int, target_amount_out: int):
+        api_url = "https://api.1inch.dev/swap/v6.0/1/quote"
+        headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
+        params = {
+            "src": asset_in,
+            "dst": asset_out,
+            "amount": amount_asset_in
+        }
+
+        min = 0
+        max = amount_asset_in
+
+        delta = SWAP_DELTA
+        
+        amount_out = 0 #declare so we can access outside loop
+
+        if target_amount_out == 0: # special case exact in swap, don't need to do binary search
+            try:
+                response = requests.get(api_url, headers=headers, params=params)
+
+                if response.status_code != 200:
+                    raise Exception(f"1inch API returned status code {response.status_code}")
+                
+            except Exception as e:
+                #TODO: retry on failure
+                logger.error(f"Error getting 1inch quote: {e}")
+                return (0, 0, None)
+
+            amount_out = int(response.json()["dstAmount"])
+        else:
+            while True:
+                swap_amount = int((min + max) / 2)
+                
+                params["amount"] = swap_amount
+
+                try:
+                    response = requests.get(api_url, headers=headers, params=params)
+
+                    if response.status_code != 200:
+                        raise Exception(f"1inch API returned status code {response.status_code}")
+                    
+                except Exception as e:
+                    logger.error(f"Error getting 1inch quote: {e}")
+                    time.sleep(1)
+                    continue
+
+                logger.info(f"Liquidation: 1inch quote for {swap_amount} {asset_in} to {asset_out}: {response.json()}")
+
+                amount_out = int(response.json()["dstAmount"])
+
+                if abs(amount_out - target_amount_out) < delta and amount_out > target_amount_out:
+                    break
+                elif amount_out < target_amount_out:
+                    min = swap_amount
+                elif amount_out > target_amount_out:
+                    max = swap_amount
+
+                time.sleep(1) # need to rate limit until getting enterprise account key
+
+        # TODO: properly generate path
+        swap_data = None 
+
+        return (params['amount'], amount_out, swap_data)
+
+
+
+
+    """
+    Execute the liquidation of an account using the transaction returned from simulate_liquidation
+    TODO: implement
+    """
+    @staticmethod
+    def execute_liquidation(liquidation_transaction):
+        pass
+
+
+
+
 if __name__ == "__main__":
-    monitor = AccountMonitor()
+    # monitor = AccountMonitor()
     
-    monitor.load_state("account_monitor_state.json")
+    # monitor.load_state("state/account_monitor_state.json")
 
-    time.sleep(5)
-    threading.Thread(target=monitor.start_queue_monitoring).start()
-    time.sleep(5)
-    monitor.update_account_on_status_check_event("0x123", "vault1")
-    time.sleep(5)
-    monitor.update_account_on_status_check_event("0x456", "vault2")
-    time.sleep(5)
-    monitor.update_account_on_status_check_event("0x789", "vault3")
+    # time.sleep(5)
+    # threading.Thread(target=monitor.start_queue_monitoring).start()
+    # time.sleep(5)
+    # monitor.update_account_on_status_check_event("0x123", "vault1")
+    # time.sleep(5)
+    # monitor.update_account_on_status_check_event("0x456", "vault2")
+    # time.sleep(5)
+    # monitor.update_account_on_status_check_event("0x789", "vault3")
 
-    while True:
-        time.sleep(1)
+    # while True:
+    #     time.sleep(1)
+
+    liquidator = Liquidation()
+
+    usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+
+    amount_usdc_in = 100000000
+    target_usdc_out = 70000000
+
+    print(liquidator.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdc_out))
