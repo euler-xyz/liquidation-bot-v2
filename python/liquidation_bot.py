@@ -7,6 +7,7 @@ import queue
 import os
 import json
 import requests
+import yaml
 
 import numpy as np
 
@@ -15,35 +16,41 @@ from web3 import Web3
 
 from utils import setup_logger, setup_w3
 
-### ENVIRONMENT SETUP, PARAMETERS, CONSTANTS ###
+### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
-
-LOGS_PATH = 'logs/account_monitor_logs.log'
-SAVE_STATE_PATH = "state/account_monitor_state.json"
 API_KEY_1INCH = os.getenv('1INCH_API_KEY')
-WETH_ADDRESS = os.getenv('WETH_ADDRESS')
 
+with open('config.yaml') as config_file:
+    config = yaml.safe_load(config_file)
 
-HS_LOWER_BOUND = 1.05 # Below this threshold check for liquidation with frequency min_update_interval
-HS_UPPER_BOUND = 3 # Above this threshold check for liquidation with frequency max_update_interval
-MIN_UPDATE_INTERVAL = 30 # 30 seconds
-MAX_UPDATE_INTERVAL = 30 * 60 # 30 minutes
-
-SAVE_INTERVAL = 30 * 60 # 30 minutes
-
-BATCH_SIZE = 1000 # Batch size to scan blocks for logs on startup
-
-SWAP_DELTA = 10 ** 6 # Amount of overswap we're comfortable with
-
+LOGS_PATH = config.get('LOGS_PATH')
+SAVE_STATE_PATH = config.get('SAVE_STATE_PATH')
+SAVE_INTERVAL = config.get('SAVE_INTERVAL')
+HS_LOWER_BOUND = config.get('HS_LOWER_BOUND')
+HS_UPPER_BOUND = config.get('HS_UPPER_BOUND')
+MIN_UPDATE_INTERVAL = config.get('MIN_UPDATE_INTERVAL')
+MAX_UPDATE_INTERVAL = config.get('MAX_UPDATE_INTERVAL')
+BATCH_SIZE = config.get('BATCH_SIZE')
+NUM_RETRIES = config.get('NUM_RETRIES')
+RETRY_DELAY = config.get('RETRY_DELAY')
+SWAP_DELTA = config.get('SWAP_DELTA')
+WETH_ADDRESS = config.get('WETH_ADDRESS')
+EVC_ADDRESS = config.get('EVC_ADDRESS')
+SWAPPER_ADDRESS = config.get('SWAPPER_ADDRESS')
+SWAP_VERIFIER_ADDRESS = config.get('SWAP_VERIFIER_ADDRESS')
+LIQUIDATOR_CONTRACT_ADDRESS = config.get('LIQUIDATOR_CONTRACT_ADDRESS')
+EVAULT_ABI_PATH = config.get('EVAULT_ABI_PATH')
+EVC_ABI_PATH = config.get('EVC_ABI_PATH')
 
 logger = setup_logger(LOGS_PATH)
 w3 = setup_w3()
+
+
 ### MAIN CODE ###
 
 class Vault:
     def __init__(self, address):
         self.address = address
-        EVAULT_ABI_PATH = 'lib/evk-periphery/out/EVault.sol/EVault.json'
 
         with open(EVAULT_ABI_PATH, 'r') as file:
             vault_interface = json.load(file)
@@ -311,9 +318,6 @@ class AccountMonitor:
 
 class EVCListener:
     def __init__(self, account_monitor: AccountMonitor):
-        EVC_ABI_PATH = 'lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json'
-        EVC_ADDRESS = os.getenv('EVC_ADDRESS')
-
         self.account_monitor = account_monitor
 
         with open(EVC_ABI_PATH, 'r') as file:
@@ -433,59 +437,57 @@ class Liquidation:
     def get_1inch_quote(asset_in: str, asset_out: str, amount_asset_in: int, target_amount_out: int):
         api_url = "https://api.1inch.dev/swap/v6.0/1/quote"
         headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
+
+        def get_quote(params):
+            for attempt in range(1, NUM_RETRIES + 1):
+                try:
+                    response = requests.get(api_url, headers=headers, params=params)
+                    response.raise_for_status()
+                    return int(response.json()["dstAmount"])
+                except requests.RequestException as e:
+                    logger.error(f"Liquidation: Error getting 1inch quote, waiting {RETRY_DELAY} seconds before retrying. Retry attempt number: {attempt}")
+                    time.sleep(RETRY_DELAY)
+            
+            return None
+
         params = {
             "src": asset_in,
             "dst": asset_out,
             "amount": amount_asset_in
         }
 
-        min = 0
-        max = amount_asset_in
-
-        delta = SWAP_DELTA
-        
-        amount_out = 0 #declare so we can access outside loop
+        amount_out = 0 #declare so we can access outside loops
 
         if target_amount_out == 0: # special case exact in swap, don't need to do binary search
-            try:
-                response = requests.get(api_url, headers=headers, params=params)
-
-                if response.status_code != 200:
-                    raise Exception(f"1inch API returned status code {response.status_code}")
-                
-            except Exception as e:
-                #TODO: retry on failure
-                logger.error(f"Error getting 1inch quote: {e}")
+            amount_out = get_quote(params)
+            if amount_out is None:
+                logger.error(f"Liquidation: Failed to get 1inch quote after {NUM_RETRIES} retries.")
                 return (0, 0, None)
 
-            amount_out = int(response.json()["dstAmount"])
         else:
+            min_amount_in = 0
+            max_amount_in = amount_asset_in
+            delta = SWAP_DELTA
+            
             while True:
-                swap_amount = int((min + max) / 2)
-                
+                swap_amount = int((min_amount_in + max_amount_in) / 2)
                 params["amount"] = swap_amount
 
-                try:
-                    response = requests.get(api_url, headers=headers, params=params)
+                amount_out = get_quote(params)
 
-                    if response.status_code != 200:
-                        raise Exception(f"1inch API returned status code {response.status_code}")
-                    
-                except Exception as e:
-                    logger.error(f"Error getting 1inch quote: {e}")
-                    time.sleep(1)
-                    continue
+                if amount_out is None:
+                    logger.error(f"Liquidation: Failed to get 1inch quote after {NUM_RETRIES} retries.")
+                    return (0, 0, None)
 
-                logger.info(f"Liquidation: 1inch quote for {swap_amount} {asset_in} to {asset_out}: {response.json()}")
 
-                amount_out = int(response.json()["dstAmount"])
+                logger.info(f"Liquidation: 1inch quote for {swap_amount} {asset_in} to {asset_out}: {amount_out}")
 
                 if abs(amount_out - target_amount_out) < delta and amount_out > target_amount_out:
                     break
                 elif amount_out < target_amount_out:
-                    min = swap_amount
+                    min_amount_in = swap_amount
                 elif amount_out > target_amount_out:
-                    max = swap_amount
+                    max_amount_in = swap_amount
 
                 time.sleep(1) # need to rate limit until getting enterprise account key
 

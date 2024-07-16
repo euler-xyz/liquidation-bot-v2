@@ -1,0 +1,40 @@
+# Path to save location for logs
+LOGS_PATH: "logs/account_monitor_logs.log"
+
+# Path to save location for state
+SAVE_STATE_PATH: "state/account_monitor_logs.json"
+
+# Path to save location for state (in seconds)
+SAVE_INTERVAL: 1800 # 30 minutes
+
+# Health score bounds for min/max update interval frequency
+HS_LOWER_BOUND: 1.05
+HS_UPPER_BOUND: 3
+
+# Update interval frequency (in seconds)
+MIN_UPDATE_INTERVAL: 30
+MAX_UPDATE_INTERVAL: 1800 # 30 minutes
+
+# Bath size for scanning blocks on startup
+BATCH_SIZE: 1000
+
+# Settings for 1INCH Quoting
+NUM_RETRIES: 3
+RETRY_DELAY: 10
+
+# Acceptable amound of overswapping of collateral for 1INCH binary search
+SWAP_DELTA: 100000
+
+# EVC Deployment Block
+EVC_DEPLOYMENT_BLOCK: 20228739
+
+# Addresses of relevant contracts
+WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+EVC: "0x49AeF2C4005Bf572665b09014A563B5b9E46Df21"
+SWAPPER: "0xf4e55515952BdAb2aeB4010f777E802D61eB384f"
+SWAP_VERIFIER: "0xe519389F8c262d4301Fd2830196FB7D0021daf59"
+LIQUIDATOR_CONTRACT: "0x656eef60fFA6c3b984E199d29443b885c51A6200"
+
+# Compiled contract paths
+EVAULT_ABI_PATH: "lib/evk-periphery/out/EVault.sol/EVault.json"
+EVC_ABI_PATH: "lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json"
