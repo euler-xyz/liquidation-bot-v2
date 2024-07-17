@@ -126,7 +126,7 @@ class Account:
     Returns True if profitable
     """
     def simulate_liquidation(self):
-        result = Liquidation.simulate_liquidation(self.controller, self.address)
+        result = Liquidator.simulate_liquidation(self.controller, self.address)
         return result
 
     """
@@ -247,7 +247,7 @@ class AccountMonitor:
                         
                         if self.execute_liquidation:
                             try:
-                                Liquidation.execute_liquidation(liquidation_tx)
+                                Liquidator.execute_liquidation(liquidation_tx)
                                 logger.info(f"AccountMonitor: Account {address} liquidated.")
                             except Exception as e:
                                 logger.error(f"AccountMonitor: Failed to execute liquidation for account {address}: {e}")
@@ -421,7 +421,7 @@ class SmartUpdateListener:
     def trigger_manual_update(self, account):
         self.account_monitor.update_account(account)
 
-class Liquidation:
+class Liquidator:
     def __init__(self):
         pass
 
@@ -457,7 +457,6 @@ class Liquidation:
             swap_data_1inch = Quoter.get_1inch_swap_data(collateral_asset, borrowed_asset, swap_amount)
 
             dust_liability_asset += swap_output - max_repay # track dust liability due to overswapping
-
             leftover_collateral = seized_collateral - swap_amount
             remaining_collateral_after_repay[collateral] = leftover_collateral # track remaining collateral after repay
             
@@ -468,7 +467,7 @@ class Liquidation:
                 violator_address,
                 vault.address,
                 borrowed_asset,
-                collateral, #this should be the collateral vault address
+                collateral,
                 collateral_asset,
                 max_repay,
                 seized_collateral,
@@ -510,7 +509,23 @@ class Liquidation:
     """
     @staticmethod
     def execute_liquidation(liquidation_transaction):
-        pass
+        try:
+            logger.info(f"Liquidator: Executing liquidation transaction {liquidation_transaction}...")
+            signed_tx = w3.eth.account.sign_transaction(liquidation_transaction, LIQUIDATOR_EOA_PRIVATE_KEY)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+            liquidator_contract = create_contract_instance(LIQUIDATOR_CONTRACT_ADDRESS, LIQUIDATOR_ABI_PATH)
+
+            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt)
+
+            logger.info(f"Liquidator: Liquidation details:")
+            for event in result:
+                logger.info(f"Liquidator: {event['args']}")
+
+            logger.info(f"Liquidator: Liquidation transaction executed successfully.")
+        except Exception as e:
+            logger.error(f"Liquidator: Unexpected error in execute_liquidation {e}")
 
 class Quoter:
     def __init__(self):
@@ -630,7 +645,7 @@ if __name__ == "__main__":
         # while True:
         #     time.sleep(1)
 
-        liquidator = Liquidation()
+        liquidator = Liquidator()
         quoter = Quoter()
 
         usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
