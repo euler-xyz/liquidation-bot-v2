@@ -12,7 +12,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
 
-from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler
+from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, config
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -20,32 +20,7 @@ API_KEY_1INCH = os.getenv('1INCH_API_KEY')
 LIQUIDATOR_EOA_PUBLIC_KEY = os.getenv('LIQUIDATOR_EOA_PUBLIC_KEY')
 LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv('LIQUIDATOR_EOA_PRIVATE_KEY')
 
-with open('config.yaml') as config_file:
-    config = yaml.safe_load(config_file)
-
-LOGS_PATH = config.get('LOGS_PATH')
-SAVE_STATE_PATH = config.get('SAVE_STATE_PATH')
-SAVE_INTERVAL = config.get('SAVE_INTERVAL')
-HS_LOWER_BOUND = config.get('HS_LOWER_BOUND')
-HS_UPPER_BOUND = config.get('HS_UPPER_BOUND')
-MIN_UPDATE_INTERVAL = config.get('MIN_UPDATE_INTERVAL')
-MAX_UPDATE_INTERVAL = config.get('MAX_UPDATE_INTERVAL')
-BATCH_SIZE = config.get('BATCH_SIZE')
-SWAP_DELTA = config.get('SWAP_DELTA')
-WETH_ADDRESS = config.get('WETH_ADDRESS')
-EVC_ADDRESS = config.get('EVC_ADDRESS')
-SWAPPER_ADDRESS = config.get('SWAPPER_ADDRESS')
-SWAP_VERIFIER_ADDRESS = config.get('SWAP_VERIFIER_ADDRESS')
-LIQUIDATOR_CONTRACT_ADDRESS = config.get('LIQUIDATOR_CONTRACT_ADDRESS')
-EVAULT_ABI_PATH = config.get('EVAULT_ABI_PATH')
-EVC_ABI_PATH = config.get('EVC_ABI_PATH')
-LIQUIDATOR_ABI_PATH = config.get('LIQUIDATOR_ABI_PATH')
-MAX_SEARCH_ITERATIONS = config.get('MAX_SEARCH_ITERATIONS')
-NUM_RETRIES = config.get('NUM_RETRIES')
-RETRY_DELAY = config.get('RETRY_DELAY')
-CHAIN_ID = config.get('CHAIN_ID')
-
-logger = setup_logger(LOGS_PATH)
+logger = setup_logger(config.LOGS_PATH)
 w3 = setup_w3()
 sys.excepthook = global_exception_handler
 
@@ -56,7 +31,7 @@ class Vault:
     def __init__(self, address):
         self.address = address
 
-        self.instance = create_contract_instance(address, EVAULT_ABI_PATH)
+        self.instance = create_contract_instance(address, config.EVAULT_ABI_PATH)
 
         self.underlying_asset_address = self.instance.functions.asset().call()
 
@@ -106,13 +81,13 @@ class Account:
 
         # Simple linear interpolation between min and max update intervals
         # TODO: make this smarter
-        if self.current_health_score < HS_LOWER_BOUND:
-            time_gap = MIN_UPDATE_INTERVAL
-        elif self.current_health_score > HS_UPPER_BOUND:
-            time_gap = MAX_UPDATE_INTERVAL
+        if self.current_health_score < config.HS_LOWER_BOUND:
+            time_gap = config.MIN_UPDATE_INTERVAL
+        elif self.current_health_score > config.HS_UPPER_BOUND:
+            time_gap = config.MAX_UPDATE_INTERVAL
         else:
-            slope = (MAX_UPDATE_INTERVAL - MIN_UPDATE_INTERVAL) / (HS_UPPER_BOUND - HS_LOWER_BOUND)
-            intercept = MIN_UPDATE_INTERVAL - slope * HS_LOWER_BOUND
+            slope = (config.MAX_UPDATE_INTERVAL - config.MIN_UPDATE_INTERVAL) / (config.HS_UPPER_BOUND - config.HS_LOWER_BOUND)
+            intercept = config.MIN_UPDATE_INTERVAL - slope * config.HS_LOWER_BOUND
             time_gap = slope * self.current_health_score + intercept
         
         random_adjustment = random.random() / 5 + .9
@@ -280,7 +255,7 @@ class AccountMonitor:
             }
             
             if local_save:
-                with open(SAVE_STATE_PATH, 'w') as f:
+                with open(config.SAVE_STATE_PATH, 'w') as f:
                     json.dump(state, f)
             else:
                 # Save to remote location
@@ -330,7 +305,7 @@ class AccountMonitor:
     """
     def periodic_save(self):
         while self.running:
-            time.sleep(SAVE_INTERVAL)
+            time.sleep(config.SAVE_INTERVAL)
             self.save_state()
 
     """
@@ -349,13 +324,14 @@ class EVCListener:
     def __init__(self, account_monitor: AccountMonitor):
         self.account_monitor = account_monitor
 
-        self.evc_instance = create_contract_instance(EVC_ADDRESS, EVC_ABI_PATH)
+        self.evc_instance = create_contract_instance(config.EVC_ADDRESS, config.EVC_ABI_PATH)
     
+    # TODO: Implement this
     def start_event_monitoring(self):
         while True:
             pass
     
-    def scan_block_range_for_account_status_check(self, start_block, end_block, max_retries = NUM_RETRIES):
+    def scan_block_range_for_account_status_check(self, start_block, end_block, max_retries = config.NUM_RETRIES):
         for attempt in range(max_retries):
             try:
                 logger.info(f"EVCListener: Scanning blocks {start_block} to {end_block} for AccountStatusCheck events.")
@@ -381,11 +357,11 @@ class EVCListener:
                 if attempt == max_retries - 1:
                     logger.error(f"EVCListener: Failed to scan block range {start_block} to {end_block} after {max_retries} attempts")
                 else:
-                    time.sleep(RETRY_DELAY) # cooldown between retries
+                    time.sleep(config.RETRY_DELAY) # cooldown between retries
 
     def batch_account_logs_on_startup(self):
         try:
-            start_block = int(os.getenv('EVC_GENESIS_BLOCK'))
+            start_block = int(config.EVC_DEPLOYMENT_BLOCK)
             
             # If the account monitor has a saved state, assume it has been loaded from that and start from the last saved block
             if self.account_monitor.last_saved_block > start_block:
@@ -394,7 +370,7 @@ class EVCListener:
 
             current_block = w3.eth.block_number
 
-            batch_block_size = BATCH_SIZE # 1000 blocks per batch, need to decide if this is the right size
+            batch_block_size = config.BATCH_SIZE # 1000 blocks per batch, need to decide if this is the right size
 
             logger.info(f"EVCListener: Starting batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
 
@@ -427,7 +403,7 @@ class Liquidator:
 
     @staticmethod
     def simulate_liquidation(vault: Vault, violator_address: str, include_swap_to_eth_tx: bool = False):
-        evc_instance = create_contract_instance(EVC_ADDRESS, EVC_ABI_PATH)
+        evc_instance = create_contract_instance(config.EVC_ADDRESS, config.EVC_ABI_PATH)
         
         #TODO: check how this handles multiple collaterals
         collateral_list = evc_instance.functions.getCollaterals(violator_address).call()
@@ -439,7 +415,7 @@ class Liquidator:
         params_list = []
         master_tx = None
 
-        liquidator_contract = create_contract_instance(LIQUIDATOR_CONTRACT_ADDRESS, LIQUIDATOR_ABI_PATH)
+        liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT_ADDRESS, config.LIQUIDATOR_ABI_PATH)
 
         borrowed_asset = vault.underlying_asset_address
 
@@ -460,7 +436,7 @@ class Liquidator:
             leftover_collateral = seized_collateral - swap_amount
             remaining_collateral_after_repay[collateral] = leftover_collateral # track remaining collateral after repay
             
-            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral_asset, WETH_ADDRESS, leftover_collateral, 0, True) # convert leftover asset to WETH
+            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral_asset, config.WETH_ADDRESS, leftover_collateral, 0, True) # convert leftover asset to WETH
             profit_in_eth += swap_output
 
             params = (
@@ -478,11 +454,11 @@ class Liquidator:
             params_list.append(params)
 
             liquidation_tx = liquidator_contract.functions.liquidate_multiple_collaterals(params_list).build_transaction({
-                'chainId': CHAIN_ID,
+                'chainId': config.CHAIN_ID,
                 'gasPrice': w3.eth.gas_price,
                 'from': LIQUIDATOR_EOA_PUBLIC_KEY,
                 'nonce': w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY),
-                'to': LIQUIDATOR_CONTRACT_ADDRESS
+                'to': config.LIQUIDATOR_CONTRACT_ADDRESS
             })
 
             estimated_gas = w3.eth.estimate_gas(liquidation_tx)
@@ -515,7 +491,7 @@ class Liquidator:
             tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 
-            liquidator_contract = create_contract_instance(LIQUIDATOR_CONTRACT_ADDRESS, LIQUIDATOR_ABI_PATH)
+            liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT_ADDRESS, config.LIQUIDATOR_ABI_PATH)
 
             result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt)
 
@@ -564,7 +540,7 @@ class Quoter:
             # Binary search to find the amount in that will result in the target amount out
             # Overswaps slightly to make sure we can always repay max_repay
             min_amount_in, max_amount_in = 0, amount_asset_in
-            delta = SWAP_DELTA
+            delta = config.SWAP_DELTA
             
             iteration_count = 0
 
@@ -572,7 +548,7 @@ class Quoter:
             
             amount_out = 0 #declare so we can access outside loops
 
-            while iteration_count < MAX_SEARCH_ITERATIONS:
+            while iteration_count < config.MAX_SEARCH_ITERATIONS:
                 swap_amount = int((min_amount_in + max_amount_in) / 2)
                 params["amount"] = swap_amount
                 amount_out = get_quote(params)
@@ -601,8 +577,8 @@ class Quoter:
                 iteration_count +=1
                 time.sleep(2) # need to rate limit until getting enterprise account key
             
-            if iteration_count == MAX_SEARCH_ITERATIONS:
-                logger.warning(f"Quoter: 1inch quote search for {asset_in} to {asset_out} did not converge after {MAX_SEARCH_ITERATIONS} iterations.")
+            if iteration_count == config.MAX_SEARCH_ITERATIONS:
+                logger.warning(f"Quoter: 1inch quote search for {asset_in} to {asset_out} did not converge after {config.MAX_SEARCH_ITERATIONS} iterations.")
                 if last_valid_amount_out > target_amount_out:
                     logger.info(f"Quoter: Using last valid quote: {last_valid_amount_in} {asset_in} to {last_valid_amount_out} {asset_out}")
                     return (last_valid_amount_in, last_valid_amount_out)
@@ -629,7 +605,6 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        # monitor = AccountMonitor()
         
         # monitor.load_state(SAVE_STATE_PATH)
 
@@ -645,15 +620,19 @@ if __name__ == "__main__":
         # while True:
         #     time.sleep(1)
 
+        monitor = AccountMonitor()
+        evc_listener = EVCListener(monitor)
+
+
         liquidator = Liquidator()
         quoter = Quoter()
 
-        usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-        usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+        # usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        # usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
 
-        amount_usdc_in = 100000000
-        target_usdc_out = 70000000
+        # amount_usdc_in = 100000000
+        # target_usdc_out = 70000000
 
-        print(quoter.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdc_out))
+        # print(quoter.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdc_out))
     except Exception as e:
         logger.critical(f"Uncaught exception: {e}")

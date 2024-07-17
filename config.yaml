@@ -42,4 +42,4 @@ EVC_ABI_PATH: "lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultCon
 LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
 
 # Chain ID
-CHAIN_ID: 41337
+CHAIN_ID: 42161

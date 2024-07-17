@@ -6,9 +6,20 @@ import requests
 import yaml
 import time
 
+from types import SimpleNamespace
+
 from web3 import Web3
 from dotenv import load_dotenv
 
+def load_config():
+    with open('config.yaml') as config_file:
+        config_dict = yaml.safe_load(config_file)
+
+    config = SimpleNamespace(**config_dict)
+
+    return config
+    
+config = load_config()
 def setup_logger(logs_path: str):
     logger = logging.getLogger("liquidation_bot")
     logger.setLevel(logging.DEBUG)
@@ -38,13 +49,7 @@ def create_contract_instance(address, abi_path):
 
     return w3.eth.contract(address=address, abi=abi)
 
-
-with open('config.yaml') as config_file:
-    config = yaml.safe_load(config_file)
-NUM_RETRIES = config.get('NUM_RETRIES')
-RETRY_DELAY = config.get('RETRY_DELAY')
-
-def retry_request(logger: logging.Logger, max_retries: int = NUM_RETRIES, delay: int = RETRY_DELAY):
+def retry_request(logger: logging.Logger, max_retries: int = config.NUM_RETRIES, delay: int = config.RETRY_DELAY):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -70,3 +75,4 @@ def make_api_request(url, headers, params):
 def global_exception_handler(exctype, value, traceback):
     logger = logging.getLogger("liquidation_bot")
     logger.error(f"Uncaught exception", exc_info=(exctype, value, traceback))
+
