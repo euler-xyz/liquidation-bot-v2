@@ -17,6 +17,8 @@ from utils import setup_logger, setup_w3, create_contract_instance, make_api_req
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
 API_KEY_1INCH = os.getenv('1INCH_API_KEY')
+LIQUIDATOR_EOA_PUBLIC_KEY = os.getenv('LIQUIDATOR_EOA_PUBLIC_KEY')
+LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv('LIQUIDATOR_EOA_PRIVATE_KEY')
 
 with open('config.yaml') as config_file:
     config = yaml.safe_load(config_file)
@@ -37,9 +39,11 @@ SWAP_VERIFIER_ADDRESS = config.get('SWAP_VERIFIER_ADDRESS')
 LIQUIDATOR_CONTRACT_ADDRESS = config.get('LIQUIDATOR_CONTRACT_ADDRESS')
 EVAULT_ABI_PATH = config.get('EVAULT_ABI_PATH')
 EVC_ABI_PATH = config.get('EVC_ABI_PATH')
+LIQUIDATOR_ABI_PATH = config.get('LIQUIDATOR_ABI_PATH')
 MAX_SEARCH_ITERATIONS = config.get('MAX_SEARCH_ITERATIONS')
 NUM_RETRIES = config.get('NUM_RETRIES')
 RETRY_DELAY = config.get('RETRY_DELAY')
+CHAIN_ID = config.get('CHAIN_ID')
 
 logger = setup_logger(LOGS_PATH)
 w3 = setup_w3()
@@ -62,8 +66,8 @@ class Vault:
         return (collateral_value, liability_value)
     
     def check_liquidation(self, borower_address, collateral_address, liquidator_address):
-        (max_repay, expected_yield) = self.instance.functions.checkLiquidation(Web3.to_checksum_address(liquidator_address), Web3.to_checksum_address(borower_address), Web3.to_checksum_address(collateral_address)).call()
-        return (max_repay, expected_yield)
+        (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(Web3.to_checksum_address(liquidator_address), Web3.to_checksum_address(borower_address), Web3.to_checksum_address(collateral_address)).call()
+        return (max_repay, seized_collateral)
 
 class Account:
     def __init__(self, address, controller: Vault):
@@ -422,48 +426,83 @@ class Liquidation:
         pass
 
     @staticmethod
-    def simulate_liquidation(vault: Vault, violator_address: str, include_swap_to_eth: bool = False):
+    def simulate_liquidation(vault: Vault, violator_address: str, include_swap_to_eth_tx: bool = False):
         evc_instance = create_contract_instance(EVC_ADDRESS, EVC_ABI_PATH)
-
+        
+        #TODO: check how this handles multiple collaterals
         collateral_list = evc_instance.functions.getCollaterals(violator_address).call()
         remaining_collateral_after_repay = {}
 
         dust_liability_asset = 0
         profit_in_eth = 0
 
-        tx_list = []
+        params_list = []
         master_tx = None
 
-        profitable = False
+        liquidator_contract = create_contract_instance(LIQUIDATOR_CONTRACT_ADDRESS, LIQUIDATOR_ABI_PATH)
+
+        borrowed_asset = vault.underlying_asset_address
 
         for collateral in collateral_list:
-            (max_repay, expected_yield) = vault.check_liquidation(violator_address, collateral, os.getenv('LIQUIDATOR_PUBLIC_KEY'))
+            collateral_vault = Vault(collateral) # TODO: smarter way to get vaults for collateral
+            collateral_asset = collateral_vault.underlying_asset_address
+
+            (max_repay, seized_collateral) = vault.check_liquidation(violator_address, collateral, os.getenv('LIQUIDATOR_PUBLIC_KEY'))
             
-            if max_repay == 0 or expected_yield == 0:
+            if max_repay == 0 or seized_collateral == 0:
                 continue
             
             #TODO: fallback to Uniswap (?) if 1inch fails
-            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral, vault.underlying_asset_address, expected_yield, max_repay)
-            swap_data = Quoter.get_1inch_swap_data(collateral, vault.underlying_asset_address, swap_amount)
+            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral_asset, borrowed_asset, seized_collateral, max_repay)
+            swap_data_1inch = Quoter.get_1inch_swap_data(collateral_asset, borrowed_asset, swap_amount)
 
             dust_liability_asset += swap_output - max_repay # track dust liability due to overswapping
 
-            remaining_collateral_after_repay[collateral] = expected_yield - swap_amount # track remaining collateral after repay
+            leftover_collateral = seized_collateral - swap_amount
+            remaining_collateral_after_repay[collateral] = leftover_collateral # track remaining collateral after repay
             
-            (swap_amount, swap_output, ) = Quoter.get_1inch_quote(collateral, WETH_ADDRESS, amount, 0, True) # convert leftover asset to ETH
+            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral_asset, WETH_ADDRESS, leftover_collateral, 0, True) # convert leftover asset to WETH
             profit_in_eth += swap_output
 
+            params = (
+                violator_address,
+                vault.address,
+                borrowed_asset,
+                collateral, #this should be the collateral vault address
+                collateral_asset,
+                max_repay,
+                seized_collateral,
+                leftover_collateral,
+                swap_data_1inch
+            )
 
-            # TODO: build transaction to liquidate and append
+            params_list.append(params)
 
-        
-        if(include_swap_to_eth):
-            for(collateral, amount) in remaining_collateral_after_repay.items():
-                #TODO: add swap to ETH and include relevant gas cost
+            liquidation_tx = liquidator_contract.functions.liquidate_multiple_collaterals(params_list).build_transaction({
+                'chainId': CHAIN_ID,
+                'gasPrice': w3.eth.gas_price,
+                'from': LIQUIDATOR_EOA_PUBLIC_KEY,
+                'nonce': w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY),
+                'to': LIQUIDATOR_CONTRACT_ADDRESS
+            })
+
+            estimated_gas = w3.eth.estimate_gas(liquidation_tx)
+
+            # TODO: decide on what conditon we want to keep adding collaterals to liquidate
+            # ie. do we want to maximize profit, do we want to maximize amount of debt liquidated, etc
+            if profit_in_eth - estimated_gas > 0:
+                master_tx = liquidation_tx   
+
+                if(include_swap_to_eth_tx):
+                    for(collateral, amount) in remaining_collateral_after_repay.items():
+                        #TODO: add swap to ETH and include relevant gas cost
+                        pass
+            else:
                 pass
-        
-        return (profitable, master_tx, remaining_collateral_after_repay, profit_in_eth)
-    
+        if(master_tx):
+            return (True, master_tx, remaining_collateral_after_repay, profit_in_eth)
+        else:
+            return (False, None, None, 0)
     
     """
     Execute the liquidation of an account using the transaction returned from simulate_liquidation

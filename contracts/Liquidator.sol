@@ -7,6 +7,7 @@ import {IEVC} from "./IEVC.sol";
 
 import {IERC4626} from "./IEVault.sol";
 import {IEVault} from "./IEVault.sol";
+import {IBorrowing} from "./IEVault.sol";
 import {ILiquidation} from "./IEVault.sol";
 
 contract Liquidator {
@@ -25,6 +26,7 @@ contract Liquidator {
     IEVC evc;
 
     error Unauthorized();
+    error LessThanExpectedCollateralReceived();
 
     constructor(
         address _swapperAddress,
@@ -44,58 +46,84 @@ contract Liquidator {
         require(msg.sender == owner, "Unauthorized");
         _;
     }
-
+    
     struct LiquidationParams {
-        address vaultAddress;
         address violatorAddress;
+        address vault;
         address borrowedAsset;
+        address collateralVault;
         address collateralAsset;
         uint256 repayAmount;
-        uint256 expectedCollateralAmount;
+        uint256 seizedCollateralAmount;
+        uint256 expectedRemainingCollateral;
         bytes swapData;
     }
 
     event Liquidation(
-        address indexed vaultAddress,
         address indexed violatorAddress,
+        address indexed vault,
         address repaidBorrowAsset,
         address seizedCollateralAsset,
         uint256 amountRepaid,
         uint256 amountCollaterallSeized
     );
 
-    function liquidate(
+    function liquidate_single_collateral(
         LiquidationParams calldata params
-    ) external onlyOwner returns (bool success) {
-        bytes[] memory multicallItems = new bytes[](1); // for now just doing single swap, but setting up to handle multiple down the line
+    ) external returns (bool success) {
+        bytes[] memory multicallItems = new bytes[](1);
 
-        // enable collateral and controller for liquidation
-        evc.enableCollateral(msg.sender, params.collateralAsset);
-        evc.enableController(msg.sender, params.vaultAddress);
-
-        // TODO: use swapper in correct way
-        // TODO: correctly use evc account instead of msg.sender
+        // Calls swap function of swapper which will swap some amount of seized collateral for borrowed asset
+        // Sends received repayment token to swapper address (?) TODO: is this right?
         multicallItems[0] = abi.encodeCall(
             ISwapper.swap,
             ISwapper.SwapParams({
                 handler: HANDLER_ONE_INCH,
-                mode: 2,
-                account: params.violatorAddress,
-                tokenIn: params.borrowedAsset,
-                tokenOut: params.collateralAsset,
-                vaultIn: params.vaultAddress,
-                receiver: params.vaultAddress,
+                mode: 0,
+                account: address(0), // ignored
+                tokenIn: params.collateralAsset,
+                tokenOut: params.borrowedAsset,
                 amountOut: 0,
-                data: injectReceiver(swapperAddress, params.swapData)
+                vaultIn: address(0), // ignored
+                receiver: address(0), // ignored
+                data: params.swapData
             })
         );
 
-        IEVC.BatchItem[] memory items = new IEVC.BatchItem[](4);
-
-        // TODO: get the ordering of these correct
-        items[0] = IEVC.BatchItem({
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
+    
+        // TODO: check if already enabled
+        
+        batchItems[0] = IEVC.BatchItem({
             onBehalfOfAccount: msg.sender,
-            targetContract: params.vaultAddress,
+            targetContract: params.vault,
+            value: 0,
+            data: abi.encodeCall(
+                IEVC.enableController,
+                (
+                    msg.sender,
+                    params.vault
+                )
+            )
+        });
+
+        batchItems[1] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: params.vault,
+            value: 0,
+            data: abi.encodeCall(
+                IEVC.enableCollateral,
+                (
+                    msg.sender,
+                    params.collateralVault
+                )
+            )
+        });
+
+        // Step 3: Liquidate account in violation
+        batchItems[2] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: params.vault,
             value: 0,
             data: abi.encodeCall(
                 ILiquidation.liquidate,
@@ -103,70 +131,196 @@ contract Liquidator {
                     params.violatorAddress,
                     params.collateralAsset,
                     params.repayAmount,
-                    params.expectedCollateralAmount
+                    params.seizedCollateralAmount
                 )
             )
         });
 
-        items[1] = IEVC.BatchItem({
+        // Step 4: Withdraw collateral from vault to swapper
+        batchItems[3] = IEVC.BatchItem({
             onBehalfOfAccount: msg.sender,
-            targetContract: params.vaultAddress,
+            targetContract: params.collateralVault,
             value: 0,
             data: abi.encodeCall(
                 IERC4626.withdraw,
                 (
-                    params.expectedCollateralAmount,
+                    params.seizedCollateralAmount,
                     swapperAddress,
                     msg.sender
                 )
             )
         });
 
-        items[2] = IEVC.BatchItem({
+        // Step 5: Swap collateral for borrowed asset
+        batchItems[4] = IEVC.BatchItem({
             onBehalfOfAccount: msg.sender,
             targetContract: swapperAddress,
             value: 0,
             data: abi.encodeCall(ISwapper.multicall, multicallItems)
         });
 
-        items[3] = IEVC.BatchItem({
+        // Step 6: Repay debt
+        batchItems[5] = IEVC.BatchItem({
             onBehalfOfAccount: msg.sender,
-            targetContract: swapVerifierAddress,
+            targetContract: params.vault,
             value: 0,
             data: abi.encodeCall(
-                SwapVerifier.verifyDebtMax,
+                IBorrowing.repay,
                 (
-                    params.vaultAddress,
-                    msg.sender,
-                    0,
-                    type(uint256).max
+                    params.repayAmount,
+                    msg.sender
                 )
             )
         });
 
-        evc.batch(items);
+        evc.batch(batchItems);
+
+        // Check that the remaining collateral is as expected
+        if(IEVault(params.collateralVault).convertToAssets(IEVault(params.collateralVault).balanceOf(address(this))) < params.expectedRemainingCollateral) {
+            revert LessThanExpectedCollateralReceived();
+        }
 
         emit Liquidation(
-            params.vaultAddress,
             params.violatorAddress,
+            params.vault,
             params.borrowedAsset,
             params.collateralAsset,
             params.repayAmount,
-            params.expectedCollateralAmount
+            params.seizedCollateralAmount
         );
 
         return true;
     }
 
-    // Need to understand this more
-    function injectReceiver(address receiver, bytes memory _payload) internal pure returns (bytes memory payload) {
-        payload = _payload;
+    function liquidate_multiple_collaterals(
+        LiquidationParams[] calldata paramsList
+    ) external returns (bool success) {
+        uint256 length = paramsList.length;
 
-        // uint256 constant RECEIVER_OFFSET = 208;
+        bytes[] memory multicallItems = new bytes[](length);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](length);
 
-        assembly {
-            mstore(0, receiver)
-            mcopy(add(add(payload, 32), 208), 12, 20)
+        uint256 totalRepayAmount;
+        
+        // TODO: think through the indexing logic for this
+        for (uint256 i; i < length; ++i){
+            LiquidationParams calldata params = paramsList[i];
+            totalRepayAmount += params.repayAmount;
+
+            multicallItems[i] = abi.encodeCall(
+                ISwapper.swap,
+                ISwapper.SwapParams({
+                    handler: HANDLER_ONE_INCH,
+                    mode: 0,
+                    account: address(0), // ignored
+                    tokenIn: params.collateralAsset,
+                    tokenOut: params.borrowedAsset,
+                    amountOut: 0,
+                    vaultIn: address(0), // ignored
+                    receiver: address(0), // ignored
+                    data: params.swapData
+                })
+            );
+
+            batchItems[i] = IEVC.BatchItem({
+                onBehalfOfAccount: msg.sender,
+                targetContract: params.vault,
+                value: 0,
+                data: abi.encodeCall(
+                    IEVC.enableCollateral,
+                    (
+                        msg.sender,
+                        params.collateralVault
+                    )
+                )
+            });
+
+            batchItems[i+1] = IEVC.BatchItem({
+                onBehalfOfAccount: msg.sender,
+                targetContract: params.vault,
+                value: 0,
+                data: abi.encodeCall(
+                    ILiquidation.liquidate,
+                    (
+                        params.violatorAddress,
+                        params.collateralAsset,
+                        params.repayAmount,
+                        params.seizedCollateralAmount
+                    )
+                )
+            });
+
+            batchItems[i+2] = IEVC.BatchItem({
+                onBehalfOfAccount: msg.sender,
+                targetContract: params.collateralVault,
+                value: 0,
+                data: abi.encodeCall(
+                    IERC4626.withdraw,
+                    (
+                        params.seizedCollateralAmount,
+                        swapperAddress,
+                        msg.sender
+                    )
+                )
+            });
+
+            // Step 5: Swap collateral for borrowed asset
+            batchItems[i+3] = IEVC.BatchItem({
+                onBehalfOfAccount: msg.sender,
+                targetContract: swapperAddress,
+                value: 0,
+                data: abi.encodeCall(ISwapper.multicall, multicallItems)
+            });
         }
+
+        // First step: enable controller
+        batchItems[0] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: paramsList[0].vault,
+            value: 0,
+            data: abi.encodeCall(
+                IEVC.enableController,
+                (
+                    msg.sender,
+                    paramsList[0].vault
+                )
+            )
+        });
+
+        // Last step: Repay debt
+         batchItems[length - 1] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: paramsList[0].vault,
+            value: 0,
+            data: abi.encodeCall(
+                IBorrowing.repay,
+                (
+                    totalRepayAmount,
+                    msg.sender
+                )
+            )
+        });
+
+        evc.batch(batchItems);
+
+        for (uint256 i; i < length; ++i){
+            LiquidationParams calldata params = paramsList[i];
+
+            // Check that the remaining collateral is as expected
+            if(IEVault(params.collateralVault).convertToAssets(IEVault(params.collateralVault).balanceOf(address(this))) < params.expectedRemainingCollateral) {
+                revert LessThanExpectedCollateralReceived();
+            }
+
+            emit Liquidation(
+                params.violatorAddress,
+                params.vault,
+                params.borrowedAsset,
+                params.collateralAsset,
+                params.repayAmount,
+                params.seizedCollateralAmount
+            );
+        }
+
+        return true;
     }
 }

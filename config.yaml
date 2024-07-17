@@ -39,3 +39,7 @@ LIQUIDATOR_CONTRACT: "0x656eef60fFA6c3b984E199d29443b885c51A6200"
 # Compiled contract paths
 EVAULT_ABI_PATH: "lib/evk-periphery/out/EVault.sol/EVault.json"
 EVC_ABI_PATH: "lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json"
+LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
+
+# Chain ID
+CHAIN_ID: 41337

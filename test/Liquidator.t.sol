@@ -30,7 +30,7 @@ contract LiquidatorTest is Test {
             collateralAsset: address(0),
 
             repayAmount: 0,
-            expectedCollateralAmount: 0,
+            seizedCollateralAmount: 0,
 
             swapData: new bytes(0)
         });
