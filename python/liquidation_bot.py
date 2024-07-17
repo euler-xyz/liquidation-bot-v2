@@ -6,15 +6,13 @@ import time
 import queue
 import os
 import json
-import requests
 import yaml
-
-import numpy as np
+import sys
 
 from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
 
-from utils import setup_logger, setup_w3
+from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -31,8 +29,6 @@ HS_UPPER_BOUND = config.get('HS_UPPER_BOUND')
 MIN_UPDATE_INTERVAL = config.get('MIN_UPDATE_INTERVAL')
 MAX_UPDATE_INTERVAL = config.get('MAX_UPDATE_INTERVAL')
 BATCH_SIZE = config.get('BATCH_SIZE')
-NUM_RETRIES = config.get('NUM_RETRIES')
-RETRY_DELAY = config.get('RETRY_DELAY')
 SWAP_DELTA = config.get('SWAP_DELTA')
 WETH_ADDRESS = config.get('WETH_ADDRESS')
 EVC_ADDRESS = config.get('EVC_ADDRESS')
@@ -41,9 +37,13 @@ SWAP_VERIFIER_ADDRESS = config.get('SWAP_VERIFIER_ADDRESS')
 LIQUIDATOR_CONTRACT_ADDRESS = config.get('LIQUIDATOR_CONTRACT_ADDRESS')
 EVAULT_ABI_PATH = config.get('EVAULT_ABI_PATH')
 EVC_ABI_PATH = config.get('EVC_ABI_PATH')
+MAX_SEARCH_ITERATIONS = config.get('MAX_SEARCH_ITERATIONS')
+NUM_RETRIES = config.get('NUM_RETRIES')
+RETRY_DELAY = config.get('RETRY_DELAY')
 
 logger = setup_logger(LOGS_PATH)
 w3 = setup_w3()
+sys.excepthook = global_exception_handler
 
 
 ### MAIN CODE ###
@@ -52,12 +52,7 @@ class Vault:
     def __init__(self, address):
         self.address = address
 
-        with open(EVAULT_ABI_PATH, 'r') as file:
-            vault_interface = json.load(file)
-
-        vault_abi = vault_interface['abi']
-
-        self.instance = w3.eth.contract(address=address, abi=vault_abi)
+        self.instance = create_contract_instance(address, EVAULT_ABI_PATH)
 
         self.underlying_asset_address = self.instance.functions.asset().call()
 
@@ -136,17 +131,21 @@ class Account:
     def to_dict(self):
         return {
             "address": self.address,
-            "controller": self.controller,
+            "controller_address": self.controller.address,
             "time_of_next_update": self.time_of_next_update,
             "current_health_score": self.current_health_score
         }
     
     @staticmethod
-    def from_dict(data):
-        account = Account(address=data["address"], controller=data["controller"])
+    def from_dict(data, vaults):
+        controller = vaults.get(data["controller_address"])
+        if not controller:
+            controller = Vault(data["controller_address"])
+            vaults[data["controller_address"]] = controller
+        
+        account = Account(address=data["address"], controller=controller)
         account.time_of_next_update = data["time_of_next_update"]
         account.current_health_score = data["current_health_score"]
-
         return account
     
 
@@ -200,6 +199,15 @@ class AccountMonitor:
         else:
             logger.info(f"AccountMonitor: Account {address} already in list with controller {vault}.")
         
+        self.update_account(address)
+        
+    """
+    Trigger a manual update of an account.
+    This should primarily be called in two scenarios:
+    1) Internally due to a status check event detected
+    2) Externally due to a manual trigger (e.g. a user request, price change monitor, etc)
+    """
+    def update_account(self, address):
         account = self.accounts[address]
 
         account.update_liquidity()
@@ -209,36 +217,43 @@ class AccountMonitor:
         with self.condition:
             self.update_queue.put((next_update_time, address))
             self.condition.notify()
-        
     
     def update_account_liquidity(self, address):
         try:
-            account = self.accounts[address]
+            account = self.accounts.get(address)
+
+            if not account:
+                logger.error(f"AccountMonitor: Account {address} not found in account list.")
+                return
 
             logger.info(f"AccountMonitor: Updating account {address} liquidity.")
             
             health_score = account.update_liquidity()
 
             if(health_score < 1):
-                logger.info(f"AccountMonitor: Account {address} is unhealthy, checking liquidation profitability.")
-                (result, liquidation_tx, remaining_seized_collateral, profit_in_eth) = account.simulate_liquidation()
+                try:
+                    logger.info(f"AccountMonitor: Account {address} is unhealthy, checking liquidation profitability.")
+                    (result, liquidation_tx, remaining_seized_collateral, profit_in_eth) = account.simulate_liquidation()
 
-                if result:
-                    if self.notify_discord:
-                        # Notify discord
-                        # TODO: implement
-                        pass
-                    
-                    if self.execute_liquidation:
-                        # Execute liquidation
-                        # TODO: implement
-                        Liquidation.execute_liquidation(liquidation_tx)
-                        logger.info(f"AccountMonitor: Account {address} liquidated.")
-                else:
-                    logger.info(f"AccountMonitor: Account {address} is unhealthy but not profitable to liquidate.")
-                    # TODO: add some filter for small account/repeatedly seen accounts to avoid spam
+                    if result:
+                        if self.notify_discord:
+                            # Notify discord
+                            # TODO: implement
+                            pass
+                        
+                        if self.execute_liquidation:
+                            try:
+                                Liquidation.execute_liquidation(liquidation_tx)
+                                logger.info(f"AccountMonitor: Account {address} liquidated.")
+                            except Exception as e:
+                                logger.error(f"AccountMonitor: Failed to execute liquidation for account {address}: {e}")
+                    else:
+                        logger.info(f"AccountMonitor: Account {address} is unhealthy but not profitable to liquidate.")
+                        # TODO: add some filter for small account/repeatedly seen accounts to avoid spam
+                except Exception as e:
+                    logger.error(f"AccountMonitor: Exception simulating liquidation for account {address}: {e}")
                 
-            next_update_time = self.accounts[address].time_of_next_update
+            next_update_time = account.time_of_next_update
 
             with self.condition:
                 self.update_queue.put((next_update_time, address))
@@ -252,47 +267,59 @@ class AccountMonitor:
     TODO: Update this in the future to be able to save to a remote file.
     """
     def save_state(self, local_save: bool = True):
-        state = {
-            'accounts': {address: account.to_dict() for address, account in self.accounts.items()},
-            'vaults': {address: vault.address for address, vault in self.vaults.items()},
-            'queue': list(self.update_queue.queue),
-            'last_saved_block': self.latest_block,
-        }
-        
-        if local_save:
-            with open(SAVE_STATE_PATH, 'w') as f:
-                json.dump(state, f)
-        else:
-            # Save to remote location
-            pass
+        try:
+            state = {
+                'accounts': {address: account.to_dict() for address, account in self.accounts.items()},
+                'vaults': {address: vault.address for address, vault in self.vaults.items()},
+                'queue': list(self.update_queue.queue),
+                'last_saved_block': self.latest_block,
+            }
+            
+            if local_save:
+                with open(SAVE_STATE_PATH, 'w') as f:
+                    json.dump(state, f)
+            else:
+                # Save to remote location
+                pass
 
-        self.last_saved_block = self.latest_block
+            self.last_saved_block = self.latest_block
 
-        logger.info(f"AccountMonitor: State saved at time {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} up to block {self.latest_block}")
+            logger.info(f"AccountMonitor: State saved at time {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} up to block {self.latest_block}")
+        except Exception as e:
+            logger.error(f"AccountMonitor: Failed to save state: {e}")
 
     """
     Load the state of the account monitor from a json file.
     TODO: Update this in the future to be able to load from a remote file.
     """
     def load_state(self, save_path, local_save: bool = True):
-        if local_save and os.path.exists(save_path):
-            with open(save_path, 'r') as f:
-                state = json.load(f)
-            self.accounts = {address: Account.from_dict(data) for address, data in state['accounts'].items()}
-            self.vaults = {address: Vault(address) for address in state['vaults'].values()}
-            
-            for item in state['queue']:
-                self.update_queue.put(tuple(item))
+        try:
+            if local_save and os.path.exists(save_path):
+                with open(save_path, 'r') as f:
+                    state = json.load(f)
+                self.vaults = {address: Vault(address) for address in state['vaults']}
+                self.accounts = {address: Account.from_dict(data, self.vaults) for address, data in state['accounts'].items()}
+                    
+                for item in state['queue']:
+                    self.update_queue.put(tuple(item))
 
-            self.last_saved_block = state['last_saved_block']
-            self.latest_block = self.last_saved_block
-            logger.info(f"AccountMonitor: State loaded from {save_path} up to block {self.latest_block}.")
-        elif not local_save:
-            # Load from remote location
-            pass
-        else:
-            logger.info("AccountMonitor: No saved state found.")
+                self.last_saved_block = state['last_saved_block']
+                self.latest_block = self.last_saved_block
+                logger.info(f"AccountMonitor: State loaded from {save_path} up to block {self.latest_block}.")
+            elif not local_save:
+                # Load from remote location
+                pass
+            else:
+                logger.info("AccountMonitor: No saved state found.")
+        except Exception as e:
+            logger.error(f"AccountMonitor: Failed to load state: {e}")
     
+    @staticmethod
+    def create_from_save_state(save_path, local_save: bool = True):
+        monitor = AccountMonitor()
+        monitor.load_state(save_path, local_save)
+        return monitor
+
     """
     Periodically save the state of the account monitor.
     Should be run in a standalone thread.
@@ -314,66 +341,81 @@ class AccountMonitor:
         self.save_state()
 
 
-
-
 class EVCListener:
     def __init__(self, account_monitor: AccountMonitor):
         self.account_monitor = account_monitor
 
-        with open(EVC_ABI_PATH, 'r') as file:
-            evc_interface = json.load(file)
-        
-        evc_abi = evc_interface['abi']
-
-        self.evc_instance = w3.eth.contract(address=EVC_ADDRESS, abi=evc_abi)
+        self.evc_instance = create_contract_instance(EVC_ADDRESS, EVC_ABI_PATH)
     
     def start_event_monitoring(self):
         while True:
             pass
     
-    def scan_block_range_for_account_status_check(self, start_block, end_block):
+    def scan_block_range_for_account_status_check(self, start_block, end_block, max_retries = NUM_RETRIES):
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"EVCListener: Scanning blocks {start_block} to {end_block} for AccountStatusCheck events.")
 
-        logger.info(f"EVCListener: Scanning blocks {start_block} to {end_block} for AccountStatusCheck events.")
+                logs = self.evc_instance.events.AccountStatusCheck().get_logs(fromBlock=start_block, toBlock=end_block)
 
-        logs = self.evc_instance.events.AccountStatusCheck().get_logs(fromBlock=start_block, toBlock=end_block)
+                for log in logs:
+                    vault_address = log['args']['controller']
+                    account_address = log['args']['account']
 
-        for log in logs:
-            vault_address = log['args']['controller']
-            account_address = log['args']['account']
+                    logger.info(f"EVCListener: AccountStatusCheck event found for account {account_address} with controller {vault_address}, triggering monitor update.")
+                    
+                    try:
+                        self.account_monitor.update_account_on_status_check_event(account_address, vault_address)
+                    except Exception as e:
+                        logger.error(f"EVCListener: Exception updating account {account_address} on AccountStatusCheck event: {e}")
 
-            logger.info(f"EVCListener: AccountStatusCheck event found for account {account_address} with controller {vault_address}, triggering monitor update.")
+                logger.info(f"EVCListener: Finished scanning blocks {start_block} to {end_block} for AccountStatusCheck events.")
 
-            self.account_monitor.update_account_on_status_check_event(account_address, vault_address)
-
-        logger.info(f"EVCListener: Finished scanning blocks {start_block} to {end_block} for AccountStatusCheck events.")
-
-        self.account_monitor.latest_block = end_block
+                self.account_monitor.latest_block = end_block
+            except Exception as e:
+                logger.error(f"EVCListener: Exception scanning block range {start_block} to {end_block} (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"EVCListener: Failed to scan block range {start_block} to {end_block} after {max_retries} attempts")
+                else:
+                    time.sleep(RETRY_DELAY) # cooldown between retries
 
     def batch_account_logs_on_startup(self):
-        start_block = int(os.getenv('EVC_GENESIS_BLOCK'))
-        
-        # If the account monitor has a saved state, assume it has been loaded from that and start from the last saved block
-        if self.account_monitor.last_saved_block > start_block:
-            logger.info(f"EVCListener: Account monitor has saved state, starting from block {self.account_monitor.last_saved_block}.")
-            start_block = self.account_monitor.last_saved_block
+        try:
+            start_block = int(os.getenv('EVC_GENESIS_BLOCK'))
+            
+            # If the account monitor has a saved state, assume it has been loaded from that and start from the last saved block
+            if self.account_monitor.last_saved_block > start_block:
+                logger.info(f"EVCListener: Account monitor has saved state, starting from block {self.account_monitor.last_saved_block}.")
+                start_block = self.account_monitor.last_saved_block
 
-        current_block = w3.eth.block_number
+            current_block = w3.eth.block_number
 
-        batch_block_size = BATCH_SIZE # 1000 blocks per batch, need to decide if this is the right size
+            batch_block_size = BATCH_SIZE # 1000 blocks per batch, need to decide if this is the right size
 
-        logger.info(f"EVCListener: Starting batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
+            logger.info(f"EVCListener: Starting batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
 
-        while start_block < current_block:
-            end_block = min(start_block + batch_block_size, current_block)
+            while start_block < current_block:
+                end_block = min(start_block + batch_block_size, current_block)
 
-            self.scan_block_range_for_account_status_check(start_block, end_block)
+                self.scan_block_range_for_account_status_check(start_block, end_block)
 
-            start_block = end_block + 1
+                start_block = end_block + 1
 
-            time.sleep(10) # Sleep in between batches to avoid rate limiting
-        
-        logger.info(f"EVCListener: Finished batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
+                self.account_monitor.save_state()
 
+                time.sleep(10) # Sleep in between batches to avoid rate limiting
+            
+            logger.info(f"EVCListener: Finished batch scan of AccountStatusCheck events from block {start_block} to {current_block}.")
+        except Exception as e:
+            logger.error(f"EVCListener: Unexpected exception in batch scanning account logs on startup: {e}")
+
+#TODO: Future feature, smart monitor to trigger manual update of an account based on a large price change (or some other trigger)
+class SmartUpdateListener:
+    def __init__(self, account_monitor: AccountMonitor):
+        self.account_monitor = account_monitor
+
+    def trigger_manual_update(self, account):
+        self.account_monitor.update_account(account)
 
 class Liquidation:
     def __init__(self):
@@ -381,13 +423,7 @@ class Liquidation:
 
     @staticmethod
     def simulate_liquidation(vault: Vault, violator_address: str, include_swap_to_eth: bool = False):
-        EVC_ABI_PATH = 'lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json'
-        EVC_ADDRESS = os.getenv('EVC_ADDRESS')
-
-        with open(EVC_ABI_PATH, 'r') as file:
-            evc_interface = json.load(file)
-        evc_abi = evc_interface['abi']
-        evc_instance = w3.eth.contract(address=EVC_ADDRESS, abi=evc_abi)
+        evc_instance = create_contract_instance(EVC_ADDRESS, EVC_ABI_PATH)
 
         collateral_list = evc_instance.functions.getCollaterals(violator_address).call()
         remaining_collateral_after_repay = {}
@@ -407,13 +443,14 @@ class Liquidation:
                 continue
             
             #TODO: fallback to Uniswap (?) if 1inch fails
-            (swap_amount, swap_output, swap_data) = Liquidation.get_1inch_quote(collateral, vault.underlying_asset_address, expected_yield, max_repay)
+            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral, vault.underlying_asset_address, expected_yield, max_repay)
+            swap_data = Quoter.get_1inch_swap_data(collateral, vault.underlying_asset_address, swap_amount)
 
             dust_liability_asset += swap_output - max_repay # track dust liability due to overswapping
 
             remaining_collateral_after_repay[collateral] = expected_yield - swap_amount # track remaining collateral after repay
             
-            (swap_amount, swap_output, ) = Liquidation.get_1inch_quote(collateral, WETH_ADDRESS, amount, 0, True) # convert leftover asset to ETH
+            (swap_amount, swap_output, ) = Quoter.get_1inch_quote(collateral, WETH_ADDRESS, amount, 0, True) # convert leftover asset to ETH
             profit_in_eth += swap_output
 
 
@@ -426,6 +463,19 @@ class Liquidation:
                 pass
         
         return (profitable, master_tx, remaining_collateral_after_repay, profit_in_eth)
+    
+    
+    """
+    Execute the liquidation of an account using the transaction returned from simulate_liquidation
+    TODO: implement
+    """
+    @staticmethod
+    def execute_liquidation(liquidation_transaction):
+        pass
+
+class Quoter:
+    def __init__(self):
+        pass
 
     """
     Given a base asset and target asset, get a quote from 1INCH.
@@ -435,20 +485,13 @@ class Liquidation:
     """
     @staticmethod
     def get_1inch_quote(asset_in: str, asset_out: str, amount_asset_in: int, target_amount_out: int):
-        api_url = "https://api.1inch.dev/swap/v6.0/1/quote"
-        headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
-
+        
+        # simple quote function wrapper
         def get_quote(params):
-            for attempt in range(1, NUM_RETRIES + 1):
-                try:
-                    response = requests.get(api_url, headers=headers, params=params)
-                    response.raise_for_status()
-                    return int(response.json()["dstAmount"])
-                except requests.RequestException as e:
-                    logger.error(f"Liquidation: Error getting 1inch quote, waiting {RETRY_DELAY} seconds before retrying. Retry attempt number: {attempt}")
-                    time.sleep(RETRY_DELAY)
-            
-            return None
+            api_url = "https://api.1inch.dev/swap/v6.0/1/quote"
+            headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
+            response = make_api_request(api_url, headers, params)
+            return int(response["dstAmount"]) if response  else None
 
         params = {
             "src": asset_in,
@@ -456,31 +499,43 @@ class Liquidation:
             "amount": amount_asset_in
         }
 
-        amount_out = 0 #declare so we can access outside loops
+        try:
+            # Special case exact in swap, don't need to do binary search
+            if target_amount_out == 0: 
+                amount_out = get_quote(params)
+                if amount_out is None:
+                    return (0, 0, None)
+                return (amount_asset_in, amount_out, None)
 
-        if target_amount_out == 0: # special case exact in swap, don't need to do binary search
-            amount_out = get_quote(params)
-            if amount_out is None:
-                logger.error(f"Liquidation: Failed to get 1inch quote after {NUM_RETRIES} retries.")
-                return (0, 0, None)
-
-        else:
-            min_amount_in = 0
-            max_amount_in = amount_asset_in
+            # Binary search to find the amount in that will result in the target amount out
+            # Overswaps slightly to make sure we can always repay max_repay
+            min_amount_in, max_amount_in = 0, amount_asset_in
             delta = SWAP_DELTA
             
-            while True:
+            iteration_count = 0
+
+            last_valid_amount_in, last_valid_amount_out = 0, 0 
+            
+            amount_out = 0 #declare so we can access outside loops
+
+            while iteration_count < MAX_SEARCH_ITERATIONS:
                 swap_amount = int((min_amount_in + max_amount_in) / 2)
                 params["amount"] = swap_amount
-
                 amount_out = get_quote(params)
 
                 if amount_out is None:
-                    logger.error(f"Liquidation: Failed to get 1inch quote after {NUM_RETRIES} retries.")
-                    return (0, 0, None)
+                    if last_valid_amount_out > target_amount_out:
+                        logger.warning(f"Quoter: 1inch quote failed, using last valid quote: {last_valid_amount_in} {asset_in} to {last_valid_amount_out} {asset_out}")
+                        return (last_valid_amount_in, last_valid_amount_out)
+                    else:
+                        logger.warning(f"Quoter: Failed to get valid 1inch quote for {swap_amount} {asset_in} to {asset_out}")
+                        return (0, 0)
 
+                logger.info(f"Quoter: 1inch quote for {swap_amount} {asset_in} to {asset_out}: {amount_out}")
 
-                logger.info(f"Liquidation: 1inch quote for {swap_amount} {asset_in} to {asset_out}: {amount_out}")
+                if amount_out > target_amount_out:
+                    last_valid_amount_in = swap_amount
+                    last_valid_amount_out = amount_out
 
                 if abs(amount_out - target_amount_out) < delta and amount_out > target_amount_out:
                     break
@@ -489,50 +544,62 @@ class Liquidation:
                 elif amount_out > target_amount_out:
                     max_amount_in = swap_amount
 
-                time.sleep(1) # need to rate limit until getting enterprise account key
+                iteration_count +=1
+                time.sleep(2) # need to rate limit until getting enterprise account key
+            
+            if iteration_count == MAX_SEARCH_ITERATIONS:
+                logger.warning(f"Quoter: 1inch quote search for {asset_in} to {asset_out} did not converge after {MAX_SEARCH_ITERATIONS} iterations.")
+                if last_valid_amount_out > target_amount_out:
+                    logger.info(f"Quoter: Using last valid quote: {last_valid_amount_in} {asset_in} to {last_valid_amount_out} {asset_out}")
+                    return (last_valid_amount_in, last_valid_amount_out)
+                else:
+                    return (0, 0)
 
-        # TODO: properly generate path
-        swap_data = None 
-
-        return (params['amount'], amount_out, swap_data)
-
-
-
-
+            return (params['amount'], amount_out)
+        except Exception as e:
+            logger.error(f"Quoter: Unexpected error in get_1inch_quote {e}")
+            return (0, 0)
+    
     """
-    Execute the liquidation of an account using the transaction returned from simulate_liquidation
+    Get 1inch swap data with optimal swap path
     TODO: implement
     """
     @staticmethod
-    def execute_liquidation(liquidation_transaction):
+    def get_1inch_swap_data(asset_in: str, asset_out: str, amount_in: int):
         pass
 
 
 
 
+
+
 if __name__ == "__main__":
-    # monitor = AccountMonitor()
-    
-    # monitor.load_state(SAVE_STATE_PATH)
+    try:
+        # monitor = AccountMonitor()
+        
+        # monitor.load_state(SAVE_STATE_PATH)
 
-    # time.sleep(5)
-    # threading.Thread(target=monitor.start_queue_monitoring).start()
-    # time.sleep(5)
-    # monitor.update_account_on_status_check_event("0x123", "vault1")
-    # time.sleep(5)
-    # monitor.update_account_on_status_check_event("0x456", "vault2")
-    # time.sleep(5)
-    # monitor.update_account_on_status_check_event("0x789", "vault3")
+        # time.sleep(5)
+        # threading.Thread(target=monitor.start_queue_monitoring).start()
+        # time.sleep(5)
+        # monitor.update_account_on_status_check_event("0x123", "vault1")
+        # time.sleep(5)
+        # monitor.update_account_on_status_check_event("0x456", "vault2")
+        # time.sleep(5)
+        # monitor.update_account_on_status_check_event("0x789", "vault3")
 
-    # while True:
-    #     time.sleep(1)
+        # while True:
+        #     time.sleep(1)
 
-    liquidator = Liquidation()
+        liquidator = Liquidation()
+        quoter = Quoter()
 
-    usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-    usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+        usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
 
-    amount_usdc_in = 100000000
-    target_usdc_out = 70000000
+        amount_usdc_in = 100000000
+        target_usdc_out = 70000000
 
-    print(liquidator.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdc_out))
+        print(quoter.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdc_out))
+    except Exception as e:
+        logger.critical(f"Uncaught exception: {e}")
