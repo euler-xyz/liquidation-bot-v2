@@ -15,7 +15,7 @@ from typing import Tuple, Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 
-from .utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, config
+from .utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, config
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -326,10 +326,17 @@ class AccountMonitor:
 
                     if result:
                         if self.notify:
-                            # Notify discord
-                            # TODO: implement
-                            pass
-
+                            try:
+                                logger.info("AccountMonitor: Posting liquidation notification"
+                                            "to slack for account %s.", address)
+                                post_liquidation_opportunity_on_slack(address,
+                                                                      account.controller.address,
+                                                                      liquidation_data)
+                            except Exception as ex: # pylint: disable=broad-except
+                                logger.error("AccountMonitor:"
+                                             "Failed to post liquidation notification"
+                                             " for account %s to slack: %s",
+                                             address, ex)
                         if self.execute_liquidation:
                             try:
                                 Liquidator.execute_liquidation(liquidation_data["liquidation_tx"])
