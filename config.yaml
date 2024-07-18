@@ -18,6 +18,9 @@ MAX_UPDATE_INTERVAL: 1800 # 30 minutes
 # Bath size for scanning blocks on startup
 BATCH_SIZE: 1000
 
+# Time to wait between scanning on regular intervals
+SCAN_INTERVAL: 60
+
 # Settings for 1INCH Quoting & other API calls
 NUM_RETRIES: 3
 RETRY_DELAY: 10

@@ -10,6 +10,7 @@ import yaml
 import sys
 
 from concurrent.futures import ThreadPoolExecutor
+from typing import Tuple, Dict, List, Any, Optional
 from web3 import Web3
 
 from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, config
@@ -35,12 +36,32 @@ class Vault:
 
         self.underlying_asset_address = self.instance.functions.asset().call()
 
-    def get_account_liquidity(self, account_address):
+    def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
+        """
+        Get liquidity metrics for a given account.
+
+        Args:
+            account_address (str): The address of the account to check.
+
+        Returns:
+            Tuple[int, int]: A tuple containing (collateral_value, liability_value).
+        """
         (collateral_value, liability_value) = self.instance.functions.accountLiquidity(Web3.to_checksum_address(account_address), False).call()
 
         return (collateral_value, liability_value)
     
-    def check_liquidation(self, borower_address, collateral_address, liquidator_address):
+    def check_liquidation(self, borower_address: str, collateral_address: str, liquidator_address: str) -> Tuple[int, int]:
+        """
+        Call checkLiquidation on EVault for an account
+
+        Args:
+            borower_address (str): The address of the borrower.
+            collateral_address (str): The address of the collateral asset.
+            liquidator_address (str): The address of the potential liquidator.
+
+        Returns:
+            Tuple[int, int]: A tuple containing (max_repay, seized_collateral).
+        """
         (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(Web3.to_checksum_address(liquidator_address), Web3.to_checksum_address(borower_address), Web3.to_checksum_address(collateral_address)).call()
         return (max_repay, seized_collateral)
 
@@ -51,32 +72,42 @@ class Account:
         self.time_of_next_update = time.time()
         self.current_health_score = 1
 
-    """
-    Check account liquidity and set when the next update should be
-    """
-    def update_liquidity(self):
+
+    def update_liquidity(self) -> float:
+        """
+        Update account's liquidity & next scheduled update and return the current health score.
+
+        Returns:
+            float: The updated health score of the account.
+        """
         self.get_health_score()
         self.get_time_of_next_update()
         
         return self.current_health_score
     
-    """
-    Calculate the health score of this account
-    """
-    def get_health_score(self):
-        # self.current_health_score = random.random() + .5 # Placeholder for now
 
+    def get_health_score(self) -> float:
+        """
+        Calculate and return the current health score of the account.
+
+        Returns:
+            float: The current health score of the account.
+        """
         collateral_value, liability_value = self.controller.get_account_liquidity(self.address)
         self.current_health_score = collateral_value / liability_value
 
         logger.info(f"Account: Account {self.address} health score: {self.current_health_score}")
         return self.current_health_score
     
-    """
-    Calculate the time of the next update for this account as a function of health score
-    """
-    def get_time_of_next_update(self):
-        # self.time_of_next_update = self.current_health_score * 10 + time.time() # Placeholder for now
+
+    def get_time_of_next_update(self) -> float:
+        """
+        Calculate the time of the next update for this account.
+
+        Returns:
+            float: The timestamp of the next scheduled update.
+        """
+
         time_gap = 0
 
         # Simple linear interpolation between min and max update intervals
@@ -96,18 +127,25 @@ class Account:
         logger.info(f"Account: Account {self.address} next update scheduled for {time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update))}")
         return self.time_of_next_update
 
-    """
-    Simulate liquidation of this account to determine if it is profitable to liquidate.
-    Returns True if profitable
-    """
-    def simulate_liquidation(self):
+
+    def simulate_liquidation(self) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Simulate liquidation of this account to determine if it's profitable.
+
+        Returns:
+            Tuple[bool, Optional[Dict[str, Any]]]: A tuple containing a boolean indicating
+            if liquidation is profitable, and a dictionary with liquidation details if profitable.
+        """
         result = Liquidator.simulate_liquidation(self.controller, self.address)
         return result
 
-    """
-    Convert to dict, used for saving state
-    """
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert the account object to a dictionary representation.
+
+        Returns:
+            Dict[str, Any]: A dictionary representation of the account.
+        """
         return {
             "address": self.address,
             "controller_address": self.controller.address,
@@ -116,7 +154,17 @@ class Account:
         }
     
     @staticmethod
-    def from_dict(data, vaults):
+    def from_dict(data: Dict[str, Any], vaults: Dict[str, Vault]) -> 'Account':
+        """
+        Create an Account object from a dictionary representation.
+
+        Args:
+            data (Dict[str, Any]): The dictionary representation of the account.
+            vaults (Dict[str, Vault]): A dictionary of available vaults.
+
+        Returns:
+            Account: An Account object created from the provided data.
+        """
         controller = vaults.get(data["controller_address"])
         if not controller:
             controller = Vault(data["controller_address"])
@@ -129,7 +177,7 @@ class Account:
     
 
 class AccountMonitor:
-    def __init__(self, notify_discord = False, execute_liquidation = False):
+    def __init__(self, notify = False, execute_liquidation = False):
         self.accounts = {}
         self.vaults = {}
         self.update_queue = queue.PriorityQueue()
@@ -138,10 +186,14 @@ class AccountMonitor:
         self.running = True
         self.latest_block = 0
         self.last_saved_block = 0
-        self.notify_discord = notify_discord
+        self.notify = notify
         self.execute_liquidation = execute_liquidation
 
-    def start_queue_monitoring(self):
+    def start_queue_monitoring(self) -> None:
+        """
+        Start monitoring the account update queue.
+        This is the main entry point for the account monitor.
+        """
         save_thread = threading.Thread(target=self.periodic_save)
         save_thread.start()
         logger.info("AccountMonitor: Save thread started.")
@@ -163,7 +215,15 @@ class AccountMonitor:
                 self.executor.submit(self.update_account_liquidity, address)
             
 
-    def update_account_on_status_check_event(self, address, vault_address):
+    def update_account_on_status_check_event(self, address: str, vault_address: str) -> None:
+        """
+        Update an account based on a status check event.
+
+        Args:
+            address (str): The address of the account to update.
+            vault_address (str): The address of the vault associated with the account.
+        """
+
         if vault_address not in self.vaults: # If the vault is not already tracked in the list, create it
             self.vaults[vault_address] = Vault(vault_address)
             logger.info(f"AccountMonitor: Vault {vault_address} added to vault list.")
@@ -186,7 +246,16 @@ class AccountMonitor:
     1) Internally due to a status check event detected
     2) Externally due to a manual trigger (e.g. a user request, price change monitor, etc)
     """
-    def update_account(self, address):
+    def update_account(self, address: str) -> None:
+        """
+        Trigger a manual update of an account.
+        This should primarily be called in two scenarios:
+            1) Internally due to a status check event detected
+            2) Externally due to a manual trigger (e.g. a user request, price change monitor, etc)
+
+        Args:
+            address (str): The address of the account to update.
+        """
         account = self.accounts[address]
 
         account.update_liquidity()
@@ -197,7 +266,13 @@ class AccountMonitor:
             self.update_queue.put((next_update_time, address))
             self.condition.notify()
     
-    def update_account_liquidity(self, address):
+    def update_account_liquidity(self, address: str) -> None:
+        """
+        Update the liquidity of a specific account.
+
+        Args:
+            address (str): The address of the account to update.
+        """
         try:
             account = self.accounts.get(address)
 
@@ -212,18 +287,21 @@ class AccountMonitor:
             if(health_score < 1):
                 try:
                     logger.info(f"AccountMonitor: Account {address} is unhealthy, checking liquidation profitability.")
-                    (result, liquidation_tx, remaining_seized_collateral, profit_in_eth) = account.simulate_liquidation()
+                    (result, liquidation_data) = account.simulate_liquidation()
 
                     if result:
-                        if self.notify_discord:
+                        if self.notify:
                             # Notify discord
                             # TODO: implement
                             pass
                         
                         if self.execute_liquidation:
                             try:
-                                Liquidator.execute_liquidation(liquidation_tx)
-                                logger.info(f"AccountMonitor: Account {address} liquidated.")
+                                Liquidator.execute_liquidation(liquidation_data['liquidation_tx'])
+                                logger.info(f"AccountMonitor: Account {address} liquidated on collateral {liquidation_data['collateral_address']}.")
+                                
+                                # Update account health score after liquidation to know how healthy the account is after liquidation and if we need to liquidate again
+                                account.update_liquidity()
                             except Exception as e:
                                 logger.error(f"AccountMonitor: Failed to execute liquidation for account {address}: {e}")
                     else:
@@ -241,11 +319,15 @@ class AccountMonitor:
         except Exception as e:
             logger.error(f"AccountMonitor: Exception updating account {address}: {e}")
 
-    """
-    Save the state of the account monitor to a json file.
-    TODO: Update this in the future to be able to save to a remote file.
-    """
-    def save_state(self, local_save: bool = True):
+    
+    def save_state(self, local_save: bool = True) -> None:
+        """
+        Save the current state of the account monitor.
+        TODO: Update this in the future to be able to save to a remote file.
+
+        Args:
+            local_save (bool, optional): Whether to save the state locally. Defaults to True.
+        """
         try:
             state = {
                 'accounts': {address: account.to_dict() for address, account in self.accounts.items()},
@@ -267,11 +349,14 @@ class AccountMonitor:
         except Exception as e:
             logger.error(f"AccountMonitor: Failed to save state: {e}")
 
-    """
-    Load the state of the account monitor from a json file.
-    TODO: Update this in the future to be able to load from a remote file.
-    """
-    def load_state(self, save_path, local_save: bool = True):
+    def load_state(self, save_path: str, local_save: bool = True) -> None:
+        """
+        Load the state of the account monitor from a file.
+
+        Args:
+            save_path (str): The path to the saved state file.
+            local_save (bool, optional): Whether the state is saved locally. Defaults to True.
+        """
         try:
             if local_save and os.path.exists(save_path):
                 with open(save_path, 'r') as f:
@@ -294,25 +379,34 @@ class AccountMonitor:
             logger.error(f"AccountMonitor: Failed to load state: {e}")
     
     @staticmethod
-    def create_from_save_state(save_path, local_save: bool = True):
+    def create_from_save_state(save_path: str, local_save: bool = True) -> 'AccountMonitor':
+        """
+        Create an AccountMonitor instance from a saved state.
+
+        Args:
+            save_path (str): The path to the saved state file.
+            local_save (bool, optional): Whether the state is saved locally. Defaults to True.
+
+        Returns:
+            AccountMonitor: An AccountMonitor instance initialized from the saved state.
+        """
         monitor = AccountMonitor()
         monitor.load_state(save_path, local_save)
         return monitor
 
-    """
-    Periodically save the state of the account monitor.
-    Should be run in a standalone thread.
-    """
-    def periodic_save(self):
+    def periodic_save(self) -> None:
+        """
+        Periodically save the state of the account monitor.
+        Should be run in a standalone thread.
+        """
         while self.running:
             time.sleep(config.SAVE_INTERVAL)
             self.save_state()
 
-    """
-    Stop the account monitor.
-    Ssaves state after stopping.
-    """
-    def stop(self):
+    def stop(self) -> None:
+        """
+        Stop the account monitor and save its current state.
+        """
         self.running = False
         with self.condition:
             self.condition.notify_all()
@@ -326,12 +420,28 @@ class EVCListener:
 
         self.evc_instance = create_contract_instance(config.EVC_ADDRESS, config.EVC_ABI_PATH)
     
-    # TODO: Implement this
-    def start_event_monitoring(self):
+    def start_event_monitoring(self) -> None:
+        """
+        Start monitoring for EVC events.
+        TODO: Implement timed eventing for AccountStatusCheck events.
+        """
         while True:
-            pass
+            try:
+                pass
+            except Exception as e:
+                logger.error(f"EVCListener: Unexpected exception in event monitoring: {e}")
+
+            time.sleep()
     
-    def scan_block_range_for_account_status_check(self, start_block, end_block, max_retries = config.NUM_RETRIES):
+    def scan_block_range_for_account_status_check(self, start_block: int, end_block: int, max_retries: int = config.NUM_RETRIES) -> None:
+        """
+        Scan a range of blocks for AccountStatusCheck events.
+
+        Args:
+            start_block (int): The starting block number.
+            end_block (int): The ending block number.
+            max_retries (int, optional): Maximum number of retry attempts. Defaults to config.NUM_RETRIES.
+        """
         for attempt in range(max_retries):
             try:
                 logger.info(f"EVCListener: Scanning blocks {start_block} to {end_block} for AccountStatusCheck events.")
@@ -359,7 +469,10 @@ class EVCListener:
                 else:
                     time.sleep(config.RETRY_DELAY) # cooldown between retries
 
-    def batch_account_logs_on_startup(self):
+    def batch_account_logs_on_startup(self) -> None:
+        """
+        Batch process account logs on startup.
+        """
         try:
             start_block = int(config.EVC_DEPLOYMENT_BLOCK)
             
@@ -394,7 +507,13 @@ class SmartUpdateListener:
     def __init__(self, account_monitor: AccountMonitor):
         self.account_monitor = account_monitor
 
-    def trigger_manual_update(self, account):
+    def trigger_manual_update(self, account: Account) -> None:
+        """
+        Boilerplate to trigger a manual update for a specific account.
+
+        Args:
+            account (Account): The account to update.
+        """
         self.account_monitor.update_account(account)
 
 class Liquidator:
@@ -402,58 +521,101 @@ class Liquidator:
         pass
 
     @staticmethod
-    def simulate_liquidation(vault: Vault, violator_address: str, include_swap_to_eth_tx: bool = False):
+    def simulate_liquidation(vault: Vault, violator_address: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+        """
+        Simulate the liquidation of an account.
+        Chooses the maximum profitable liquidation from the available collaterals, if one exists.
+
+        Args:
+            vault (Vault): The vault associated with the account.
+            violator_address (str): The address of the account to potentially liquidate.
+
+        Returns:
+            Tuple[bool, Optional[Dict[str, Any]]]: A tuple containing a boolean indicating
+            if liquidation is profitable, and a dictionary with liquidation details & transaction object if profitable.
+        """
+
         evc_instance = create_contract_instance(config.EVC_ADDRESS, config.EVC_ABI_PATH)
-        
-        #TODO: check how this handles multiple collaterals
         collateral_list = evc_instance.functions.getCollaterals(violator_address).call()
-        remaining_collateral_after_repay = {}
-
-        dust_liability_asset = 0
-        profit_in_eth = 0
-
-        params_list = []
-        master_tx = None
-
+        borrowed_asset = vault.underlying_asset_address
         liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT_ADDRESS, config.LIQUIDATOR_ABI_PATH)
 
-        borrowed_asset = vault.underlying_asset_address
+        max_profit_data = {
+            'tx': None, 
+            'profit': 0,
+            'collateral_address': None,
+            'collateral_asset': None,
+            'leftover_collateral': 0, 
+            'leftover_collateral_in_eth': 0
+        }
 
-        for collateral in collateral_list:
-            collateral_vault = Vault(collateral) # TODO: smarter way to get vaults for collateral
-            collateral_asset = collateral_vault.underlying_asset_address
+        collateral_vaults = {collateral: Vault(collateral) for collateral in collateral_list}
 
-            (max_repay, seized_collateral) = vault.check_liquidation(violator_address, collateral, os.getenv('LIQUIDATOR_PUBLIC_KEY'))
-            
-            if max_repay == 0 or seized_collateral == 0:
+        for collateral, collateral_vault in collateral_vaults.items():
+            try:
+                profit_data = Liquidator.calculate_liquidation_profit(vault, violator_address, borrowed_asset, collateral_vault, liquidator_contract)
+
+                if profit_data['profit'] > max_profit_data['profit']:
+                    max_profit_data = profit_data
+            except Exception as e:
+                logger.error(f"Liquidator: Exception simulating liquidation for account {violator_address} with collateral {collateral}: {e}")
                 continue
-            
-            #TODO: fallback to Uniswap (?) if 1inch fails
-            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral_asset, borrowed_asset, seized_collateral, max_repay)
-            swap_data_1inch = Quoter.get_1inch_swap_data(collateral_asset, borrowed_asset, swap_amount)
+        
 
-            dust_liability_asset += swap_output - max_repay # track dust liability due to overswapping
-            leftover_collateral = seized_collateral - swap_amount
-            remaining_collateral_after_repay[collateral] = leftover_collateral # track remaining collateral after repay
-            
-            (swap_amount, swap_output) = Quoter.get_1inch_quote(collateral_asset, config.WETH_ADDRESS, leftover_collateral, 0, True) # convert leftover asset to WETH
-            profit_in_eth += swap_output
+        if(max_profit_data['tx']):
+            logger.info(f"Liquidator: Profitable liquidation found for account {violator_address}. "
+                        f"Collateral: {max_profit_data['collateral_address']}, "
+                        f"Underlying Collateral Asset: {max_profit_data['collateral_asset']}, "
+                        f"Remaining collateral after swap and repay: {max_profit_data['leftover_collateral']}, "
+                        f"Estimated profit in ETH: {max_profit_data['profit_in_eth']}")
+            return (True, max_profit_data)
+        else:
+            return (False, None)
+    
+    @staticmethod
+    def calculate_liquidation_profit(vault: Vault, violator_address: str, borrowed_asset: str, collateral_vault: Vault, liquidator_contract: Any) -> Dict[str, Any]:
+        """
+        Calculate the potential profit from liquidating an account using a specific collateral.
 
-            params = (
+        Args:
+            vault (Vault): The vault that violator has borrowed from.
+            violator_address (str): The address of the account to potentially liquidate.
+            borrowed_asset (str): The address of the borrowed asset.
+            collateral_vault (Vault): The collatearl vault to seize. 
+            liquidator_contract (Any): The liquidator contract instance.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing transaction and liquidation profit details.
+        """
+        collateral_asset = collateral_vault.underlying_asset_address
+
+        (max_repay, seized_collateral) = vault.check_liquidation(violator_address, collateral_asset, LIQUIDATOR_EOA_PUBLIC_KEY)
+
+        if max_repay == 0 or seized_collateral == 0:
+            return {'profit': 0}
+        
+        (swap_amount, _) = Quoter.get_1inch_quote(collateral_asset, borrowed_asset, seized_collateral, max_repay)
+        
+        estimated_slippage_needed = 2 # TODO: actual slippage calculation
+        
+        swap_data_1inch = Quoter.get_1inch_swap_data(collateral_asset, borrowed_asset, swap_amount, config.SWAPPER, LIQUIDATOR_EOA_PUBLIC_KEY, estimated_slippage_needed)
+
+        leftover_collateral = seized_collateral - swap_amount
+        (_, leftover_collateral_in_eth) = Quoter.get_1inch_quote(collateral_asset, config.WETH_ADDRESS, leftover_collateral, 0, True) # convert leftover asset to WETH
+
+        params = (
                 violator_address,
                 vault.address,
                 borrowed_asset,
-                collateral,
+                collateral_vault.address,
                 collateral_asset,
                 max_repay,
                 seized_collateral,
                 leftover_collateral,
                 swap_data_1inch
-            )
+        )
 
-            params_list.append(params)
-
-            liquidation_tx = liquidator_contract.functions.liquidate_multiple_collaterals(params_list).build_transaction({
+        liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(params).build_transaction({
                 'chainId': config.CHAIN_ID,
                 'gasPrice': w3.eth.gas_price,
                 'from': LIQUIDATOR_EOA_PUBLIC_KEY,
@@ -461,30 +623,26 @@ class Liquidator:
                 'to': config.LIQUIDATOR_CONTRACT_ADDRESS
             })
 
-            estimated_gas = w3.eth.estimate_gas(liquidation_tx)
+        net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
 
-            # TODO: decide on what conditon we want to keep adding collaterals to liquidate
-            # ie. do we want to maximize profit, do we want to maximize amount of debt liquidated, etc
-            if profit_in_eth - estimated_gas > 0:
-                master_tx = liquidation_tx   
+        return {
+            'tx': liquidation_tx, 
+            'profit': net_profit, 
+            'collateral_address': collateral_vault.address,
+            'collateral_asset': collateral_asset,
+            'leftover_collateral': leftover_collateral, 
+            'leftover_collateral_in_eth': leftover_collateral_in_eth
+        }
 
-                if(include_swap_to_eth_tx):
-                    for(collateral, amount) in remaining_collateral_after_repay.items():
-                        #TODO: add swap to ETH and include relevant gas cost
-                        pass
-            else:
-                pass
-        if(master_tx):
-            return (True, master_tx, remaining_collateral_after_repay, profit_in_eth)
-        else:
-            return (False, None, None, 0)
-    
-    """
-    Execute the liquidation of an account using the transaction returned from simulate_liquidation
-    TODO: implement
-    """
+
     @staticmethod
-    def execute_liquidation(liquidation_transaction):
+    def execute_liquidation(liquidation_transaction: Dict[str, Any]) -> None:
+        """
+        Execute a liquidation transaction.
+
+        Args:
+            liquidation_transaction (Dict[str, Any]): The liquidation transaction details.
+        """
         try:
             logger.info(f"Liquidator: Executing liquidation transaction {liquidation_transaction}...")
             signed_tx = w3.eth.account.sign_transaction(liquidation_transaction, LIQUIDATOR_EOA_PRIVATE_KEY)
@@ -507,17 +665,28 @@ class Quoter:
     def __init__(self):
         pass
 
-    """
-    Given a base asset and target asset, get a quote from 1INCH.
-    If target_amount_out == 0, it is treated as an exact in swap.
-
-    Returns swap in amount, swap out amount, and swap data needed to call 1INCH router in the swapper contract.
-    """
     @staticmethod
-    def get_1inch_quote(asset_in: str, asset_out: str, amount_asset_in: int, target_amount_out: int):
-        
-        # simple quote function wrapper
+    def get_1inch_quote(asset_in: str, asset_out: str, amount_asset_in: int, target_amount_out: int) -> Tuple[int, int]:
+        """
+        Get a quote from 1inch for swapping assets.
+        If target_amount_out == 0, it is treated as an exact in swap.
+        Otherwise, runs a binary search to find minimum amount in that results in receiving target_amount_out.
+        Returned actual amount out should always be >= target_amount_out.
+
+        Args:
+            asset_in (str): The address of the input asset.
+            asset_out (str): The address of the output asset.
+            amount_asset_in (int): The amount of input asset.
+            target_amount_out (int): The target amount of output asset.
+
+        Returns:
+            Tuple[int, int]: A tuple containing (actual_amount_in, actual_amount_out).
+        """
+
         def get_quote(params):
+            """
+            Simple wrapper to get a quote from 1inch.
+            """
             api_url = "https://api.1inch.dev/swap/v6.0/1/quote"
             headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
             response = make_api_request(api_url, headers, params)
@@ -534,8 +703,8 @@ class Quoter:
             if target_amount_out == 0: 
                 amount_out = get_quote(params)
                 if amount_out is None:
-                    return (0, 0, None)
-                return (amount_asset_in, amount_out, None)
+                    return (0, 0)
+                return (amount_asset_in, amount_out)
 
             # Binary search to find the amount in that will result in the target amount out
             # Overswaps slightly to make sure we can always repay max_repay
@@ -589,15 +758,39 @@ class Quoter:
         except Exception as e:
             logger.error(f"Quoter: Unexpected error in get_1inch_quote {e}")
             return (0, 0)
-    
-    """
-    Get 1inch swap data with optimal swap path
-    TODO: implement
-    """
-    @staticmethod
-    def get_1inch_swap_data(asset_in: str, asset_out: str, amount_in: int):
-        pass
 
+    @staticmethod
+    def get_1inch_swap_data(asset_in: str, asset_out: str, amount_in: int, swap_from: str, tx_origin: str, slippage: int = 2) -> Optional[str]:
+        """
+        Get swap data from 1inch for executing a swap.
+
+        Args:
+            asset_in (str): The address of the input asset.
+            asset_out (str): The address of the output asset.
+            amount_in (int): The amount of input asset.
+            swap_from (str): The address to swap from.
+            tx_origin (str): The origin of the transaction.
+            slippage (int, optional): The allowed slippage percentage. Defaults to 2.
+
+        Returns:
+            Optional[str]: The swap data if successful, None otherwise.
+        """
+
+        params = {
+            "src": asset_in,
+            "dst": asset_out,
+            "amount": amount_in,
+            "from": swap_from,
+            "origin": tx_origin,
+            "slippage": slippage,
+            "disableEstimate": "true"
+        }
+
+        api_url = "https://api.1inch.dev/swap/v6.0/1/swap"
+        headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
+        response = make_api_request(api_url, headers, params)
+
+        return response["tx"]["data"] if response else None
 
 
 
@@ -620,18 +813,32 @@ if __name__ == "__main__":
         # while True:
         #     time.sleep(1)
 
-        monitor = AccountMonitor()
-        evc_listener = EVCListener(monitor)
+        # monitor = AccountMonitor()
+        # evc_listener = EVCListener(monitor)
 
 
-        liquidator = Liquidator()
+        # liquidator = Liquidator()
         quoter = Quoter()
 
-        # usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
-        # usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+        usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        usdt_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
 
-        # amount_usdc_in = 100000000
-        # target_usdc_out = 70000000
+        amount_usdc_in = 100000000
+        target_usdt_out = 70000000
+
+        print(f"Getting 1inch quote for {amount_usdc_in} USDC to USDT with target {target_usdt_out} USDT out")
+        actual_amount_in, _ = quoter.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdt_out)
+
+        print(f"Actual amount in: {actual_amount_in}")
+
+        print(f"Getting swap data for {actual_amount_in} USDC to USDT")
+
+        swap_from = "0xf4e55515952BdAb2aeB4010f777E802D61eB384f"
+        tx_origin = "0xeC5DF17559e6E4172b82FcD8Df84D425748f6dd2"
+
+        swap_data = quoter.get_1inch_swap_data(usdc_address, usdt_address, amount_usdc_in, swap_from, tx_origin)
+
+        print(f"Swap data: {swap_data}")
 
         # print(quoter.get_1inch_quote(usdc_address, usdt_address, amount_usdc_in, target_usdc_out))
     except Exception as e:
