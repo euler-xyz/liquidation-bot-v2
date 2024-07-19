@@ -56,15 +56,34 @@ def setup_logger(logs_path: str) -> logging.Logger:
 
     return logger
 
+class Web3Singleton:
+    """
+    Singleton class to manage w3 object creation
+    """
+    _instance = None
+
+    @staticmethod
+    def get_instance():
+        """
+        Set up a Web3 instance using the RPC URL from environment variables.
+        """
+        if Web3Singleton._instance is None:
+            load_dotenv(override=True)
+            rpc_url = os.getenv("RPC_URL")
+            logger = logging.getLogger("liquidation_bot")
+            logger.info("Trying to connect to RPC URL: %s", rpc_url)
+
+            Web3Singleton._instance = Web3(Web3.HTTPProvider(rpc_url))
+        return Web3Singleton._instance
+
 def setup_w3() -> Web3:
     """
-    Set up and return a Web3 instance using the RPC URL from environment variables.
+    Get the Web3 instance from the singleton class
 
     Returns:
-        Web3: Configured Web3 instance.
+        Web3: Web3 instance.
     """
-    load_dotenv()
-    return Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
+    return Web3Singleton.get_instance()
 
 def create_contract_instance(address: str, abi_path: str) -> Contract:
     """
@@ -110,7 +129,7 @@ def retry_request(logger: logging.Logger,
                 try:
                     return func(*args, **kwargs)
                 except requests.RequestException as e:
-                    logger.error(f"Error in API request, waiting {delay} seconds before retrying."
+                    logger.error(f"Error in API request, waiting {delay} seconds before retrying. "
                                  f"Attempt {attempt}/{max_retries}")
                     logger.error(f"Error: {e}")
 
