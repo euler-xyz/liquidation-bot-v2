@@ -54,15 +54,18 @@ class Vault:
         Returns:
             Tuple[int, int]: A tuple containing (collateral_value, liability_value).
         """
-        try:
-            balance = self.instance.functions.balanceOf(Web3.to_checksum_address(account_address)).call()
-            logger.info("Vault: Account %s balance: %s", account_address, balance)
-        except Exception as ex: # pylint: disable=broad-except
-            logger.error("Vault: Failed to get balance for account %s: %s", account_address, ex)
-            balance = 0
-        
-        if balance == 0:
-            return (0, 1, 1)
+        # try:
+        #     balance = self.instance.functions.balanceOf(Web3.to_checksum_address(account_address)).call()
+        #     logger.info("Vault: Account %s balance: %s", account_address, balance)
+        # except Exception as ex: # pylint: disable=broad-except
+        #     logger.error("Vault: Failed to get balance for account %s: %s", account_address, ex, exc_info=True)
+        #     balance = 0
+
+        # if balance == 0:
+        #     return (0, 1, 1)
+
+        # TODO: fix this, currently just returning 1 for balance
+        balance = 1
 
         try:
             (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
@@ -71,7 +74,7 @@ class Vault:
             ).call()
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get account liquidity for account %s: %s",
-                         account_address, ex)
+                         account_address, ex, exc_info=True)
             return (balance, 1, 1)
 
 
@@ -93,6 +96,8 @@ class Vault:
         Returns:
             Tuple[int, int]: A tuple containing (max_repay, seized_collateral).
         """
+        logger.info("Vault: Checking liquidation for account %s, collateral %s, liquidator %s",
+                    borower_address, collateral_address, liquidator_address)
         (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(
             Web3.to_checksum_address(liquidator_address),
             Web3.to_checksum_address(borower_address),
@@ -333,7 +338,7 @@ class AccountMonitor:
             account = self.accounts.get(address)
 
             if not account:
-                logger.error("AccountMonitor: Account %s not found in account list.", address)
+                logger.error("AccountMonitor: Account %s not found in account list.", address, exc_info=True)
                 return
 
             if account.balance == 0:
@@ -363,7 +368,7 @@ class AccountMonitor:
                                 logger.error("AccountMonitor: "
                                              "Failed to post liquidation notification "
                                              " for account %s to slack: %s",
-                                             address, ex)
+                                             address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
                                 Liquidator.execute_liquidation(liquidation_data["liquidation_tx"])
@@ -379,8 +384,7 @@ class AccountMonitor:
                             except Exception as ex: # pylint: disable=broad-except
                                 logger.error("AccountMonitor: "
                                              "Failed to execute liquidation for account %s: %s",
-                                             address,
-                                             ex)
+                                             address, ex, exc_info=True)
                     else:
                         logger.info("AccountMonitor: "
                                     "Account %s is unhealthy but not profitable to liquidate.",
@@ -389,7 +393,7 @@ class AccountMonitor:
                 except Exception as ex: # pylint: disable=broad-except
                     logger.error("AccountMonitor: "
                                  "Exception simulating liquidation for account %s: %s",
-                                 address, ex)
+                                 address, ex, exc_info=True)
 
             next_update_time = account.time_of_next_update
 
@@ -398,7 +402,8 @@ class AccountMonitor:
                 self.condition.notify()
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Exception updating account %s: %s", address, ex)
+            logger.error("AccountMonitor: Exception updating account %s: %s",
+                         address, ex, exc_info=True)
 
     def save_state(self, local_save: bool = True) -> None:
         """
@@ -430,7 +435,7 @@ class AccountMonitor:
                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                         self.latest_block)
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to save state: %s", ex)
+            logger.error("AccountMonitor: Failed to save state: %s", ex, exc_info=True)
 
     def load_state(self, save_path: str, local_save: bool = True) -> None:
         """
@@ -471,7 +476,7 @@ class AccountMonitor:
             else:
                 logger.info("AccountMonitor: No saved state found.")
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to load state: %s", ex)
+            logger.error("AccountMonitor: Failed to load state: %s", ex, exc_info=True)
     
     def rebuild_queue(self):
         """
@@ -493,7 +498,8 @@ class AccountMonitor:
                 logger.info("AccountMonitor: Account %s added to queue with health score %s, next update at %s",
                             address, health_score, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(next_update_time)))
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s", address, ex)
+                logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
+                             address, ex, exc_info=True)
 
         logger.info("AccountMonitor: Queue rebuilt with %s acccounts", self.update_queue.qsize())
 
@@ -558,10 +564,11 @@ class EVCListener:
 
                 if self.account_monitor.latest_block < current_block:
                     self.scan_block_range_for_account_status_check(
-                        self.account_monitor.latest_block + 1,
+                        self.account_monitor.latest_block,
                         current_block)
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("EVCListener: Unexpected exception in event monitoring: %s", ex)
+                logger.error("EVCListener: Unexpected exception in event monitoring: %s",
+                             ex, exc_info=True)
 
             time.sleep(config.SCAN_INTERVAL)
 
@@ -601,7 +608,8 @@ class EVCListener:
                             vault_address)
                     except Exception as ex: # pylint: disable=broad-except
                         logger.error("EVCListener: Exception updating account %s "
-                                     "on AccountStatusCheck event: %s", account_address, ex)
+                                     "on AccountStatusCheck event: %s",
+                                     account_address, ex, exc_info=True)
 
                 logger.info("EVCListener: Finished scanning blocks %s to %s "
                             "for AccountStatusCheck events.", start_block, end_block)
@@ -611,11 +619,11 @@ class EVCListener:
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Exception scanning block range %s to %s "
                              "(attempt %s/%s): %s",
-                             start_block, end_block, attempt + 1, max_retries, ex)
+                             start_block, end_block, attempt + 1, max_retries, ex, exc_info=True)
                 if attempt == max_retries - 1:
                     logger.error("EVCListener: "
                                  "Failed to scan block range %s to %s after %s attempts",
-                                 start_block, end_block, max_retries)
+                                 start_block, end_block, max_retries, exc_info=True)
                 else:
                     time.sleep(config.RETRY_DELAY) # cooldown between retries
 
@@ -653,7 +661,8 @@ class EVCListener:
 
         except Exception as ex: # pylint: disable=broad-except
             logger.error("EVCListener: "
-                         "Unexpected exception in batch scanning account logs on startup: %s", ex)
+                         "Unexpected exception in batch scanning account logs on startup: %s",
+                         ex, exc_info=True)
 
 #TODO: Future feature, smart monitor to trigger manual update of an account
 # based on a large price change (or some other trigger)
@@ -700,10 +709,10 @@ class Liquidator:
             & transaction object if profitable.
         """
 
-        evc_instance = create_contract_instance(config.EVC_ADDRESS, config.EVC_ABI_PATH)
+        evc_instance = create_contract_instance(config.EVC, config.EVC_ABI_PATH)
         collateral_list = evc_instance.functions.getCollaterals(violator_address).call()
         borrowed_asset = vault.underlying_asset_address
-        liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT_ADDRESS,
+        liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                        config.LIQUIDATOR_ABI_PATH)
 
         max_profit_data = {
@@ -731,7 +740,7 @@ class Liquidator:
                 logger.error("Liquidator: "
                              "Exception simulating liquidation "
                              "for account %s with collateral %s: %s",
-                             violator_address, collateral, ex)
+                             violator_address, collateral, ex, exc_info=True)
                 continue
 
 
@@ -742,7 +751,7 @@ class Liquidator:
                         "Estimated profit in ETH: %s",
                         violator_address, max_profit_data["collateral_address"],
                         max_profit_data["collateral_asset"], max_profit_data["leftover_collateral"],
-                        max_profit_data["profit_in_eth"])
+                        max_profit_data["leftover_collateral_in_eth"])
             return (True, max_profit_data)
         return (False, None)
 
@@ -765,10 +774,11 @@ class Liquidator:
         Returns:
             Dict[str, Any]: A dictionary containing transaction and liquidation profit details.
         """
+        collateral_vault_address = collateral_vault.address
         collateral_asset = collateral_vault.underlying_asset_address
 
         (max_repay, seized_collateral) = vault.check_liquidation(violator_address,
-                                                                 collateral_asset,
+                                                                 collateral_vault_address,
                                                                  LIQUIDATOR_EOA_PUBLIC_KEY)
 
         if max_repay == 0 or seized_collateral == 0:
@@ -781,19 +791,25 @@ class Liquidator:
 
         estimated_slippage_needed = 2 # TODO: actual slippage calculation
 
+        time.sleep(config.API_REQUEST_DELAY)
+
         swap_data_1inch = Quoter.get_1inch_swap_data(collateral_asset,
                                                      borrowed_asset,
                                                      swap_amount,
                                                      config.SWAPPER,
                                                      LIQUIDATOR_EOA_PUBLIC_KEY,
+                                                     vault.address,
                                                      estimated_slippage_needed)
 
         leftover_collateral = seized_collateral - swap_amount
+        
+        time.sleep(config.API_REQUEST_DELAY)
 
         # Convert leftover asset to WETH
         (_, leftover_collateral_in_eth) = Quoter.get_1inch_quote(collateral_asset,
-                                                                 config.WETH_ADDRESS,
+                                                                 config.WETH,
                                                                  leftover_collateral, 0)
+        time.sleep(config.API_REQUEST_DELAY)
 
         params = (
                 violator_address,
@@ -803,6 +819,7 @@ class Liquidator:
                 collateral_asset,
                 max_repay,
                 seized_collateral,
+                swap_amount,
                 leftover_collateral,
                 swap_data_1inch
         )
@@ -813,8 +830,7 @@ class Liquidator:
                 "chainId": config.CHAIN_ID,
                 "gasPrice": w3.eth.gas_price,
                 "from": LIQUIDATOR_EOA_PUBLIC_KEY,
-                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY),
-                "to": config.LIQUIDATOR_CONTRACT_ADDRESS
+                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
             })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
@@ -845,7 +861,7 @@ class Liquidator:
             tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
 
-            liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT_ADDRESS,
+            liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                            config.LIQUIDATOR_ABI_PATH)
 
             result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt)
@@ -856,7 +872,7 @@ class Liquidator:
 
             logger.info("Liquidator: Liquidation transaction executed successfully.")
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Liquidator: Unexpected error in execute_liquidation %s", ex)
+            logger.error("Liquidator: Unexpected error in execute_liquidation %s", ex, exc_info=True)
 
 class Quoter:
     """
@@ -952,7 +968,7 @@ class Quoter:
                     max_amount_in = swap_amount
 
                 iteration_count +=1
-                time.sleep(2) # need to rate limit until getting enterprise account key
+                time.sleep(config.API_REQUEST_DELAY) # need to rate limit until getting enterprise account key
 
             if iteration_count == config.MAX_SEARCH_ITERATIONS:
                 logger.warning("Quoter: 1inch quote search for %s to %s "
@@ -966,7 +982,7 @@ class Quoter:
 
             return (params["amount"], amount_out)
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Quoter: Unexpected error in get_1inch_quote %s", ex)
+            logger.error("Quoter: Unexpected error in get_1inch_quote %s", ex, exc_info=True)
             return (0, 0)
 
     @staticmethod
@@ -975,6 +991,7 @@ class Quoter:
                             amount_in: int,
                             swap_from: str,
                             tx_origin: str,
+                            swap_receiver: str,
                             slippage: int = 2) -> Optional[str]:
         """
         Get swap data from 1inch for executing a swap.
@@ -998,6 +1015,7 @@ class Quoter:
             "from": swap_from,
             "origin": tx_origin,
             "slippage": slippage,
+            "receiver": swap_receiver,
             "disableEstimate": "true"
         }
 

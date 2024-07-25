@@ -15,6 +15,9 @@ forge build
 cd ..
 ```
 
+Create /logs and /state folders in the base directory
+You may need to change your python interpreter to the venv interpreter to remove package warnings
+
 ### TODO:
 - Smarter oracle checking - pull based, pricing
 - Fallback to Uniswap if no quote
@@ -40,4 +43,8 @@ Configuration through `.env` file:
 
 ```bash
 forge script contracts/DeployLiquidator.sol --rpc-url https://virtual.mainnet.rpc.tenderly.co/24f051ac-9429-419a-890e-c5dc56bf2649 --broadcast --ffi -vvv --slow
+```
+
+```bash
+forge script contracts/DeployLiquidator.sol --rpc-url http://127.0.0.1:8545 --broadcast --ffi -vvv --slow
 ```

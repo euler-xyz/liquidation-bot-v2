@@ -19,9 +19,9 @@ contract DeployLiquidator is Script {
         // address swapVerifierAddress = vm.envAddress("SWAP_VERIFIER_ADDRESS");
         // address evcAddress = vm.envAddress("EVC_ADDRESS");
 
-        address swapperAddress = 0xf4e55515952BdAb2aeB4010f777E802D61eB384f;
-        address swapVerifierAddress = 0xe519389F8c262d4301Fd2830196FB7D0021daf59;
-        address evcAddress = 0x72F853E9E202600c5017B5A060168603c3ed7368;
+        address swapperAddress = 0xfA898de6CcE1715a14F579c316C6cfd7F869655B;
+        address swapVerifierAddress = 0x4c0bF4C73f2Cf53259C84694b2F26Adc4916921e;
+        address evcAddress = 0xB8d6D6b01bFe81784BE46e5771eF017Fa3c906d8;
 
         deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);

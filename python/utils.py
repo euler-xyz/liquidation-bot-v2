@@ -6,6 +6,7 @@ import os
 import json
 import functools
 import time
+import traceback
 
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, Optional
@@ -47,12 +48,27 @@ def setup_logger(logs_path: str) -> logging.Logger:
     console_handler = logging.StreamHandler()
     file_handler = logging.FileHandler(logs_path, mode="w")
 
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    console_handler.setFormatter(formatter)
-    file_handler.setFormatter(formatter)
+    detailed_formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s\n%(exc_info)s")
+
+    # Create a standard formatter for other log levels
+    standard_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    class DetailedExceptionFormatter(logging.Formatter):
+        def format(self, record):
+            if record.levelno >= logging.ERROR:
+                record.exc_text = "".join(
+                    traceback.format_exception(*record.exc_info)) if record.exc_info else ""
+                return detailed_formatter.format(record)
+            else:
+                return standard_formatter.format(record)
+
+    console_handler.setFormatter(DetailedExceptionFormatter())
+    file_handler.setFormatter(DetailedExceptionFormatter())
 
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
+
 
     return logger
 
@@ -161,20 +177,20 @@ def make_api_request(url: str,
     return response.json()
 
 
-def global_exception_handler(exctype: type, value: BaseException, traceback: Any) -> None:
+def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> None:
     """
     Global exception handler to log uncaught exceptions.
 
     Args:
         exctype (type): The type of the exception.
         value (BaseException): The exception instance.
-        traceback (Any): A traceback object encapsulating the call stack
+        tb (Any): A traceback object encapsulating the call stack
                         at the point where the exception occurred.
     """
     logger = logging.getLogger("liquidation_bot")
 
     # Get the full traceback as a string
-    trace_str = "".join(traceback.format_exception(exctype, value, traceback))
+    trace_str = "".join(tb.format_exception(exctype, value, tb))
 
     # Log the full exception information
     logger.critical("Uncaught exception:\n %s", trace_str)

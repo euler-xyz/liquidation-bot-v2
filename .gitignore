@@ -18,6 +18,7 @@ lcov.info
 
 # Virtual env
 python-venv/
+venv/ 
 
 # Logs and save state
 logs/
