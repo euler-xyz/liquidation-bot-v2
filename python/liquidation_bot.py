@@ -824,6 +824,8 @@ class Liquidator:
                 swap_data_1inch
         )
 
+        logger.info("Liquidaor: Liquidation details: ", params)
+
         liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
             params
             ).build_transaction({
@@ -936,6 +938,13 @@ class Quoter:
             last_valid_amount_in, last_valid_amount_out = 0, 0
 
             amount_out = 0 #declare so we can access outside loops
+            
+            initial_guess = get_quote({"src": params["dst"], "dst": params["src"], "amount": target_amount_out})
+            time.sleep(config.API_REQUEST_DELAY)
+
+            #TODO: these bounds can probably be smarter
+            min_amount_in = initial_guess * .9
+            max_amount_in = initial_guess * 1.1
 
             while iteration_count < config.MAX_SEARCH_ITERATIONS:
                 swap_amount = int((min_amount_in + max_amount_in) / 2)
@@ -1019,6 +1028,8 @@ class Quoter:
             "disableEstimate": "true"
         }
 
+        logger.info("Getting 1inch swap data for %s %s %s %s %s %s %s", amount_in, asset_in, asset_out, swap_from, tx_origin, swap_receiver, slippage)
+
         api_url = "https://api.1inch.dev/swap/v6.0/1/swap"
         headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
         response = make_api_request(api_url, headers, params)
@@ -1027,22 +1038,32 @@ class Quoter:
 
 
 
-
-
 if __name__ == "__main__":
     try:
-        monitor = AccountMonitor()
-        monitor.load_state(config.SAVE_STATE_PATH)
+        # monitor = AccountMonitor()
+        # monitor.load_state(config.SAVE_STATE_PATH)
 
-        evc_listener = EVCListener(monitor)
+        # evc_listener = EVCListener(monitor)
 
-        evc_listener.batch_account_logs_on_startup()
+        # evc_listener.batch_account_logs_on_startup()
 
-        threading.Thread(target=monitor.start_queue_monitoring).start()
-        threading.Thread(target=evc_listener.start_event_monitoring).start()
+        # threading.Thread(target=monitor.start_queue_monitoring).start()
+        # threading.Thread(target=evc_listener.start_event_monitoring).start()
 
-        while True:
-            time.sleep(1)
+        # while True:
+        #     time.sleep(1)
+
+        asset_in = "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"
+        asset_out = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+        amount_asset_in = 10015228721
+        target_amount_out = 8015228721
+    
+        amount = Quoter.get_1inch_quote(asset_in,
+                        asset_out,
+                        amount_asset_in,
+                        target_amount_out)
+        
+        print(amount)
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e)

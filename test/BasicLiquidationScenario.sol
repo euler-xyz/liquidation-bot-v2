@@ -59,8 +59,8 @@ contract BasicScenario is Test, Script {
         uint256 borrowerPrivateKey = vm.deriveKey(vm.envString("MNEMONIC"), 2);
         borrower = vm.addr(borrowerPrivateKey);
         
-        // console.log("Initial state:");
-        // logState();
+        console.log("Initial state:");
+        logState();
 
         // distributeTokens();
 
@@ -79,9 +79,9 @@ contract BasicScenario is Test, Script {
         // oracle.setPrice(TEST_VAULT_1_ADDRESS, address(0), 1e18);
         // oracle.setPrice(TEST_VAULT_2_ADDRESS, address(0), 1e18);
 
-        vm.stopBroadcast();
+        // vm.stopBroadcast();
 
-        vm.startBroadcast(borrowerPrivateKey);
+        // vm.startBroadcast(borrowerPrivateKey);
 
         // underlying2.approve(address(vault2), type(uint).max);
         // vault2.deposit(1e10, borrower);
@@ -96,14 +96,14 @@ contract BasicScenario is Test, Script {
         // console.log("After borrower borrow:");
         // logState();
 
-        vault1.borrow(1e9, borrower);
-        console.log("After borrowing a little bit more:");
-        logState();
+        // vault1.borrow(1e9, borrower);
+        // console.log("After borrowing a little bit more:");
+        // logState();
 
-        vm.stopBroadcast();
+        // vm.stopBroadcast();
 
-        vm.startBroadcast(deployerPrivateKey);
-        vault1.setLTV(address(vault2), 0.2e4, 0.2e4, 0);
+        // vm.startBroadcast(deployerPrivateKey);
+        // vault1.setLTV(address(vault2), 0.2e4, 0.2e4, 0);
     }
 
     function depositInVaults() internal {

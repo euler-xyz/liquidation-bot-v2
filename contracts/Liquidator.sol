@@ -90,7 +90,7 @@ contract Liquidator {
             })
         );
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
     
         // TODO: check if already enabled
         
@@ -133,7 +133,7 @@ contract Liquidator {
                     params.violatorAddress,
                     params.collateralVault,
                     params.repayAmount,
-                    params.seizedCollateralAmount - 1 // in case of some rounding issue
+                    params.seizedCollateralAmount
                 )
             )
         });
@@ -146,7 +146,7 @@ contract Liquidator {
             data: abi.encodeCall(
                 IERC4626.withdraw,
                 (
-                    params.swapAmount, // only withdraw as much as we need to swap
+                    params.swapAmount,
                     swapperAddress,
                     address(this)
                 )
@@ -161,8 +161,16 @@ contract Liquidator {
             data: abi.encodeCall(ISwapper.multicall, multicallItems)
         });
 
-        // Step 6: Repay debt
+        // Step 6: call swap verifier
         batchItems[5] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: address(swapVerifierAddress),
+            value: 0,
+            data: abi.encodeCall(SwapVerifier.verifyAmountMinAndSkim, (params.vault, address(this), 1, type(uint256).max))
+        });
+
+        // Step 7: repay debt
+        batchItems[6] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
             targetContract: params.vault,
             value: 0,
@@ -175,7 +183,7 @@ contract Liquidator {
             )
         });
 
-        // Step 7: TODO: transfer leftover position to an account owned by an EOA
+        // Step 8: TODO: transfer leftover position to an account owned by an EOA
 
         evc.batch(batchItems);
 
