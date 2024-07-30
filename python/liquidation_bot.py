@@ -846,7 +846,6 @@ class Liquidator:
             "leftover_collateral_in_eth": leftover_collateral_in_eth
         }
 
-
     @staticmethod
     def execute_liquidation(liquidation_transaction: Dict[str, Any]) -> None:
         """
