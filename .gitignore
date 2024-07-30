@@ -12,6 +12,7 @@ docs/
 
 # Dotenv file
 .env
+.env_local
 .copy_env
 .vscode
 lcov.info
