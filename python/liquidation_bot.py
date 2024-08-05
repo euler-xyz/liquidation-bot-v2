@@ -8,6 +8,7 @@ import queue
 import os
 import json
 import sys
+import math
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
@@ -55,10 +56,12 @@ class Vault:
             Tuple[int, int]: A tuple containing (collateral_value, liability_value).
         """
         # try:
-        #     balance = self.instance.functions.balanceOf(Web3.to_checksum_address(account_address)).call()
+            # balance = self.instance.functions.balanceOf(
+            #     Web3.to_checksum_address(account_address)).call()
         #     logger.info("Vault: Account %s balance: %s", account_address, balance)
         # except Exception as ex: # pylint: disable=broad-except
-        #     logger.error("Vault: Failed to get balance for account %s: %s", account_address, ex, exc_info=True)
+            # logger.error("Vault: Failed to get balance for account %s: %s",
+            #              account_address, ex, exc_info=True)
         #     balance = 0
 
         # if balance == 0:
@@ -140,9 +143,17 @@ class Account:
         Returns:
             float: The current health score of the account.
         """
-        balance, collateral_value, liability_value = self.controller.get_account_liquidity(self.address)
 
+        balance, collateral_value, liability_value = self.controller.get_account_liquidity(
+            self.address)
         self.balance = balance
+
+        # Special case for 0 values
+        #TODO: remove from list if health score is inf
+        if balance == 0 or collateral_value == 0 or liability_value == 0:
+            self.current_health_score = math.inf
+            return self.current_health_score
+
 
         self.current_health_score = collateral_value / liability_value
 
@@ -159,7 +170,7 @@ class Account:
         if self.balance == 0:
             self.time_of_next_update = time.time() + config.MAX_UPDATE_INTERVAL
             return self.time_of_next_update
-        
+
         time_gap = 0
         # Simple linear interpolation between min and max update intervals
         # TODO: make this smarter
@@ -338,7 +349,8 @@ class AccountMonitor:
             account = self.accounts.get(address)
 
             if not account:
-                logger.error("AccountMonitor: Account %s not found in account list.", address, exc_info=True)
+                logger.error("AccountMonitor: Account %s not found in account list.",
+                             address, exc_info=True)
                 return
 
             if account.balance == 0:
@@ -460,13 +472,15 @@ class AccountMonitor:
                 for address, account in self.accounts.items():
                     logger.info(f"  Account {address}: Controller: {account.controller.address}, "
                                 f"Health Score: {account.current_health_score}, "
-                                f"Next Update: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(account.time_of_next_update))}")
+                                f"Next Update: {time.strftime("%Y-%m-%d %H:%M:%S",
+                                time.localtime(account.time_of_next_update))}")
 
                 self.rebuild_queue()
-                
+
                 self.last_saved_block = state["last_saved_block"]
                 self.latest_block = self.last_saved_block
-                logger.info("AccountMonitor: State loaded from save file %s from block %s to block %s",
+                logger.info("AccountMonitor: State loaded from save"
+                            " file %s from block %s to block %s",
                             save_path,
                             config.EVC_DEPLOYMENT_BLOCK,
                             self.latest_block)
@@ -477,7 +491,7 @@ class AccountMonitor:
                 logger.info("AccountMonitor: No saved state found.")
         except Exception as ex: # pylint: disable=broad-except
             logger.error("AccountMonitor: Failed to load state: %s", ex, exc_info=True)
-    
+
     def rebuild_queue(self):
         """
         Rebuild queue based on current account health
@@ -495,8 +509,10 @@ class AccountMonitor:
 
                 next_update_time = account.time_of_next_update
                 self.update_queue.put((next_update_time, address))
-                logger.info("AccountMonitor: Account %s added to queue with health score %s, next update at %s",
-                            address, health_score, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(next_update_time)))
+                logger.info("AccountMonitor: Account %s added to queue"
+                            " with health score %s, next update at %s",
+                            address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
+                                                                 time.localtime(next_update_time)))
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
                              address, ex, exc_info=True)
@@ -802,7 +818,7 @@ class Liquidator:
                                                      estimated_slippage_needed)
 
         leftover_collateral = seized_collateral - swap_amount
-        
+
         time.sleep(config.API_REQUEST_DELAY)
 
         # Convert leftover asset to WETH
@@ -873,7 +889,8 @@ class Liquidator:
 
             logger.info("Liquidator: Liquidation transaction executed successfully.")
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Liquidator: Unexpected error in execute_liquidation %s", ex, exc_info=True)
+            logger.error("Liquidator: Unexpected error in execute_liquidation %s",
+                         ex, exc_info=True)
 
 class Quoter:
     """
@@ -936,7 +953,8 @@ class Quoter:
             last_valid_amount_in, last_valid_amount_out = 0, 0
 
 
-            swap_amount = get_quote({"src": params["dst"], "dst": params["src"], "amount": target_amount_out})
+            swap_amount = get_quote({"src": params["dst"], "dst": params["src"],
+                                     "amount": target_amount_out})
             time.sleep(config.API_REQUEST_DELAY)
 
             #TODO: these bounds can probably be smarter
@@ -973,14 +991,16 @@ class Quoter:
                     min_amount_in = swap_amount
 
                     # TODO: could probably be smarter, check this when we figure out smarter bounds
-                    if max_amount_in - swap_amount < max_amount_in * 0.01: 
+                    if max_amount_in - swap_amount < max_amount_in * 0.01:
                         max_amount_in = min(max_amount_in * 1.5, amount_asset_in)
                         logger.info("Quoter: Increasing max_amount_in to %s", max_amount_in)
                 elif amount_out > target_amount_out:
                     max_amount_in = swap_amount
 
                 iteration_count +=1
-                time.sleep(config.API_REQUEST_DELAY) # need to rate limit until getting enterprise account key
+
+                # need to rate limit until getting enterprise account key
+                time.sleep(config.API_REQUEST_DELAY)
 
             if iteration_count == config.MAX_SEARCH_ITERATIONS:
                 logger.warning("Quoter: 1inch quote search for %s to %s "
@@ -996,7 +1016,7 @@ class Quoter:
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Quoter: Unexpected error in get_1inch_quote %s", ex, exc_info=True)
             return (0, 0)
-        
+
     @staticmethod
     def get_1inch_swap_data(asset_in: str,
                             asset_out: str,
@@ -1031,7 +1051,9 @@ class Quoter:
             "disableEstimate": "true"
         }
 
-        logger.info("Getting 1inch swap data for %s %s %s %s %s %s %s", amount_in, asset_in, asset_out, swap_from, tx_origin, swap_receiver, slippage)
+        logger.info("Getting 1inch swap data for %s %s %s %s %s %s %s",
+                    amount_in, asset_in, asset_out, swap_from, tx_origin,
+                    swap_receiver, slippage)
 
         api_url = "https://api.1inch.dev/swap/v6.0/42161/swap"
         headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
@@ -1043,14 +1065,14 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        monitor = AccountMonitor()
+        acct_monitor = AccountMonitor()
         # monitor.load_state(config.SAVE_STATE_PATH)
 
-        evc_listener = EVCListener(monitor)
+        evc_listener = EVCListener(acct_monitor)
 
         evc_listener.batch_account_logs_on_startup()
 
-        threading.Thread(target=monitor.start_queue_monitoring).start()
+        threading.Thread(target=acct_monitor.start_queue_monitoring).start()
         threading.Thread(target=evc_listener.start_event_monitoring).start()
 
         while True:

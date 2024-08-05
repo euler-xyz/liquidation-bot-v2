@@ -46,5 +46,5 @@ forge script contracts/DeployLiquidator.sol --rpc-url https://virtual.mainnet.rp
 ```
 
 ```bash
-forge script contracts/DeployLiquidator.sol --rpc-url http://127.0.0.1:8545 --broadcast --ffi -vvv --slow
+forge script contracts/DeployLiquidator.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow
 ```
