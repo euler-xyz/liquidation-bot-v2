@@ -5,7 +5,7 @@ LOGS_PATH: "logs/account_monitor_logs.log"
 SAVE_STATE_PATH: "state/account_monitor_logs.json"
 
 # Path to save location for state (in seconds)
-SAVE_INTERVAL: 1800 # 30 minutes
+SAVE_INTERVAL: 60 # 30 minutes
 
 # Health score bounds for min/max update interval frequency
 HS_LOWER_BOUND: 1.05
@@ -17,7 +17,7 @@ MAX_UPDATE_INTERVAL: 60 # 60 seconds
 
 # Bath size for scanning blocks on startup
 BATCH_SIZE: 10000
-BATCH_INTERVAL: 2
+BATCH_INTERVAL: 0.1
 
 # Time to wait between scanning on regular intervals
 SCAN_INTERVAL: 10
@@ -29,7 +29,7 @@ RETRY_DELAY: 10
 # Acceptable amound of overswapping of collateral for 1INCH binary search
 SWAP_DELTA: 100000000000000
 MAX_SEARCH_ITERATIONS: 20
-API_REQUEST_DELAY: 2
+API_REQUEST_DELAY: 1
 
 # EVC Deployment Block
 EVC_DEPLOYMENT_BLOCK: 238633655
@@ -39,7 +39,7 @@ WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
 EVC: "0xE45Ee4046bD755330D555dFe4aDA7839a3eEb926"
 SWAPPER: "0xf11A61f808526B45ba797777Ab7B1DB5CC65DE0F"
 SWAP_VERIFIER: "0x8aAA2CaEca30AB50d48EB0EA71b83c49A2f49791"
-LIQUIDATOR_CONTRACT: "0x956810cc3E5098E48cdb9409f48819C1eafaAa69"
+LIQUIDATOR_CONTRACT: "0xe95E012038D78C3582aDFBa4691BeBA3E62A4c65"
 
 # Compiled contract paths
 EVAULT_ABI_PATH: "lib/evk-periphery/out/EVault.sol/EVault.json"

@@ -161,15 +161,30 @@ contract Liquidator {
             data: abi.encodeCall(ISwapper.multicall, multicallItems)
         });
 
-        // Step 6: call swap verifier
+        // TODO: fix
+        // // Step 6: call swap verifier
+        // batchItems[5] = IEVC.BatchItem({
+        //     onBehalfOfAccount: address(this),
+        //     targetContract: address(swapVerifierAddress),
+        //     value: 0,
+        //     data: abi.encodeCall(SwapVerifier.verifyAmountMinAndSkim, (params.vault, address(this), 1, type(uint256).max))
+        // });
+
+        // Step 7: give allowance to controller vault to repay debt
         batchItems[5] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
-            targetContract: address(swapVerifierAddress),
+            targetContract: params.borrowedAsset,
             value: 0,
-            data: abi.encodeCall(SwapVerifier.verifyAmountMinAndSkim, (params.vault, address(this), 1, type(uint256).max))
+            data: abi.encodeCall(
+                IERC20.approve,
+                (
+                    params.vault,
+                    params.repayAmount
+                )
+            )
         });
 
-        // Step 7: repay debt
+        // Step 8: repay debt
         batchItems[6] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
             targetContract: params.vault,
@@ -191,6 +206,65 @@ contract Liquidator {
         // if(IEVault(params.collateralVault).convertToAssets(IEVault(params.collateralVault).balanceOf(address(this))) < params.expectedRemainingCollateral) {
         //     revert LessThanExpectedCollateralReceived();
         // }
+
+        emit Liquidation(
+            params.violatorAddress,
+            params.vault,
+            params.borrowedAsset,
+            params.collateralAsset,
+            params.repayAmount,
+            params.seizedCollateralAmount
+        );
+
+        return true;
+    }
+
+
+    function liquidateFromExistingCollateralPosition(LiquidationParams calldata params) external returns (bool success) {
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](3);
+
+        batchItems[0] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(
+                IEVC.enableController,
+                (
+                    address(this),
+                    params.vault
+                )
+            )
+        });
+
+        batchItems[1] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(
+                IEVC.enableCollateral,
+                (
+                    address(this),
+                    params.collateralVault
+                )
+            )
+        });
+
+        batchItems[2] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: params.vault,
+            value: 0,
+            data: abi.encodeCall(
+                ILiquidation.liquidate,
+                (
+                    params.violatorAddress,
+                    params.collateralVault,
+                    params.repayAmount,
+                    params.seizedCollateralAmount
+                )
+            )
+        });
+
+        evc.batch(batchItems);
 
         emit Liquidation(
             params.violatorAddress,

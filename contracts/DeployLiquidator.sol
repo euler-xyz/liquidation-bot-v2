@@ -13,7 +13,7 @@ contract DeployLiquidator is Script {
 
         address deployer = address(this);
 
-        uint256 deployerPrivateKey =vm.envUint("EOA_PRIVATE_KEY");
+        uint256 deployerPrivateKey =vm.envUint("LIQUIDATOR_PRIVATE_KEY");
 
         address swapperAddress = 0xf11A61f808526B45ba797777Ab7B1DB5CC65DE0F;
         address swapVerifierAddress = 0x8aAA2CaEca30AB50d48EB0EA71b83c49A2f49791;

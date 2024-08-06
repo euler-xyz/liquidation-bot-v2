@@ -195,7 +195,7 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
     # Log the full exception information
     logger.critical("Uncaught exception:\n %s", trace_str)
 
-
+#TODO: add link to execute the transaction on the liqudiator contract
 def post_liquidation_opportunity_on_slack(account_address: str, vault_address: str,
                   liquidation_data: Optional[Dict[str, Any]] = None) -> None:
     """
@@ -227,6 +227,42 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
             f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}"
         )
         message += f"\n\n{formatted_data}"
+
+    slack_payload = {
+        "text": message
+    }
+    requests.post(slack_url, json=slack_payload, timeout=10)
+
+
+#TODO: Add link to transaction on etherscan
+def post_liquidation_result_on_slack(account_address: str, vault_address: str,
+                  liquidation_data: Optional[Dict[str, Any]] = None) -> None:
+    """
+    Post a message on Slack.
+    
+    Args:
+        message (str): The main message to post.
+        liquidation_data (Optional[Dict[str, Any]]): Additional liquidation data to format.
+    """
+    load_dotenv()
+    slack_url = os.getenv("SLACK_WEBHOOK_URL")
+
+    message = (
+        ":moneybag: *Liquidation Completed* :moneybag:\n\n"
+        f"*Liquidated Account*: `{account_address}`\n"
+        f"*Vault*: `{vault_address}`"
+    )
+
+    formatted_data = (
+        f"*Liquidation Details:*\n"
+        f"• Profit: {Web3.from_wei(liquidation_data['profit'], 'ether')} ETH\n"
+        f"• Collateral Vault Address: `{liquidation_data['collateral_address']}`\n"
+        f"• Collateral Asset: `{liquidation_data['collateral_asset']}`\n"
+        f"• Leftover Collateral: {Web3.from_wei(liquidation_data['leftover_collateral'], 'ether')} {liquidation_data['collateral_asset']}\n"
+        f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data['leftover_collateral_in_eth'], 'ether')} ETH\n\n"
+        f"Time of liquidation: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    message += f"\n\n{formatted_data}"
 
     slack_payload = {
         "text": message

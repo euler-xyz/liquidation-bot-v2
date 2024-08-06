@@ -16,13 +16,13 @@ from typing import Tuple, Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 
-from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config
+from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
-API_KEY_1INCH = os.getenv("1INCH_API_KEY")
-LIQUIDATOR_EOA_PUBLIC_KEY = os.getenv("EOA_PUBLIC_KEY")
-LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv("EOA_PRIVATE_KEY")
+API_KEY_1INCH = os.getenv("API_KEY_1INCH")
+LIQUIDATOR_EOA_PUBLIC_KEY = os.getenv("LIQUIDATOR_ADDRESS")
+LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv("LIQUIDATOR_PRIVATE_KEY")
 
 config = load_config()
 
@@ -148,9 +148,9 @@ class Account:
             self.address)
         self.balance = balance
 
-        # Special case for 0 values
+        # Special case for 0 values on balance or liability
         #TODO: remove from list if health score is inf
-        if balance == 0 or collateral_value == 0 or liability_value == 0:
+        if balance == 0 or liability_value == 0:
             self.current_health_score = math.inf
             return self.current_health_score
 
@@ -383,11 +383,23 @@ class AccountMonitor:
                                              address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
-                                Liquidator.execute_liquidation(liquidation_data["liquidation_tx"])
+                                Liquidator.execute_liquidation(liquidation_data["tx"])
                                 logger.info("AccountMonitor: Account %s liquidated "
                                             "on collateral %s.",
                                             address,
                                             liquidation_data["collateral_address"])
+                                if self.notify:
+                                    try:
+                                        logger.info("AccountMonitor: Posting liquidation result "
+                                                    "to slack for account %s.", address)
+                                        post_liquidation_result_on_slack(address,
+                                                                         account.controller.address,
+                                                                         liquidation_data)
+                                    except Exception as ex:
+                                        logger.error("AccountMonitor: "
+                                             "Failed to post liquidation result "
+                                             " for account %s to slack: %s",
+                                             address, ex, exc_info=True)
 
                                 # Update account health score after liquidation
                                 # Need to know how healthy the account is after liquidation
@@ -814,7 +826,7 @@ class Liquidator:
                                                      swap_amount,
                                                      config.SWAPPER,
                                                      LIQUIDATOR_EOA_PUBLIC_KEY,
-                                                     vault.address,
+                                                     config.LIQUIDATOR_CONTRACT,
                                                      estimated_slippage_needed)
 
         leftover_collateral = seized_collateral - swap_amount
@@ -840,13 +852,24 @@ class Liquidator:
                 swap_data_1inch
         )
 
-        logger.info("Liquidator: Liquidation details: ", params)
+        logger.info("Liquidator: Liquidation details: %s", params)
 
-        liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
+        # liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
+        #     params
+        #     ).build_transaction({
+        #         "chainId": config.CHAIN_ID,
+        #         "gasPrice": w3.eth.gas_price,
+        #         "from": LIQUIDATOR_EOA_PUBLIC_KEY,
+        #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
+        #     })
+        
+        #TODO: smarter way to do this
+        suggested_gas_price = int(w3.eth.gas_price * 1.2)
+        liquidation_tx = liquidator_contract.functions.liquidateFromExistingCollateralPosition(
             params
             ).build_transaction({
                 "chainId": config.CHAIN_ID,
-                "gasPrice": w3.eth.gas_price,
+                "gasPrice": suggested_gas_price,
                 "from": LIQUIDATOR_EOA_PUBLIC_KEY,
                 "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
             })
@@ -1065,8 +1088,8 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor()
-        # monitor.load_state(config.SAVE_STATE_PATH)
+        acct_monitor = AccountMonitor(True, True)
+        acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
 

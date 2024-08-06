@@ -36,7 +36,7 @@ Configuration through `.env` file:
 - `DEPLOYER_PUBLIC_KEY, DEPLOYER_PRIVATE_KEY` - public/private key of EOA that deployed accounts for testing
 - `LIQUIDATOR_PUBLIC_KEY, LIQUIDATOR_PRIVATE_KEY` - public/private key of EOA that will be used to liquidate
 - `LIQUIDATOR_CONTRACT_ADDRESS` - address of deployed liquidator contract
-- `1INCH_API_KEY` - key for 1inch API
+- `API_KEY_1INCH` - key for 1inch API
 
 
 ### Deploying
