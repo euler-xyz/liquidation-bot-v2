@@ -19,7 +19,7 @@ contract LiquidationSetup is Test, Script {
     address constant DAI = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
 
     address constant EVC_ADDRESS = 0xE45Ee4046bD755330D555dFe4aDA7839a3eEb926;
-    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0xe95E012038D78C3582aDFBa4691BeBA3E62A4c65;
+    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x1778b4a5119304E40268FFB68EcD705E950fD605;
     
     address depositor;
     uint256 depositorPrivateKey;
@@ -74,7 +74,7 @@ contract LiquidationSetup is Test, Script {
         // logState();
     }
 
-    function depositInVaults() internal {
+    function depositorDepositInVaults() internal {
         vm.startBroadcast(depositorPrivateKey);
 
         usdc.approve(address(usdc_vault), type(uint).max);
@@ -118,25 +118,29 @@ contract LiquidationSetup is Test, Script {
         console.log("Depositor: ", depositor);
         console.log("USDC Vault balance: ", usdc_vault.balanceOf(depositor));
         console.log("USDC balance: ", usdc.balanceOf(depositor));
-        console.log("Dai Vault balance: ", dai_vault.balanceOf(depositor));
+        console.log("DAI Vault balance: ", dai_vault.balanceOf(depositor));
         console.log("DAI balance: ", dai.balanceOf(depositor));
         console.log("--------------------");
         console.log("Borrower: ", borrower);
         console.log("USDC Vault balance: ", usdc_vault.balanceOf(borrower));
+        console.log("USDC borrow: ", usdc_vault.debtOf(borrower));
         console.log("USDC balance: ", usdc.balanceOf(borrower));
-        console.log("Dai Vault balance: ", dai_vault.balanceOf(borrower));
+        console.log("DAI Vault balance: ", dai_vault.balanceOf(borrower));
+        console.log("DAI borrow: ", dai_vault.debtOf(borrower));
         console.log("DAI balance: ", dai.balanceOf(borrower));
         console.log("--------------------");
         console.log("Liquidator: ", liquidator);
         console.log("USDC Vault balance: ", usdc_vault.balanceOf(liquidator));
         console.log("USDC balance: ", usdc.balanceOf(liquidator));
-        console.log("Dai Vault balance: ", dai_vault.balanceOf(liquidator));
+        console.log("DAI Vault balance: ", dai_vault.balanceOf(liquidator));
         console.log("DAI balance: ", dai.balanceOf(liquidator));
         console.log("--------------------");
         console.log("Liquidator Contract: ", LIQUIDATOR_CONTRACT_ADDRESS);
         console.log("USDC Vault balance: ", usdc_vault.balanceOf(LIQUIDATOR_CONTRACT_ADDRESS));
+        console.log("USDC borrow: ", usdc_vault.debtOf(LIQUIDATOR_CONTRACT_ADDRESS));
         console.log("USDC balance: ", usdc.balanceOf(LIQUIDATOR_CONTRACT_ADDRESS));
-        console.log("Dai Vault balance: ", dai_vault.balanceOf(LIQUIDATOR_CONTRACT_ADDRESS));
+        console.log("DAI Vault balance: ", dai_vault.balanceOf(LIQUIDATOR_CONTRACT_ADDRESS));
+        console.log("DAI borrow: ", dai_vault.debtOf(LIQUIDATOR_CONTRACT_ADDRESS));
         console.log("DAI balance: ", dai.balanceOf(LIQUIDATOR_CONTRACT_ADDRESS));
         console.log("----------------------------------------");
         console.log(" ");
@@ -146,7 +150,7 @@ contract LiquidationSetup is Test, Script {
         console.log("Total Assets: ", usdc_vault.totalAssets());
         console.log("Total Borrow: ", usdc_vault.totalBorrows());
         console.log("--------------------");
-        console.log("Dai Vault:");
+        console.log("DAI Vault:");
         console.log("Total Supply: ", dai_vault.totalSupply());
         console.log("Total Assets: ", dai_vault.totalAssets());
         console.log("Total Borrow: ", dai_vault.totalBorrows());

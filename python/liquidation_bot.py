@@ -853,19 +853,11 @@ class Liquidator:
         )
 
         logger.info("Liquidator: Liquidation details: %s", params)
-
-        # liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
-        #     params
-        #     ).build_transaction({
-        #         "chainId": config.CHAIN_ID,
-        #         "gasPrice": w3.eth.gas_price,
-        #         "from": LIQUIDATOR_EOA_PUBLIC_KEY,
-        #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
-        #     })
         
         #TODO: smarter way to do this
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
-        liquidation_tx = liquidator_contract.functions.liquidateFromExistingCollateralPosition(
+
+        liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
             params
             ).build_transaction({
                 "chainId": config.CHAIN_ID,
@@ -873,6 +865,15 @@ class Liquidator:
                 "from": LIQUIDATOR_EOA_PUBLIC_KEY,
                 "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
             })
+        
+        # liquidation_tx = liquidator_contract.functions.liquidateFromExistingCollateralPosition(
+        #     params
+        #     ).build_transaction({
+        #         "chainId": config.CHAIN_ID,
+        #         "gasPrice": suggested_gas_price,
+        #         "from": LIQUIDATOR_EOA_PUBLIC_KEY,
+        #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
+        #     })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
 

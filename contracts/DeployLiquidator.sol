@@ -11,7 +11,6 @@ contract DeployLiquidator is Script {
 
     function run() public {
 
-        address deployer = address(this);
 
         uint256 deployerPrivateKey =vm.envUint("LIQUIDATOR_PRIVATE_KEY");
 
@@ -19,10 +18,10 @@ contract DeployLiquidator is Script {
         address swapVerifierAddress = 0x8aAA2CaEca30AB50d48EB0EA71b83c49A2f49791;
         address evcAddress = 0xE45Ee4046bD755330D555dFe4aDA7839a3eEb926;
 
-        deployer = vm.addr(deployerPrivateKey);
+        address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
 
-        Liquidator liquidator = new Liquidator(swapperAddress, swapVerifierAddress, evcAddress);
+        Liquidator liquidator = new Liquidator(deployer, swapperAddress, swapVerifierAddress, evcAddress);
 
         console2.log("Liquidator deployed at: ", address(liquidator));
     }

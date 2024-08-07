@@ -17,10 +17,6 @@ contract Liquidator {
     address public immutable evcAddress;
 
     bytes32 public constant HANDLER_ONE_INCH = bytes32("1Inch");
-    bytes32 public constant HANDLER_UNISWAP_V2 = bytes32("UniswapV2");
-    bytes32 public constant HANDLER_UNISWAP_V3 = bytes32("UniswapV3");
-    bytes32 public constant HANDLER_UNISWAP_AUTOROUTER =
-        bytes32("UniswapAutoRouter");
 
     ISwapper swapper;
     IEVC evc;
@@ -29,11 +25,12 @@ contract Liquidator {
     error LessThanExpectedCollateralReceived();
 
     constructor(
+        address _owner,
         address _swapperAddress,
         address _swapVerifierAddress,
         address _evcAddress
     ) {
-        owner = msg.sender;
+        owner = _owner;
         swapperAddress = _swapperAddress;
         swapVerifierAddress = _swapVerifierAddress;
         evcAddress = _evcAddress;
@@ -90,9 +87,9 @@ contract Liquidator {
             })
         );
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
-    
-        // TODO: check if already enabled
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](8);
+
+        IERC20(params.borrowedAsset).approve(params.vault, type(uint256).max);
         
         // Step 1: enable controller
         batchItems[0] = IEVC.BatchItem({
@@ -138,8 +135,22 @@ contract Liquidator {
             )
         });
 
-        // Step 4: Withdraw collateral from vault to swapper
+        // TODO: calculate the eTokens -> asset amount properly
         batchItems[3] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: params.collateralVault,
+            value: 0,
+            data: abi.encodeCall(
+                IERC20.approve,
+                (
+                    params.collateralVault,
+                    type(uint256).max
+                )
+            )
+        });
+
+        // Step 4: Withdraw collateral from vault to swapper
+        batchItems[4] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
             targetContract: params.collateralVault,
             value: 0,
@@ -154,14 +165,14 @@ contract Liquidator {
         });
 
         // Step 5: Swap collateral for borrowed asset
-        batchItems[4] = IEVC.BatchItem({
+        batchItems[5] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
             targetContract: swapperAddress,
             value: 0,
             data: abi.encodeCall(ISwapper.multicall, multicallItems)
         });
 
-        // TODO: fix
+        // TODO: add back in the swap verifier
         // // Step 6: call swap verifier
         // batchItems[5] = IEVC.BatchItem({
         //     onBehalfOfAccount: address(this),
@@ -170,19 +181,6 @@ contract Liquidator {
         //     data: abi.encodeCall(SwapVerifier.verifyAmountMinAndSkim, (params.vault, address(this), 1, type(uint256).max))
         // });
 
-        // Step 7: give allowance to controller vault to repay debt
-        batchItems[5] = IEVC.BatchItem({
-            onBehalfOfAccount: address(this),
-            targetContract: params.borrowedAsset,
-            value: 0,
-            data: abi.encodeCall(
-                IERC20.approve,
-                (
-                    params.vault,
-                    params.repayAmount
-                )
-            )
-        });
 
         // Step 8: repay debt
         batchItems[6] = IEVC.BatchItem({
@@ -193,6 +191,21 @@ contract Liquidator {
                 IBorrowing.repay,
                 (
                     params.repayAmount,
+                    address(this)
+                )
+            )
+        });
+
+        // Step 9: send leftover collateral back to msg.sender
+        batchItems[7] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: params.collateralVault,
+            value: 0,
+            data: abi.encodeCall(
+                IERC4626.withdraw,
+                (
+                    params.expectedRemainingCollateral,
+                    msg.sender,
                     address(this)
                 )
             )
@@ -218,6 +231,7 @@ contract Liquidator {
 
         return true;
     }
+    
 
 
     function liquidateFromExistingCollateralPosition(LiquidationParams calldata params) external returns (bool success) {
