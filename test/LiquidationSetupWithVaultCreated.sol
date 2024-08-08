@@ -14,13 +14,13 @@ import {MockPriceOracle} from "../contracts/MockPriceOracle.sol";
 contract LiquidationSetup is Test, Script {
     address constant USDC_VAULT = 0x577e289F663A4E29c231135c09d6a0713ce7AAff;
     address constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
-    
+
     address constant DAI_VAULT = 0xF67F9B1042A7f419c2C0259C983FB1f75f981fD4;
     address constant DAI = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
 
     address constant EVC_ADDRESS = 0xE45Ee4046bD755330D555dFe4aDA7839a3eEb926;
-    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x1778b4a5119304E40268FFB68EcD705E950fD605;
-    
+    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x82AB00006F69356a9B5542C4b9266a8865a8a73c;
+
     address depositor;
     uint256 depositorPrivateKey;
     address borrower;
@@ -41,7 +41,7 @@ contract LiquidationSetup is Test, Script {
 
         usdc_vault = IEVault(USDC_VAULT);
         usdc = IERC20(USDC);
-        
+
         dai_vault = IEVault(DAI_VAULT);
         dai = IERC20(DAI);
 
@@ -64,10 +64,10 @@ contract LiquidationSetup is Test, Script {
         // borrowerDepositAndEnableCollateralAndController();
         // console.log("After borrower deposit in vaults:");
         // logState();
-        
-        borrowerBorrowUSDC();
-        console.log("After borrower borrow:");
-        logState();
+
+        // borrowerBorrowUSDC();
+        // console.log("After borrower borrow:");
+        // logState();
 
         // depositorDepositAndTransferToLiquidatorContract();
         // console.log("After depositor deposit in liquidator contract:");
@@ -77,8 +77,8 @@ contract LiquidationSetup is Test, Script {
     function depositorDepositInVaults() internal {
         vm.startBroadcast(depositorPrivateKey);
 
-        usdc.approve(address(usdc_vault), type(uint).max);
-        dai.approve(address(dai_vault), type(uint).max);
+        usdc.approve(address(usdc_vault), type(uint256).max);
+        dai.approve(address(dai_vault), type(uint256).max);
 
         usdc_vault.deposit(1e6, depositor);
         dai_vault.deposit(1e18, depositor);
@@ -89,7 +89,7 @@ contract LiquidationSetup is Test, Script {
     function borrowerDepositAndEnableCollateralAndController() internal {
         vm.startBroadcast(borrowerPrivateKey);
 
-        dai.approve(address(dai_vault), type(uint).max);
+        dai.approve(address(dai_vault), type(uint256).max);
         dai_vault.deposit(1e18, borrower);
 
         evc.enableCollateral(borrower, address(dai_vault));
@@ -106,14 +106,14 @@ contract LiquidationSetup is Test, Script {
         vm.stopBroadcast();
     }
 
-    function depositorDepositAndTransferToLiquidatorContract() internal{
+    function depositorDepositAndTransferToLiquidatorContract() internal {
         vm.startBroadcast(depositorPrivateKey);
         usdc_vault.deposit(1e6, LIQUIDATOR_CONTRACT_ADDRESS);
         dai_vault.deposit(1e18, LIQUIDATOR_CONTRACT_ADDRESS);
         vm.stopBroadcast();
     }
 
-    function logState() internal {
+    function logState() internal view {
         console.log("Account States:");
         console.log("Depositor: ", depositor);
         console.log("USDC Vault balance: ", usdc_vault.balanceOf(depositor));

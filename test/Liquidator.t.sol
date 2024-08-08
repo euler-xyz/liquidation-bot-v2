@@ -24,17 +24,17 @@ contract LiquidatorTest is Test {
     function test_liquidate_fail() public {
         Liquidator.LiquidationParams memory params = Liquidator.LiquidationParams({
             violatorAddress: address(0),
-            vault : address(0),
-            borrowedAsset : address(0),
-            collateralVault : address(0),
-            collateralAsset : address(0),
-            repayAmount : 0,
-            seizedCollateralAmount : 0,
+            vault: address(0),
+            borrowedAsset: address(0),
+            collateralVault: address(0),
+            collateralAsset: address(0),
+            repayAmount: 0,
+            seizedCollateralAmount: 0,
             swapAmount: 0,
-            expectedRemainingCollateral : 0,
-            swapData : new bytes(0)
+            expectedRemainingCollateral: 0,
+            swapData: new bytes(0)
         });
-        
+
         vm.expectRevert();
         bool success = liquidator.liquidate_single_collateral(params);
     }

@@ -827,7 +827,8 @@ class Liquidator:
                                                      swap_amount,
                                                      config.SWAPPER,
                                                      LIQUIDATOR_EOA_PUBLIC_KEY,
-                                                     config.LIQUIDATOR_CONTRACT,
+                                                    #  config.LIQUIDATOR_CONTRACT,
+                                                     config.SWAPPER,
                                                      estimated_slippage_needed)
 
         leftover_collateral = seized_collateral - swap_amount
@@ -854,7 +855,7 @@ class Liquidator:
         )
 
         logger.info("Liquidator: Liquidation details: %s", params)
-        
+
         #TODO: smarter way to do this
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
@@ -866,7 +867,7 @@ class Liquidator:
                 "from": LIQUIDATOR_EOA_PUBLIC_KEY,
                 "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
             })
-        
+
         # liquidation_tx = liquidator_contract.functions.liquidateFromExistingCollateralPosition(
         #     params
         #     ).build_transaction({

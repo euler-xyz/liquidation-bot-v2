@@ -14,14 +14,14 @@ import {MockPriceOracle} from "../contracts/MockPriceOracle.sol";
 contract BasicScenario is Test, Script {
     address constant TEST_VAULT_1_ADDRESS = 0x6a90D73D17bf8d3DD5f5924fc0d5D9e8af23042d;
     address constant TEST_VAULT_1_UNDERLYING = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    
+
     address constant TEST_VAULT_2_ADDRESS = 0xD814CdD8Ca70135E1406fFC0e3EcaB1aed5b070c;
     address constant TEST_VAULT_2_UNDERLYING = 0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984;
 
     address constant ORACLE_ADDRESS = 0x221416CFa5A3CD92035E537ded1dD12d4d587c03;
 
     address constant EVC_ADDRESS = 0xB8d6D6b01bFe81784BE46e5771eF017Fa3c906d8;
-    
+
     address deployer;
     address borrower;
     address liquidator;
@@ -41,14 +41,14 @@ contract BasicScenario is Test, Script {
 
         vault1 = IEVault(TEST_VAULT_1_ADDRESS);
         underlying1 = IERC20(TEST_VAULT_1_UNDERLYING);
-        
+
         vault2 = IEVault(TEST_VAULT_2_ADDRESS);
         underlying2 = IERC20(TEST_VAULT_2_UNDERLYING);
 
         oracle = MockPriceOracle(ORACLE_ADDRESS);
 
         uint256 deployerPrivateKey = vm.deriveKey(vm.envString("MNEMONIC"), 0);
-        
+
         deployer = vm.addr(deployerPrivateKey);
 
         vm.startBroadcast(deployerPrivateKey);
@@ -58,7 +58,7 @@ contract BasicScenario is Test, Script {
 
         uint256 borrowerPrivateKey = vm.deriveKey(vm.envString("MNEMONIC"), 2);
         borrower = vm.addr(borrowerPrivateKey);
-        
+
         console.log("Initial state:");
         logState();
 
@@ -68,7 +68,7 @@ contract BasicScenario is Test, Script {
         // logState();
 
         // depositInVaults();
-        
+
         // console.log("After depositing in vaults:");
         // logState();
 
@@ -85,7 +85,7 @@ contract BasicScenario is Test, Script {
 
         // underlying2.approve(address(vault2), type(uint).max);
         // vault2.deposit(1e10, borrower);
-        
+
         // console.log("After borrower deposit in vauls:");
         // logState();
 
@@ -107,8 +107,8 @@ contract BasicScenario is Test, Script {
     }
 
     function depositInVaults() internal {
-        underlying1.approve(address(vault1), type(uint).max);
-        underlying2.approve(address(vault2), type(uint).max);
+        underlying1.approve(address(vault1), type(uint256).max);
+        underlying2.approve(address(vault2), type(uint256).max);
 
         vault1.deposit(1e10, msg.sender);
         vault2.deposit(1e10, msg.sender);

@@ -258,13 +258,13 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
 
     formatted_data = (
         f"*Liquidation Details:*\n"
-        f"• Profit: {Web3.from_wei(liquidation_data['profit'], 'ether')} ETH\n"
-        f"• Collateral Vault Address: `{liquidation_data['collateral_address']}`\n"
-        f"• Collateral Asset: `{liquidation_data['collateral_asset']}`\n"
-        f"• Leftover Collateral: {Web3.from_wei(liquidation_data['leftover_collateral'], 'ether')} {liquidation_data['collateral_asset']}\n"
-        f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data['leftover_collateral_in_eth'], 'ether')} ETH\n\n"
+        f"• Profit: {Web3.from_wei(liquidation_data["profit"], "ether")} ETH\n"
+        f"• Collateral Vault Address: `{liquidation_data["collateral_address"]}`\n"
+        f"• Collateral Asset: `{liquidation_data["collateral_asset"]}`\n"
+        f"• Leftover Collateral: {Web3.from_wei(liquidation_data["leftover_collateral"], "ether")} {liquidation_data["collateral_asset"]}\n"
+        f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
         f"• Transaction: <{tx_url}|View on Arbiscan>\n\n"
-        f"Time of liquidation: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"Time of liquidation: {time.strftime("%Y-%m-%d %H:%M:%S")}"
     )
     message += f"\n\n{formatted_data}"
 
