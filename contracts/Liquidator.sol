@@ -220,6 +220,8 @@ contract Liquidator {
         //     revert LessThanExpectedCollateralReceived();
         // }
 
+        IERC20(params.collateralAsset).transfer(msg.sender, IERC20(params.collateralAsset).balanceOf(address(this)));
+
         emit Liquidation(
             params.violatorAddress,
             params.vault,

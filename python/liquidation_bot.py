@@ -383,7 +383,7 @@ class AccountMonitor:
                                              address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
-                                Liquidator.execute_liquidation(liquidation_data["tx"])
+                                tx_hash = Liquidator.execute_liquidation(liquidation_data["tx"])
                                 logger.info("AccountMonitor: Account %s liquidated "
                                             "on collateral %s.",
                                             address,
@@ -394,8 +394,9 @@ class AccountMonitor:
                                                     "to slack for account %s.", address)
                                         post_liquidation_result_on_slack(address,
                                                                          account.controller.address,
-                                                                         liquidation_data)
-                                    except Exception as ex:
+                                                                         liquidation_data,
+                                                                         tx_hash)
+                                    except Exception as ex: # pylint: disable=broad-except
                                         logger.error("AccountMonitor: "
                                              "Failed to post liquidation result "
                                              " for account %s to slack: %s",
@@ -912,6 +913,7 @@ class Liquidator:
                 logger.info("Liquidator: %s", event["args"])
 
             logger.info("Liquidator: Liquidation transaction executed successfully.")
+            return tx_hash.hex()
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Liquidator: Unexpected error in execute_liquidation %s",
                          ex, exc_info=True)

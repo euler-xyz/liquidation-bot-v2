@@ -65,9 +65,9 @@ contract LiquidationSetup is Test, Script {
         // console.log("After borrower deposit in vaults:");
         // logState();
         
-        // borrowerBorrowUSDC();
-        // console.log("After borrower borrow:");
-        // logState();
+        borrowerBorrowUSDC();
+        console.log("After borrower borrow:");
+        logState();
 
         // depositorDepositAndTransferToLiquidatorContract();
         // console.log("After depositor deposit in liquidator contract:");
