@@ -40,6 +40,7 @@ class Vault:
     """
     Represents a vault in the EVK System.
     This class provides methods to interact with a specific vault contract.
+    This does not need to be serialized as it does not store any state
     """
     def __init__(self, address):
         self.address = address
@@ -58,20 +59,13 @@ class Vault:
         Returns:
             Tuple[int, int]: A tuple containing (collateral_value, liability_value).
         """
-        # try:
-            # balance = self.instance.functions.balanceOf(
-            #     Web3.to_checksum_address(account_address)).call()
-        #     logger.info("Vault: Account %s balance: %s", account_address, balance)
-        # except Exception as ex: # pylint: disable=broad-except
-            # logger.error("Vault: Failed to get balance for account %s: %s",
-            #              account_address, ex, exc_info=True)
-        #     balance = 0
-
-        # if balance == 0:
-        #     return (0, 1, 1)
-
-        # TODO: fix this, currently just returning 1 for balance
-        balance = 1
+        try:
+            balance = self.instance.functions.balanceOf(
+                Web3.to_checksum_address(account_address)).call()
+        except Exception as ex: # pylint: disable=broad-except
+            logger.error("Vault: Failed to get balance for account %s: %s",
+                         account_address, ex, exc_info=True)
+            return (0, 0, 0)
 
         try:
             (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
@@ -81,7 +75,7 @@ class Vault:
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get account liquidity for account %s: %s",
                          account_address, ex, exc_info=True)
-            return (balance, 1, 1)
+            return (balance, 0, 0)
 
 
         return (balance, collateral_value, liability_value)
@@ -110,6 +104,18 @@ class Vault:
             Web3.to_checksum_address(collateral_address)
             ).call()
         return (max_repay, seized_collateral)
+    
+    def convert_to_assets(self, amount: int) -> int:
+        """
+        Convert an amount of vault shares to underlying assets.
+
+        Args:
+            amount (int): The amount of vault tokens to convert.
+
+        Returns:
+            int: The amount of underlying assets.
+        """
+        return self.instance.functions.convertToAssets(amount).call()
 
 class Account:
     """
@@ -123,7 +129,8 @@ class Account:
         self.address = address
         self.controller = controller
         self.time_of_next_update = time.time()
-        self.current_health_score = 1
+        self.current_health_score = math.inf
+        self.balance = 0
 
 
     def update_liquidity(self) -> float:
@@ -153,7 +160,7 @@ class Account:
 
         # Special case for 0 values on balance or liability
         #TODO: remove from list if health score is inf
-        if balance == 0 or liability_value == 0:
+        if liability_value == 0:
             self.current_health_score = math.inf
             return self.current_health_score
 
@@ -170,13 +177,16 @@ class Account:
         Returns:
             float: The timestamp of the next scheduled update.
         """
-        if self.balance == 0:
-            self.time_of_next_update = time.time() + config.MAX_UPDATE_INTERVAL
+
+        # If balance is 0, we set next update to a special value to remove it from the monitored set
+        # We know there will need to be a status check prior to the account having a borrow again
+        if self.current_health_score == math.inf:
+            self.time_of_next_update = -1
             return self.time_of_next_update
 
         time_gap = 0
-        # Simple linear interpolation between min and max update intervals
-        # TODO: make this smarter
+
+        # Simple linear interpolation between min and max update intervals based on health score bounds
         if self.current_health_score < config.HS_LOWER_BOUND:
             time_gap = config.MIN_UPDATE_INTERVAL
         elif self.current_health_score > config.HS_UPPER_BOUND:
@@ -280,6 +290,11 @@ class AccountMonitor:
 
                 next_update_time, address = self.update_queue.get()
 
+                # check for special value that indicates account should be skipped & removed from queue
+                if next_update_time == -1:
+                    logger.info("AccountMonitor: Account %s has no position, skipping and removing from queue", address)
+                    continue
+
                 current_time = time.time()
                 if next_update_time > current_time:
                     self.update_queue.put((next_update_time, address))
@@ -315,31 +330,12 @@ class AccountMonitor:
                         address,
                         vault.address)
         else:
+            #TODO: remove other update timings that aren't this one
             logger.info("AccountMonitor: Account %s already in list with controller %s.",
                         address,
-                        vault)
+                        vault.address)
 
-        self.update_account(address)
-
-    def update_account(self, address: str) -> None:
-        """
-        Trigger a manual update of an account.
-        This should primarily be called in two scenarios:
-            1) Internally due to a status check event detected
-            2) Externally due to a manual trigger (e.g. a user request, price change monitor, etc)
-
-        Args:
-            address (str): The address of the account to update.
-        """
-        account = self.accounts[address]
-
-        account.update_liquidity()
-
-        next_update_time = account.time_of_next_update
-
-        with self.condition:
-            self.update_queue.put((next_update_time, address))
-            self.condition.notify()
+        self.update_account_liquidity(address)
 
     def update_account_liquidity(self, address: str) -> None:
         """
@@ -355,11 +351,7 @@ class AccountMonitor:
                 logger.error("AccountMonitor: Account %s not found in account list.",
                              address, exc_info=True)
                 return
-
-            if account.balance == 0:
-                logger.info("AccountMonitor: Account %s has no balance, skipping", address)
-                return
-
+            
             logger.info("AccountMonitor: Updating account %s liquidity.", address)
 
             health_score = account.update_liquidity()
@@ -437,6 +429,7 @@ class AccountMonitor:
         """
         Save the current state of the account monitor.
         TODO: Update this in the future to be able to save to a remote file.
+        TODO: update this with current state of the account monitor.
 
         Args:
             local_save (bool, optional): Whether to save the state locally. Defaults to True.
@@ -670,7 +663,8 @@ class EVCListener:
     def scan_block_range_for_account_status_check(self,
                                                   start_block: int,
                                                   end_block: int,
-                                                  max_retries: int = config.NUM_RETRIES) -> None:
+                                                  max_retries: int = config.NUM_RETRIES,
+                                                  seen_accounts: set = set()) -> None:
         """
         Scan a range of blocks for AccountStatusCheck events.
 
@@ -692,6 +686,16 @@ class EVCListener:
                 for log in logs:
                     vault_address = log["args"]["controller"]
                     account_address = log["args"]["account"]
+
+                    #if we've seen the account already and the status check is not due to changing controller
+                    if account_address in seen_accounts:
+                        same_controller = self.account_monitor.accounts.get(account_address).controller.address == Web3.to_checksum_address(vault_address)
+
+                        if same_controller:
+                            logger.info("EVCListener: Account %s already seen with controller %s, skipping", account_address, vault_address)
+                            continue
+                    else:
+                        seen_accounts.add(account_address)
 
                     logger.info("EVCListener: AccountStatusCheck event found for account %s "
                                 "with controller %s, triggering monitor update.",
@@ -722,9 +726,11 @@ class EVCListener:
                 else:
                     time.sleep(config.RETRY_DELAY) # cooldown between retries
 
+
     def batch_account_logs_on_startup(self) -> None:
         """
         Batch process account logs on startup.
+        Goes in reverse order to build smallest queue possible with most up to date info
         """
         try:
             # If the account monitor has a saved state,
@@ -739,11 +745,14 @@ class EVCListener:
             logger.info("EVCListener: "
                         "Starting batch scan of AccountStatusCheck events from block %s to %s.",
                         start_block, current_block)
+            
+            seen_accounts = set()   
 
+            #TODO: reverse order
             while start_block < current_block:
                 end_block = min(start_block + batch_block_size, current_block)
 
-                self.scan_block_range_for_account_status_check(start_block, end_block)
+                self.scan_block_range_for_account_status_check(start_block, end_block, seen_accounts=seen_accounts)
                 self.account_monitor.save_state()
 
                 start_block = end_block + 1
@@ -759,7 +768,7 @@ class EVCListener:
                          "Unexpected exception in batch scanning account logs on startup: %s",
                          ex, exc_info=True)
 
-#TODO: Future feature, smart monitor to trigger manual update of an account
+# Future feature, smart monitor to trigger manual update of an account
 # based on a large price change (or some other trigger)
 class SmartUpdateListener:
     """
@@ -776,7 +785,7 @@ class SmartUpdateListener:
         Args:
             account (Account): The account to update.
         """
-        self.account_monitor.update_account(account)
+        self.account_monitor.update_account_liquidity(account)
 
 class Liquidator:
     """
@@ -872,16 +881,18 @@ class Liquidator:
         collateral_vault_address = collateral_vault.address
         collateral_asset = collateral_vault.underlying_asset_address
 
-        (max_repay, seized_collateral) = vault.check_liquidation(violator_address,
+        (max_repay, seized_collateral_shares) = vault.check_liquidation(violator_address,
                                                                  collateral_vault_address,
                                                                  LIQUIDATOR_EOA_PUBLIC_KEY)
+        
+        seized_collateral_assets = vault.convert_to_assets(seized_collateral_shares)
 
-        if max_repay == 0 or seized_collateral == 0:
+        if max_repay == 0 or seized_collateral_shares == 0:
             return {"profit": 0}
 
         (swap_amount, _) = Quoter.get_1inch_quote(collateral_asset,
                                                   borrowed_asset,
-                                                  seized_collateral,
+                                                  seized_collateral_assets,
                                                   max_repay)
 
         estimated_slippage_needed = 2 # TODO: actual slippage calculation
@@ -897,7 +908,7 @@ class Liquidator:
                                                      config.SWAPPER,
                                                      estimated_slippage_needed)
 
-        leftover_collateral = seized_collateral - swap_amount
+        leftover_collateral = seized_collateral_assets - swap_amount
 
         time.sleep(config.API_REQUEST_DELAY)
 
@@ -914,7 +925,7 @@ class Liquidator:
                 collateral_vault.address,
                 collateral_asset,
                 max_repay,
-                seized_collateral,
+                seized_collateral_shares,
                 swap_amount,
                 leftover_collateral,
                 swap_data_1inch
@@ -933,15 +944,6 @@ class Liquidator:
                 "from": LIQUIDATOR_EOA_PUBLIC_KEY,
                 "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
             })
-
-        # liquidation_tx = liquidator_contract.functions.liquidateFromExistingCollateralPosition(
-        #     params
-        #     ).build_transaction({
-        #         "chainId": config.CHAIN_ID,
-        #         "gasPrice": suggested_gas_price,
-        #         "from": LIQUIDATOR_EOA_PUBLIC_KEY,
-        #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
-        #     })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
 
@@ -1159,7 +1161,7 @@ class Quoter:
 if __name__ == "__main__":
     try:
         acct_monitor = AccountMonitor(True, True)
-        acct_monitor.load_state(config.SAVE_STATE_PATH)
+        # acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
 
@@ -1170,6 +1172,8 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
+
+        # vault = Vault("0x37B5559c63821820EaAC5FF770e5C421d6A2676B")
 
         # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
         # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"
