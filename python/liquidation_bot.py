@@ -15,6 +15,8 @@ from typing import Tuple, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from web3 import Web3
+from eth_abi.abi import encode, decode
+from eth_utils import to_hex, keccak
 
 from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack
 
@@ -28,6 +30,7 @@ config = load_config()
 
 logger = setup_logger(config.LOGS_PATH)
 w3 = setup_w3()
+
 sys.excepthook = global_exception_handler
 
 
@@ -567,6 +570,69 @@ class AccountMonitor:
         self.executor.shutdown(wait=True)
         self.save_state()
 
+class PullOracleHandler:
+    """
+    Class to handle checking and updating pull based oracles.
+    """
+    def __init__(self):
+        self.lens_address = Web3.to_checksum_address(config.ORACLE_LENS)
+        self.minimal_abi = [
+                {
+                    'type': "function",
+                    'name': "getOracleInfo",
+                    'inputs': [
+                    {
+                        'name': "oracleAddress",
+                        'type': "address",
+                        'internalType': "address",
+                    },
+                    {
+                        'name': "bases",
+                        'type': "address[]",
+                        'internalType': "address[]",
+                    },
+                    {
+                        'name': "unitOfAccount",
+                        'type': "address",
+                        'internalType': "address",
+                    },
+                    ],
+                    'outputs': [
+                    {
+                        'name': "",
+                        'type': "tuple",
+                        'internalType': "struct OracleDetailedInfo",
+                        'components': [
+                        {
+                            'name': "name",
+                            'type': "string",
+                            'internalType': "string",
+                        },
+                        {
+                            'name': "oracleInfo",
+                            'type': "bytes",
+                            'internalType': "bytes",
+                        },
+                        ],
+                    },
+                    ],
+                    'stateMutability': "view",
+                },
+            ]
+        
+        self.instance = w3.eth.contract(address=self.lens_address, abi=self.minimal_abi)
+
+    def get_oracle_info(self, oracle_address, bases, unit_of_account):
+        try:
+            result = self.instance.functions.getOracleInfo(
+                oracle_address,
+                bases,
+                unit_of_account
+            ).call()
+            return result
+        except Exception as ex: # pylint: disable=broad-except
+            logger.error(f"Error calling contract: {ex}", exc_info=True)
+        
 
 class EVCListener:
     """
@@ -1105,6 +1171,16 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
 
+        # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
+        # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"
+        # bases = ["0x0000000000000000000000000000000000000348", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
+        # unit_of_account = "0x0000000000000000000000000000000000000348"
+
+        # pull_oracle_handler = PullOracleHandler()
+        # result = pull_oracle_handler.get_oracle_info(router, bases, unit_of_account)
+
+        # print(result)
+
 
     except Exception as e: # pylint: disable=broad-except
-        logger.critical("Uncaught exception: %s", e)
+        logger.critical("Uncaught exception: %s", e, exc_info=True)

@@ -117,7 +117,7 @@ def create_contract_instance(address: str, abi_path: str) -> Contract:
     abi = interface["abi"]
 
     w3 = setup_w3()
-
+    
     return w3.eth.contract(address=address, abi=abi)
 
 
