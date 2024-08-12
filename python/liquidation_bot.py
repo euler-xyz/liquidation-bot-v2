@@ -15,8 +15,8 @@ from typing import Tuple, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from web3 import Web3
-from eth_abi.abi import encode, decode
-from eth_utils import to_hex, keccak
+# from eth_abi.abi import encode, decode
+# from eth_utils import to_hex, keccak
 
 from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack
 
@@ -571,45 +571,45 @@ class PullOracleHandler:
         self.lens_address = Web3.to_checksum_address(config.ORACLE_LENS)
         self.minimal_abi = [
                 {
-                    'type': "function",
-                    'name': "getOracleInfo",
-                    'inputs': [
+                    "type": "function",
+                    "name": "getOracleInfo",
+                    "inputs": [
                     {
-                        'name': "oracleAddress",
-                        'type': "address",
-                        'internalType': "address",
+                        "name": "oracleAddress",
+                        "type": "address",
+                        "internalType": "address",
                     },
                     {
-                        'name': "bases",
-                        'type': "address[]",
-                        'internalType': "address[]",
+                        "name": "bases",
+                        "type": "address[]",
+                        "internalType": "address[]",
                     },
                     {
-                        'name': "unitOfAccount",
-                        'type': "address",
-                        'internalType': "address",
+                        "name": "unitOfAccount",
+                        "type": "address",
+                        "internalType": "address",
                     },
                     ],
-                    'outputs': [
+                    "outputs": [
                     {
-                        'name': "",
-                        'type': "tuple",
-                        'internalType': "struct OracleDetailedInfo",
-                        'components': [
+                        "name": "",
+                        "type": "tuple",
+                        "internalType": "struct OracleDetailedInfo",
+                        "components": [
                         {
-                            'name': "name",
-                            'type': "string",
-                            'internalType': "string",
+                            "name": "name",
+                            "type": "string",
+                            "internalType": "string",
                         },
                         {
-                            'name': "oracleInfo",
-                            'type': "bytes",
-                            'internalType': "bytes",
+                            "name": "oracleInfo",
+                            "type": "bytes",
+                            "internalType": "bytes",
                         },
                         ],
                     },
                     ],
-                    'stateMutability': "view",
+                    "stateMutability": "view",
                 },
             ]
         
@@ -659,7 +659,8 @@ class EVCListener:
                              ex, exc_info=True)
 
             time.sleep(config.SCAN_INTERVAL)
-
+    
+    #pylint: disable=W0102
     def scan_block_range_for_account_status_check(self,
                                                   start_block: int,
                                                   end_block: int,
@@ -673,6 +674,7 @@ class EVCListener:
             end_block (int): The ending block number.
             max_retries (int, optional): Maximum number of retry attempts. 
                                         Defaults to config.NUM_RETRIES.
+            
         """
         for attempt in range(max_retries):
             try:
