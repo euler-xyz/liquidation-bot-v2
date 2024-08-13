@@ -50,6 +50,7 @@ contract Liquidator {
         uint256 swapAmount;
         uint256 expectedRemainingCollateral;
         bytes swapData;
+        address receiver;
     }
 
     event Liquidation(

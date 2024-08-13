@@ -18,6 +18,7 @@ import yaml
 from web3 import Web3
 from web3.contract import Contract
 from dotenv import load_dotenv
+from urllib.parse import urlencode
 
 def load_config() -> SimpleNamespace:
     """
@@ -197,7 +198,7 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
 
 #TODO: add link to execute the transaction on the liqudiator contract
 def post_liquidation_opportunity_on_slack(account_address: str, vault_address: str,
-                  liquidation_data: Optional[Dict[str, Any]] = None) -> None:
+                  liquidation_data: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> None:
     """
     Post a message on Slack.
     
@@ -207,8 +208,33 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
+    liquidation_ui_url = os.getenv("LIQUIDATION_UI_URL")
 
-    if liquidation_data:
+    if liquidation_data and params:
+
+        # Unpack params
+        violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, max_repay, \
+        seized_collateral_shares, swap_amount, leftover_collateral, swap_data_1inch, receiver = params
+
+        # Build URL parameters
+        url_params = urlencode({
+            'violator': violator_address,
+            'vault': vault,
+            'borrowed_asset': borrowed_asset,
+            'collateral_vault': collateral_vault,
+            'collateral_asset': collateral_asset,
+            'max_repay': max_repay,
+            'seized_collateral_shares': seized_collateral_shares,
+            'swap_amount': swap_amount,
+            'leftover_collateral': leftover_collateral,
+            'swap_data_1inch': swap_data_1inch,
+            'receiver': receiver
+        })
+
+        # Construct the full URL
+        execution_url = f"{liquidation_ui_url}/liquidation/execute?{url_params}"
+
+
         message = (
             ":rotating_light: *Profitable Liquidation Opportunity Detected* :rotating_light:\n\n"
             f"*Account*: `{account_address}`\n"
@@ -224,6 +250,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
                                                     "ether")}\n"
             f"• Leftover Collateral in ETH terms (excluding gas): {Web3.from_wei(
                 liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
+            f"<{execution_url}|Click here to execute this liquidation manually>\n\n"
             f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}"
         )
         message += f"\n\n{formatted_data}"

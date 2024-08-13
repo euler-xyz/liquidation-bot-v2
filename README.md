@@ -5,7 +5,7 @@ Basic bot performing liquidations on the Euler platform. [Liquidation docs.](htt
 ### Installation
 
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 forge install
@@ -47,4 +47,8 @@ forge script contracts/DeployLiquidator.sol --rpc-url https://virtual.mainnet.rp
 
 ```bash
 forge script contracts/DeployLiquidator.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow
+```
+
+```bash
+forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow --evm-version shanghai
 ```

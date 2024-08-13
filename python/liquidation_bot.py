@@ -361,7 +361,7 @@ class AccountMonitor:
                     logger.info("AccountMonitor: Account %s is unhealthy, "
                                 "checking liquidation profitability.",
                                 address)
-                    (result, liquidation_data) = account.simulate_liquidation()
+                    (result, liquidation_data, params) = account.simulate_liquidation()
 
                     if result:
                         if self.notify:
@@ -370,7 +370,7 @@ class AccountMonitor:
                                             "to slack for account %s.", address)
                                 post_liquidation_opportunity_on_slack(address,
                                                                       account.controller.address,
-                                                                      liquidation_data)
+                                                                      liquidation_data, params)
                             except Exception as ex: # pylint: disable=broad-except
                                 logger.error("AccountMonitor: "
                                              "Failed to post liquidation notification "
@@ -512,8 +512,8 @@ class AccountMonitor:
             try:
                 health_score = account.update_liquidity()
 
-                if account.balance == 0:
-                    logger.info("AccountMonitor: Account %s has no balance, skipping", address)
+                if account.current_health_score == math.inf:
+                    logger.info("AccountMonitor: Account %s has no borrow, skipping", address)
                     continue
 
                 next_update_time = account.time_of_next_update
@@ -829,19 +829,22 @@ class Liquidator:
             "leftover_collateral": 0, 
             "leftover_collateral_in_eth": 0
         }
+        max_profit_params = None
 
         collateral_vaults = {collateral: Vault(collateral) for collateral in collateral_list}
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
-                profit_data = Liquidator.calculate_liquidation_profit(vault,
+                liquidation_results = Liquidator.calculate_liquidation_profit(vault,
                                                                       violator_address,
                                                                       borrowed_asset,
                                                                       collateral_vault,
                                                                       liquidator_contract)
+                profit_data, params = liquidation_results
 
                 if profit_data["profit"] > max_profit_data["profit"]:
                     max_profit_data = profit_data
+                    max_profit_params = params
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("Liquidator: "
                              "Exception simulating liquidation "
@@ -858,7 +861,7 @@ class Liquidator:
                         violator_address, max_profit_data["collateral_address"],
                         max_profit_data["collateral_asset"], max_profit_data["leftover_collateral"],
                         max_profit_data["leftover_collateral_in_eth"])
-            return (True, max_profit_data)
+            return (True, max_profit_data, max_profit_params)
         return (False, None)
 
     @staticmethod
@@ -927,10 +930,12 @@ class Liquidator:
                 collateral_vault.address,
                 collateral_asset,
                 max_repay,
-                seized_collateral_shares,
+                # seized_collateral_shares,
+                0, #TODO change this back to seized_collateral_shares
                 swap_amount,
                 leftover_collateral,
-                swap_data_1inch
+                swap_data_1inch,
+                LIQUIDATOR_EOA_PUBLIC_KEY #TODO: change this to targeted address
         )
 
         logger.info("Liquidator: Liquidation details: %s", params)
@@ -949,14 +954,14 @@ class Liquidator:
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
 
-        return {
+        return ({
             "tx": liquidation_tx, 
             "profit": net_profit, 
             "collateral_address": collateral_vault.address,
             "collateral_asset": collateral_asset,
             "leftover_collateral": leftover_collateral, 
             "leftover_collateral_in_eth": leftover_collateral_in_eth
-        }
+        }, params)
 
     @staticmethod
     def execute_liquidation(liquidation_transaction: Dict[str, Any]) -> None:
@@ -1162,8 +1167,8 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(True, True)
-        # acct_monitor.load_state(config.SAVE_STATE_PATH)
+        acct_monitor = AccountMonitor(True, False)
+        acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
 
