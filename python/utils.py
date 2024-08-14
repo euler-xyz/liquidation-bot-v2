@@ -215,8 +215,9 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
     if liquidation_data and params:
 
         # Unpack params
-        violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, max_repay, \
-        seized_collateral_shares, swap_amount, leftover_collateral, swap_data_1inch, receiver = params
+        violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, \
+        max_repay, seized_collateral_shares, swap_amount, \
+        leftover_collateral, swap_data_1inch, receiver = params
 
         # Build URL parameters
         url_params = urlencode({
@@ -308,8 +309,9 @@ def post_low_health_account_report(sorted_accounts) -> None:
     Post a report of accounts with low health scores to Slack.
 
     Args:
-        sorted_accounts (List[Tuple[str, float]]): A list of tuples containing account addresses and their health scores,
-                                                   sorted by health score in ascending order.
+        sorted_accounts (List[Tuple[str, float]]): A list of tuples
+        containing account addresses and their health scores,
+        sorted by health score in ascending order.
     """
     load_dotenv()
     config = load_config()
@@ -317,7 +319,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
     # Filter accounts below the threshold
     low_health_accounts = [
-        (address, score) for address, score in sorted_accounts 
+        (address, score) for address, score in sorted_accounts
         if score < config.SLACK_REPORT_HEALTH_SCORE
     ]
 
@@ -334,7 +336,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
         message += f"{i}.`{address}`: Health Score `{formatted_score}`\n"
 
     message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
-    message += f"\nTime of report: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+    message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"
 
     slack_payload = {
         "text": message

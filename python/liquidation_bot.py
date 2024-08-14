@@ -435,7 +435,6 @@ class AccountMonitor:
     def save_state(self, local_save: bool = True) -> None:
         """
         Save the current state of the account monitor.
-        TODO: update this with current state of the account monitor.
 
         Args:
             local_save (bool, optional): Whether to save the state locally. Defaults to True.
@@ -547,7 +546,7 @@ class AccountMonitor:
         )
 
         return [(account.address, account.current_health_score) for account in sorted_accounts]
-    
+
     def periodic_report_low_health_accounts(self):
         """
         Periodically report accounts with low health scores.
@@ -968,7 +967,7 @@ class Liquidator:
                 swap_amount,
                 leftover_collateral,
                 swap_data_1inch,
-                config.PROFIT_RECEIVER #TODO: change this to targeted address
+                config.PROFIT_RECEIVER
         )
 
         logger.info("Liquidator: Liquidation details: %s", params)
@@ -1092,7 +1091,6 @@ class Quoter:
                                      "amount": target_amount_out})
             time.sleep(config.API_REQUEST_DELAY)
 
-            #TODO: these bounds can probably be smarter
             min_amount_in = swap_amount * .95
             max_amount_in = swap_amount * 1.05
 

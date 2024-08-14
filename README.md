@@ -22,7 +22,6 @@ You may need to change your python interpreter to the venv interpreter to remove
 - Smarter oracle checking - pull based, pricing
 - Fallback to Uniswap if no quote
 - Filter for smaller/non profitable positions
-- Set up liquidation script as flask API
 
 ### Configuration
 
