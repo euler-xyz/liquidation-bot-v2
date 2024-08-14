@@ -16,6 +16,7 @@ from typing import Tuple, Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 # from eth_abi.abi import encode, decode
+from eth_abi import decode
 # from eth_utils import to_hex, keccak
 
 from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack
@@ -1179,8 +1180,6 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
-
-        # vault = Vault("0x37B5559c63821820EaAC5FF770e5C421d6A2676B")
 
         # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
         # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"

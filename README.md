@@ -52,3 +52,6 @@ forge script contracts/DeployLiquidator.sol --rpc-url $RPC_URL --broadcast --ffi
 ```bash
 forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow --evm-version shanghai
 ```
+
+Docker -
+`docker compose up --build`
