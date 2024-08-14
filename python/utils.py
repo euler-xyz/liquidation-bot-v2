@@ -48,7 +48,7 @@ def setup_logger(logs_path: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(logs_path, mode="w")
+    file_handler = logging.FileHandler(logs_path, mode="a")
 
     detailed_formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s\n%(exc_info)s")
@@ -119,7 +119,7 @@ def create_contract_instance(address: str, abi_path: str) -> Contract:
     abi = interface["abi"]
 
     w3 = setup_w3()
-    
+
     return w3.eth.contract(address=address, abi=abi)
 
 
@@ -197,9 +197,10 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
     # Log the full exception information
     logger.critical("Uncaught exception:\n %s", trace_str)
 
-#TODO: add link to execute the transaction on the liqudiator contract
+
 def post_liquidation_opportunity_on_slack(account_address: str, vault_address: str,
-                  liquidation_data: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> None:
+                  liquidation_data: Optional[Dict[str, Any]] = None,
+                  params: Optional[Dict[str, Any]] = None) -> None:
     """
     Post a message on Slack.
     
@@ -262,7 +263,6 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
     requests.post(slack_url, json=slack_payload, timeout=10)
 
 
-#TODO: Add link to transaction on etherscan
 def post_liquidation_result_on_slack(account_address: str, vault_address: str,
                   liquidation_data: Optional[Dict[str, Any]] = None,
                   tx_hash: Optional[str] = None) -> None:
@@ -302,3 +302,47 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         "text": message
     }
     requests.post(slack_url, json=slack_payload, timeout=10)
+
+def post_low_health_account_report(sorted_accounts) -> None:
+    """
+    Post a report of accounts with low health scores to Slack.
+
+    Args:
+        sorted_accounts (List[Tuple[str, float]]): A list of tuples containing account addresses and their health scores,
+                                                   sorted by health score in ascending order.
+    """
+    load_dotenv()
+    config = load_config()
+    slack_url = os.getenv("SLACK_WEBHOOK_URL")
+
+    # Filter accounts below the threshold
+    low_health_accounts = [
+        (address, score) for address, score in sorted_accounts 
+        if score < config.SLACK_REPORT_HEALTH_SCORE
+    ]
+
+    if not low_health_accounts:
+        return  # No low health accounts to report
+
+    message = ":warning: *Low Health Account Report* :warning:\n\n"
+
+    for i, (address, score) in enumerate(low_health_accounts, start=1):
+
+        # Format score to 4 decimal places
+        formatted_score = f"{score:.4f}"
+
+        message += f"{i}.`{address}`: Health Score `{formatted_score}`\n"
+
+    message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
+    message += f"\nTime of report: {time.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    slack_payload = {
+        "text": message
+    }
+
+    try:
+        response = requests.post(slack_url, json=slack_payload, timeout=10)
+        response.raise_for_status()
+        print("Low health account report posted to Slack successfully.")
+    except requests.RequestException as e:
+        print(f"Failed to post low health account report to Slack: {e}")

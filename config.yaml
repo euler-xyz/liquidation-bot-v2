@@ -5,15 +5,19 @@ LOGS_PATH: "logs/account_monitor_logs.log"
 SAVE_STATE_PATH: "state/account_monitor_logs.json"
 
 # Path to save location for state (in seconds)
-SAVE_INTERVAL: 60 # 30 minutes
+SAVE_INTERVAL: 1800 # 30 minutes
 
 # Health score bounds for min/max update interval frequency
 HS_LOWER_BOUND: 1.05
-HS_UPPER_BOUND: 3
+HS_UPPER_BOUND: 2.0
 
 # Update interval frequency (in seconds)
-MIN_UPDATE_INTERVAL: 15
-MAX_UPDATE_INTERVAL: 60 # 60 seconds
+MIN_UPDATE_INTERVAL: 10
+MAX_UPDATE_INTERVAL: 600 # 10 minutes
+
+# Interval for reporting low health accounts
+LOW_HEALTH_REPORT_INTERVAL: 1800 # 30 minutes
+SLACK_REPORT_HEALTH_SCORE: 1.5  
 
 # Bath size for scanning blocks on startup
 BATCH_SIZE: 10000
@@ -27,7 +31,7 @@ NUM_RETRIES: 3
 RETRY_DELAY: 10
 
 # Acceptable amound of overswapping of collateral for 1INCH binary search
-SWAP_DELTA: 100000000000000
+SWAP_DELTA: 100000000000
 MAX_SEARCH_ITERATIONS: 20
 API_REQUEST_DELAY: 1
 

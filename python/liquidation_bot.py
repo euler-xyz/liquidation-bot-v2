@@ -18,7 +18,7 @@ from web3 import Web3
 # from eth_abi.abi import encode, decode
 # from eth_utils import to_hex, keccak
 
-from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack
+from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack, post_low_health_account_report
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -280,7 +280,12 @@ class AccountMonitor:
         """
         save_thread = threading.Thread(target=self.periodic_save)
         save_thread.start()
+
         logger.info("AccountMonitor: Save thread started.")
+
+        low_health_report_thread = threading.Thread(target=self.periodic_report_low_health_accounts)
+        low_health_report_thread.start()
+        logger.info("AccountMonitor: Low health report thread started.")
 
         while self.running:
             with self.condition:
@@ -528,6 +533,29 @@ class AccountMonitor:
                              address, ex, exc_info=True)
 
         logger.info("AccountMonitor: Queue rebuilt with %s acccounts", self.update_queue.qsize())
+
+    def get_accounts_by_health_score(self):
+        """
+        Get a list of accounts sorted by health score.
+
+        Returns:
+            List[Account]: A list of accounts sorted by health score.
+        """
+        sorted_accounts = sorted(
+            self.accounts.values(),
+            key = lambda account: account.current_health_score
+        )
+
+        return [(account.address, account.current_health_score) for account in sorted_accounts]
+    
+    def periodic_report_low_health_accounts(self):
+        """
+        Periodically report accounts with low health scores.
+        """
+        while self.running:
+            sorted_accounts = self.get_accounts_by_health_score()
+            post_low_health_account_report(sorted_accounts)
+            time.sleep(config.LOW_HEALTH_REPORT_INTERVAL)
 
     @staticmethod
     def create_from_save_state(save_path: str, local_save: bool = True) -> "AccountMonitor":
