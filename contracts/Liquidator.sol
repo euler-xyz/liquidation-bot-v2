@@ -139,7 +139,7 @@ contract Liquidator {
             onBehalfOfAccount: address(this),
             targetContract: params.collateralVault,
             value: 0,
-            data: abi.encodeCall(IERC4626.withdraw, (params.expectedRemainingCollateral, msg.sender, address(this)))
+            data: abi.encodeCall(IERC4626.withdraw, (params.expectedRemainingCollateral, params.receiver, address(this)))
         });
 
         // Submit batch to EVC

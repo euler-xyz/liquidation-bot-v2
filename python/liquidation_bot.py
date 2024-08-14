@@ -16,7 +16,6 @@ from typing import Tuple, Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 # from eth_abi.abi import encode, decode
-from eth_abi import decode
 # from eth_utils import to_hex, keccak
 
 from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack
@@ -105,7 +104,7 @@ class Vault:
             Web3.to_checksum_address(collateral_address)
             ).call()
         return (max_repay, seized_collateral)
-    
+
     def convert_to_assets(self, amount: int) -> int:
         """
         Convert an amount of vault shares to underlying assets.
@@ -160,7 +159,6 @@ class Account:
         self.balance = balance
 
         # Special case for 0 values on balance or liability
-        #TODO: remove from list if health score is inf
         if liability_value == 0:
             self.current_health_score = math.inf
             return self.current_health_score
@@ -187,7 +185,8 @@ class Account:
 
         time_gap = 0
 
-        # Simple linear interpolation between min and max update intervals based on health score bounds
+        # Simple linear interpolation between min and max
+        # update intervals based on health score bounds
         if self.current_health_score < config.HS_LOWER_BOUND:
             time_gap = config.MIN_UPDATE_INTERVAL
         elif self.current_health_score > config.HS_UPPER_BOUND:
@@ -291,9 +290,11 @@ class AccountMonitor:
 
                 next_update_time, address = self.update_queue.get()
 
-                # check for special value that indicates account should be skipped & removed from queue
+                # check for special value that indicates
+                # account should be skipped & removed from queue
                 if next_update_time == -1:
-                    logger.info("AccountMonitor: Account %s has no position, skipping and removing from queue", address)
+                    logger.info("AccountMonitor: Account %s has no position,"
+                                " skipping and removing from queue", address)
                     continue
 
                 current_time = time.time()
@@ -352,7 +353,7 @@ class AccountMonitor:
                 logger.error("AccountMonitor: Account %s not found in account list.",
                              address, exc_info=True)
                 return
-            
+
             logger.info("AccountMonitor: Updating account %s liquidity.", address)
 
             health_score = account.update_liquidity()
@@ -429,7 +430,6 @@ class AccountMonitor:
     def save_state(self, local_save: bool = True) -> None:
         """
         Save the current state of the account monitor.
-        TODO: Update this in the future to be able to save to a remote file.
         TODO: update this with current state of the account monitor.
 
         Args:
@@ -613,7 +613,7 @@ class PullOracleHandler:
                     "stateMutability": "view",
                 },
             ]
-        
+
         self.instance = w3.eth.contract(address=self.lens_address, abi=self.minimal_abi)
 
     def get_oracle_info(self, oracle_address, bases, unit_of_account):
@@ -626,7 +626,7 @@ class PullOracleHandler:
             return result
         except Exception as ex: # pylint: disable=broad-except
             logger.error(f"Error calling contract: {ex}", exc_info=True)
-        
+
 
 class EVCListener:
     """
@@ -660,7 +660,7 @@ class EVCListener:
                              ex, exc_info=True)
 
             time.sleep(config.SCAN_INTERVAL)
-    
+
     #pylint: disable=W0102
     def scan_block_range_for_account_status_check(self,
                                                   start_block: int,
@@ -690,12 +690,16 @@ class EVCListener:
                     vault_address = log["args"]["controller"]
                     account_address = log["args"]["account"]
 
-                    #if we've seen the account already and the status check is not due to changing controller
+                    #if we've seen the account already and the status
+                    # check is not due to changing controller
                     if account_address in seen_accounts:
-                        same_controller = self.account_monitor.accounts.get(account_address).controller.address == Web3.to_checksum_address(vault_address)
+                        same_controller = self.account_monitor.accounts.get(
+                            account_address).controller.address == Web3.to_checksum_address(
+                                vault_address)
 
                         if same_controller:
-                            logger.info("EVCListener: Account %s already seen with controller %s, skipping", account_address, vault_address)
+                            logger.info("EVCListener: Account %s already seen with "
+                                        "controller %s, skipping", account_address, vault_address)
                             continue
                     else:
                         seen_accounts.add(account_address)
@@ -748,14 +752,14 @@ class EVCListener:
             logger.info("EVCListener: "
                         "Starting batch scan of AccountStatusCheck events from block %s to %s.",
                         start_block, current_block)
-            
-            seen_accounts = set()   
 
-            #TODO: reverse order
+            seen_accounts = set()
+
             while start_block < current_block:
                 end_block = min(start_block + batch_block_size, current_block)
 
-                self.scan_block_range_for_account_status_check(start_block, end_block, seen_accounts=seen_accounts)
+                self.scan_block_range_for_account_status_check(start_block, end_block,
+                                                               seen_accounts=seen_accounts)
                 self.account_monitor.save_state()
 
                 start_block = end_block + 1
@@ -890,7 +894,7 @@ class Liquidator:
         (max_repay, seized_collateral_shares) = vault.check_liquidation(violator_address,
                                                                  collateral_vault_address,
                                                                  LIQUIDATOR_EOA_PUBLIC_KEY)
-        
+
         seized_collateral_assets = vault.convert_to_assets(seized_collateral_shares)
 
         if max_repay == 0 or seized_collateral_shares == 0:
@@ -936,7 +940,7 @@ class Liquidator:
                 swap_amount,
                 leftover_collateral,
                 swap_data_1inch,
-                LIQUIDATOR_EOA_PUBLIC_KEY #TODO: change this to targeted address
+                config.PROFIT_RECEIVER #TODO: change this to targeted address
         )
 
         logger.info("Liquidator: Liquidation details: %s", params)
@@ -1027,7 +1031,7 @@ class Quoter:
             """
             Simple wrapper to get a quote from 1inch.
             """
-            api_url = "https://api.1inch.dev/swap/v6.0/42161/quote"
+            api_url = f"https://api.1inch.dev/swap/v6.0/{config.CHAIN_ID}/quote"
             headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
             response = make_api_request(api_url, headers, params)
             return int(response["dstAmount"]) if response  else None
@@ -1158,7 +1162,7 @@ class Quoter:
                     amount_in, asset_in, asset_out, swap_from, tx_origin,
                     swap_receiver, slippage)
 
-        api_url = "https://api.1inch.dev/swap/v6.0/42161/swap"
+        api_url = f"https://api.1inch.dev/swap/v6.0/{config.CHAIN_ID}/swap"
         headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
         response = make_api_request(api_url, headers, params)
 
@@ -1168,7 +1172,7 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(True, False)
+        acct_monitor = AccountMonitor(True, True)
         acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
@@ -1183,7 +1187,8 @@ if __name__ == "__main__":
 
         # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
         # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"
-        # bases = ["0x0000000000000000000000000000000000000348", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
+        # bases = ["0x0000000000000000000000000000000000000348",
+        #          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
         # unit_of_account = "0x0000000000000000000000000000000000000348"
 
         # pull_oracle_handler = PullOracleHandler()

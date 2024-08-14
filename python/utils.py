@@ -33,6 +33,7 @@ def load_config() -> SimpleNamespace:
     config = SimpleNamespace(**config_dict)
 
     return config
+
 def setup_logger(logs_path: str) -> logging.Logger:
     """
     Set up and configure a logger for the liquidation bot.
@@ -218,17 +219,17 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
 
         # Build URL parameters
         url_params = urlencode({
-            'violator': violator_address,
-            'vault': vault,
-            'borrowed_asset': borrowed_asset,
-            'collateral_vault': collateral_vault,
-            'collateral_asset': collateral_asset,
-            'max_repay': max_repay,
-            'seized_collateral_shares': seized_collateral_shares,
-            'swap_amount': swap_amount,
-            'leftover_collateral': leftover_collateral,
-            'swap_data_1inch': swap_data_1inch,
-            'receiver': receiver
+            "violator": violator_address,
+            "vault": vault,
+            "borrowed_asset": borrowed_asset,
+            "collateral_vault": collateral_vault,
+            "collateral_asset": collateral_asset,
+            "max_repay": max_repay,
+            "seized_collateral_shares": seized_collateral_shares,
+            "swap_amount": swap_amount,
+            "leftover_collateral": leftover_collateral,
+            "swap_data_1inch": swap_data_1inch,
+            "receiver": receiver
         })
 
         # Construct the full URL
@@ -281,7 +282,9 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         f"*Vault*: `{vault_address}`"
     )
 
-    tx_url = f"https://arbiscan.io/tx/{tx_hash}"
+    config = load_config()
+
+    tx_url = f"{config.EXPLORER_URL}/tx/{tx_hash}"
 
     formatted_data = (
         f"*Liquidation Details:*\n"
@@ -290,7 +293,7 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         f"• Collateral Asset: `{liquidation_data["collateral_asset"]}`\n"
         f"• Leftover Collateral: {Web3.from_wei(liquidation_data["leftover_collateral"], "ether")} {liquidation_data["collateral_asset"]}\n"
         f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
-        f"• Transaction: <{tx_url}|View on Arbiscan>\n\n"
+        f"• Transaction: <{tx_url}|View Transaction on Explorer>\n\n"
         f"Time of liquidation: {time.strftime("%Y-%m-%d %H:%M:%S")}"
     )
     message += f"\n\n{formatted_data}"
