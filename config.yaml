@@ -2,7 +2,7 @@
 LOGS_PATH: "logs/account_monitor_logs.log"
 
 # Path to save location for state
-SAVE_STATE_PATH: "state/account_monitor_logs.json"
+SAVE_STATE_PATH: "state/account_monitor.json"
 
 # Path to save location for state (in seconds)
 SAVE_INTERVAL: 1800 # 30 minutes

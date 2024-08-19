@@ -283,9 +283,10 @@ class AccountMonitor:
 
         logger.info("AccountMonitor: Save thread started.")
 
-        low_health_report_thread = threading.Thread(target=self.periodic_report_low_health_accounts)
-        low_health_report_thread.start()
-        logger.info("AccountMonitor: Low health report thread started.")
+        if self.notify:
+            low_health_report_thread = threading.Thread(target=self.periodic_report_low_health_accounts)
+            low_health_report_thread.start()
+            logger.info("AccountMonitor: Low health report thread started.")
 
         while self.running:
             with self.condition:
@@ -1210,17 +1211,6 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
-
-        # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
-        # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"
-        # bases = ["0x0000000000000000000000000000000000000348",
-        #          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
-        # unit_of_account = "0x0000000000000000000000000000000000000348"
-
-        # pull_oracle_handler = PullOracleHandler()
-        # result = pull_oracle_handler.get_oracle_info(router, bases, unit_of_account)
-
-        # print(result)
 
 
     except Exception as e: # pylint: disable=broad-except
