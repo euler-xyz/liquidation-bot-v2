@@ -799,7 +799,7 @@ class EVCListener:
                         start_block, current_block)
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("EVCListener: "
+            logger.error("EVCListener: " 
                          "Unexpected exception in batch scanning account logs on startup: %s",
                          ex, exc_info=True)
 
@@ -1196,7 +1196,6 @@ class Quoter:
         return response["tx"]["data"] if response else None
 
 
-
 if __name__ == "__main__":
     try:
         acct_monitor = AccountMonitor(True, True)
@@ -1211,6 +1210,17 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
+
+        # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
+        # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"
+        # bases = ["0x0000000000000000000000000000000000000348",
+        #          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
+        # unit_of_account = "0x0000000000000000000000000000000000000348"
+
+        # pull_oracle_handler = PullOracleHandler()
+        # result = pull_oracle_handler.get_oracle_info(router, bases, unit_of_account)
+
+        # print(result)
 
 
     except Exception as e: # pylint: disable=broad-except

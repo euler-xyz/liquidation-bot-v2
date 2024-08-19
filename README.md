@@ -1,8 +1,15 @@
 # Euler Liquidation Bot
 
-Basic bot performing liquidations on the Euler platform. [Liquidation docs.](https://docs.euler.finance/euler-vault-kit-white-paper/#liquidation)
+Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://docs.euler.finance/euler-vault-kit-white-paper/#liquidation)
 
 ### Installation
+
+The bot can be run either via building a docker image or manually.
+Before running either, setup a .env file based on the .env.example file and input the relevant contract addresses & API keys. Then, check the config.yaml to make sure parameters, contracts, and ABI paths have bene set up correctly.
+
+#### Docker
+
+`docker compose up --build`
 
 ```bash
 python3 -m venv venv
