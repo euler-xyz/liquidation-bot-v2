@@ -17,7 +17,7 @@ MAX_UPDATE_INTERVAL: 600 # 10 minutes
 
 # Interval for reporting low health accounts
 LOW_HEALTH_REPORT_INTERVAL: 1800 # 30 minutes
-SLACK_REPORT_HEALTH_SCORE: 1.5  
+SLACK_REPORT_HEALTH_SCORE: 1.1
 
 # Bath size for scanning blocks on startup
 BATCH_SIZE: 10000
