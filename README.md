@@ -24,7 +24,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 forge install && forge build
 cd lib/evk-periphery && forge build && cd ../..
-mkdir /logs /state
+mkdir logs state
 ```
 
 Run:
