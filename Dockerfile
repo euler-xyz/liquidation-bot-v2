@@ -3,11 +3,7 @@
 ARG PYTHON_VERSION=3.12.5
 FROM python:${PYTHON_VERSION}-slim as base
 
-# Prevents Python from writing pyc files.
 ENV PYTHONDONTWRITEBYTECODE=1
-
-# Keeps Python from buffering stdout and stderr to avoid situations where
-# the application crashes without emitting any logs due to buffering.
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
@@ -16,9 +12,44 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     libc6-dev \
+    curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-privileged user that the app will run under.
+# Install Foundry
+RUN curl -L https://foundry.paradigm.xyz | bash
+ENV PATH="/root/.foundry/bin:${PATH}"
+RUN foundryup
+
+# Set up git configuration
+RUN git config --global user.email "docker@example.com" && \
+    git config --global user.name "Docker Build" && \
+    git config --global init.defaultBranch main
+
+# Copy the project files
+COPY . .
+
+# Initialize git repository
+RUN git init && \
+    git add -A && \
+    git commit -m "Initial commit"
+
+# Manually clone submodules
+RUN mkdir -p lib/forge-std && \
+    git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
+RUN mkdir -p lib/evk-periphery && \
+    git clone https://github.com/euler-xyz/evk-periphery.git lib/evk-periphery
+
+# Run Forge commands
+RUN forge install --no-commit
+RUN forge update
+RUN forge build
+
+RUN cd /app/lib/evk-periphery && \
+    forge build && \
+    cd ../..
+
+# Create a non-privileged user
 ARG UID=10001
 RUN adduser \
     --disabled-password \
@@ -29,30 +60,20 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-# Create necessary directories
 RUN mkdir -p /app/logs /app/state
 
-# Copy the source code into the container.
-COPY . .
-
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
-# Leverage a bind mount to requirements.txt to avoid having to copy them into
-# this layer.
+# Install Python dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=bind,source=requirements.txt,target=requirements.txt \
     python -m pip install -r requirements.txt
 
-# Set correct permissions for the entire /app directory
+# Set correct permissions
 RUN chown -R appuser:appuser /app && \
     chmod -R 755 /app && \
     chmod 777 /app/logs /app/state
 
-# Switch to the non-privileged user to run the application.
 USER appuser
 
-# Expose the port that the application listens on.
 EXPOSE 8080
 
-# Run the application.
-CMD python python/liquidation_bot.py
+CMD ["python", "python/liquidation_bot.py"]
