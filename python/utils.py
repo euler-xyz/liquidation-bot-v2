@@ -259,7 +259,9 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         message += f"\n\n{formatted_data}"
 
     slack_payload = {
-        "text": message
+        "text": message,
+        "username": "Liquidation Bot",
+        "icon_emoji": ":robot_face:"
     }
     requests.post(slack_url, json=slack_payload, timeout=10)
 
@@ -300,7 +302,9 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
     message += f"\n\n{formatted_data}"
 
     slack_payload = {
-        "text": message
+        "text": message,
+        "username": "Liquidation Bot",
+        "icon_emoji": ":robot_face:"
     }
     requests.post(slack_url, json=slack_payload, timeout=10)
 
@@ -339,7 +343,9 @@ def post_low_health_account_report(sorted_accounts) -> None:
     message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"
 
     slack_payload = {
-        "text": message
+        "text": message,
+        "username": "Liquidation Bot",
+        "icon_emoji": ":robot_face:"
     }
 
     try:
