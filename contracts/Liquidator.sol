@@ -87,7 +87,7 @@ contract Liquidator {
             abi.encodeCall(ISwapper.repay, (params.borrowedAsset, params.vault, params.repayAmount, address(this)));
 
         // Sweep any dust left in the swapper contract
-        multicallItems[2] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, msg.sender));
+        multicallItems[2] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, params.receiver));
 
         IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
 
@@ -135,11 +135,24 @@ contract Liquidator {
         });
 
         // Step 6: withdraw remaining collateral
+        // TODO: change this to just transfer the shares instead of withdraw
+        // batchItems[5] = IEVC.BatchItem({
+        //     onBehalfOfAccount: address(this),
+        //     targetContract: params.collateralVault,
+        //     value: 0,
+        //     data: abi.encodeCall(
+        //         IERC4626.withdraw, 
+        //         (params.expectedRemainingCollateral, params.receiver, address(this)))
+        // });
+
+        // Step 6: transfer remaining collateral shares to receiver
         batchItems[5] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
             targetContract: params.collateralVault,
             value: 0,
-            data: abi.encodeCall(IERC4626.withdraw, (params.expectedRemainingCollateral, params.receiver, address(this)))
+            data: abi.encodeCall(
+                IERC20.transfer,
+                (params.receiver, (params.seizedCollateralAmount - params.swapAmount)))
         });
 
         // Submit batch to EVC
@@ -187,6 +200,16 @@ contract Liquidator {
                 (params.violatorAddress, params.collateralVault, params.repayAmount, params.seizedCollateralAmount)
             )
         });
+
+        // batchItems[3] = IEVC.BatchItem({
+        //     onBehalfOfAccount: address(this),
+        //     targetContract: params.vault,
+        //     value: 0,
+        //     data: abi.encodeCall(
+        //         IBorrowing.pullDebt(amount, from)
+        //         (params.expectedRemainingCollateral, params.receiver, address(this))
+        //     )
+        // });
 
         evc.batch(batchItems);
 

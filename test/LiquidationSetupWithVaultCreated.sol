@@ -19,7 +19,9 @@ contract LiquidationSetup is Test, Script {
     address constant DAI = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
 
     address constant EVC_ADDRESS = 0xE45Ee4046bD755330D555dFe4aDA7839a3eEb926;
-    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x5cE88A2A73D1FD9658f2D85DF35863B4Fe2a1863;
+    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x06DFB090E6DB71d338D8E5834289Acce515045b5;
+    
+    address constant profitReceiver = 0x140556939f9Cfa711078DeFBb01B3e51A53Bc464;
 
     address depositor;
     uint256 depositorPrivateKey;
@@ -134,6 +136,12 @@ contract LiquidationSetup is Test, Script {
         console.log("USDC balance: ", usdc.balanceOf(liquidator));
         console.log("DAI Vault balance: ", dai_vault.balanceOf(liquidator));
         console.log("DAI balance: ", dai.balanceOf(liquidator));
+        console.log("--------------------");
+        console.log("Profit Receiver: ", profitReceiver);
+        console.log("USDC Vault balance: ", usdc_vault.balanceOf(profitReceiver));
+        console.log("USDC balance: ", usdc.balanceOf(profitReceiver));
+        console.log("DAI Vault balance: ", dai_vault.balanceOf(profitReceiver));
+        console.log("DAI balance: ", dai.balanceOf(profitReceiver));
         console.log("--------------------");
         console.log("Liquidator Contract: ", LIQUIDATOR_CONTRACT_ADDRESS);
         console.log("USDC Vault balance: ", usdc_vault.balanceOf(LIQUIDATOR_CONTRACT_ADDRESS));
