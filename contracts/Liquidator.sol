@@ -17,6 +17,7 @@ contract Liquidator {
     address public immutable evcAddress;
 
     bytes32 public constant HANDLER_ONE_INCH = bytes32("1Inch");
+    bytes32 public constant HANDLER_UNISWAP_AUTOROUTER = bytes32("UniswapAutoRouter");
 
     ISwapper swapper;
     IEVC evc;
@@ -49,6 +50,7 @@ contract Liquidator {
         uint256 seizedCollateralAmount;
         uint256 swapAmount;
         uint256 expectedRemainingCollateral;
+        uint256 swapType;
         bytes swapData;
         address receiver;
     }
@@ -67,20 +69,37 @@ contract Liquidator {
 
         // Calls swap function of swapper which will swap some amount of seized collateral for borrowed asset
         // Swaps via 1inch
-        multicallItems[0] = abi.encodeCall(
-            ISwapper.swap,
-            ISwapper.SwapParams({
-                handler: HANDLER_ONE_INCH,
-                mode: 0,
-                account: address(0), // ignored
-                tokenIn: params.collateralAsset,
-                tokenOut: params.borrowedAsset,
-                amountOut: 0,
-                vaultIn: address(0), // ignored
-                receiver: address(0), // ignored
-                data: params.swapData
-            })
-        );
+        if (params.swapType == 1){
+            multicallItems[0] = abi.encodeCall(
+                ISwapper.swap,
+                ISwapper.SwapParams({
+                    handler: HANDLER_ONE_INCH,
+                    mode: 0,
+                    account: address(0), // ignored
+                    tokenIn: params.collateralAsset,
+                    tokenOut: params.borrowedAsset,
+                    amountOut: 0,
+                    vaultIn: address(0), // ignored
+                    receiver: address(0), // ignored
+                    data: params.swapData
+                })
+            );
+        } else {
+            multicallItems[0] = abi.encodeCall(
+                ISwapper.swap,
+                    ISwapper.SwapParams({
+                    handler: HANDLER_UNISWAP_AUTOROUTER,
+                    mode: 1,
+                    account: swapperAddress,
+                    tokenIn: params.collateralAsset,
+                    tokenOut: params.borrowedAsset,
+                    amountOut: params.repayAmount,
+                    vaultIn: params.collateralVault,    
+                    receiver: swapperAddress,
+                    data: params.swapData
+                })
+            );
+        }
 
         // Use swapper contract to repay borrowed asset
         multicallItems[1] =
@@ -114,7 +133,7 @@ contract Liquidator {
             value: 0,
             data: abi.encodeCall(
                 ILiquidation.liquidate,
-                (params.violatorAddress, params.collateralVault, params.repayAmount, params.seizedCollateralAmount)
+                (params.violatorAddress, params.collateralVault, params.repayAmount, 0) // TODO: adjust minimum collateral
             )
         });
 
@@ -133,17 +152,6 @@ contract Liquidator {
             value: 0,
             data: abi.encodeCall(ISwapper.multicall, multicallItems)
         });
-
-        // Step 6: withdraw remaining collateral
-        // TODO: change this to just transfer the shares instead of withdraw
-        // batchItems[5] = IEVC.BatchItem({
-        //     onBehalfOfAccount: address(this),
-        //     targetContract: params.collateralVault,
-        //     value: 0,
-        //     data: abi.encodeCall(
-        //         IERC4626.withdraw, 
-        //         (params.expectedRemainingCollateral, params.receiver, address(this)))
-        // });
 
         // Step 6: transfer remaining collateral shares to receiver
         batchItems[5] = IEVC.BatchItem({

@@ -34,7 +34,6 @@ Run:
 - Smarter oracle checking - pull based, pricing
 - Fallback to Uniswap if no quote
 - Filter for smaller/non profitable positions
-- Transfer shares to target address rather than withdraw
 - Update flow for taking on the position rather than swapping (second function in contract)
 
 ### Configuration

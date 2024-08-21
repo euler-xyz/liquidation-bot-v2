@@ -18,7 +18,7 @@ from web3 import Web3
 # from eth_abi.abi import encode, decode
 # from eth_utils import to_hex, keccak
 
-from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack, post_low_health_account_report
+from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack, post_low_health_account_report, post_unhealthy_account_on_slack
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -131,6 +131,7 @@ class Account:
         self.time_of_next_update = time.time()
         self.current_health_score = math.inf
         self.balance = 0
+        self.value_borrowed = 0
 
 
     def update_liquidity(self) -> float:
@@ -157,6 +158,9 @@ class Account:
         balance, collateral_value, liability_value = self.controller.get_account_liquidity(
             self.address)
         self.balance = balance
+
+        # Assume that unitOfAccount is USD, TODO filter for this
+        self.value_borrowed = liability_value
 
         # Special case for 0 values on balance or liability
         if liability_value == 0:
@@ -273,6 +277,8 @@ class AccountMonitor:
         self.notify = notify
         self.execute_liquidation = execute_liquidation
 
+        self.recently_posted_low_value = {}
+
     def start_queue_monitoring(self) -> None:
         """
         Start monitoring the account update queue.
@@ -363,9 +369,25 @@ class AccountMonitor:
             logger.info("AccountMonitor: Updating account %s liquidity.", address)
 
             health_score = account.update_liquidity()
-
+            
             if health_score < 1:
                 try:
+                    if self.notify:
+                        if account.address in self.recently_posted_low_value:
+                            if time.time() - self.recently_posted_low_value[account.address] < config.LOW_HEALTH_REPORT_INTERVAL and account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
+                                logger.info("Skipping posting notification for account %s, recently posted", address)
+                        else:
+                            try:
+                                post_unhealthy_account_on_slack(address, account.controller.address, health_score, account.value_borrowed)
+                                
+                                if account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
+                                    self.recently_posted_low_value[account.address] = time.time()
+                            except Exception as ex: # pylint: disable=broad-except
+                                logger.error("AccountMonitor: "
+                                             "Failed to post low health notification "
+                                             "for account %s to slack: %s",
+                                             address, ex, exc_info=True)
+
                     logger.info("AccountMonitor: Account %s is unhealthy, "
                                 "checking liquidation profitability.",
                                 address)
@@ -546,16 +568,20 @@ class AccountMonitor:
             key = lambda account: account.current_health_score
         )
 
-        return [(account.address, account.current_health_score) for account in sorted_accounts]
+        return [(account.address, account.current_health_score, account.value_borrowed) for account in sorted_accounts]
 
     def periodic_report_low_health_accounts(self):
         """
         Periodically report accounts with low health scores.
         """
         while self.running:
-            sorted_accounts = self.get_accounts_by_health_score()
-            post_low_health_account_report(sorted_accounts)
-            time.sleep(config.LOW_HEALTH_REPORT_INTERVAL)
+            try:
+                sorted_accounts = self.get_accounts_by_health_score()
+                post_low_health_account_report(sorted_accounts)
+                time.sleep(config.LOW_HEALTH_REPORT_INTERVAL)
+            except Exception as ex: # pylint: disable=broad-except
+                logger.error("AccountMonitor: Failed to post low health account report: %s", ex,
+                              exc_info=True)
 
     @staticmethod
     def create_from_save_state(save_path: str, local_save: bool = True) -> "AccountMonitor":
@@ -595,6 +621,7 @@ class AccountMonitor:
 class PullOracleHandler:
     """
     Class to handle checking and updating pull based oracles.
+    TODO: implement fully
     """
     def __init__(self):
         self.lens_address = Web3.to_checksum_address(config.ORACLE_LENS)
@@ -895,7 +922,7 @@ class Liquidator:
                         max_profit_data["collateral_asset"], max_profit_data["leftover_collateral"],
                         max_profit_data["leftover_collateral_in_eth"])
             return (True, max_profit_data, max_profit_params)
-        return (False, None)
+        return (False, None, None)
 
     @staticmethod
     def calculate_liquidation_profit(vault: Vault,
@@ -927,23 +954,32 @@ class Liquidator:
 
         if max_repay == 0 or seized_collateral_shares == 0:
             return {"profit": 0}
-
-        (swap_amount, _) = Quoter.get_1inch_quote(collateral_asset,
+        
+        swap_type = 1
+        (swap_amount, _) = Quoter.get_quote(collateral_asset,
                                                   borrowed_asset,
                                                   seized_collateral_assets,
-                                                  max_repay)
+                                                  max_repay, swap_type)
+        # If something fails with 1inch, try uniswap
+        if swap_amount == -1:
+            swap_type = 2
+            (swap_amount, _) = Quoter.get_quote(collateral_asset,
+                                                  borrowed_asset,
+                                                  seized_collateral_assets,
+                                                  max_repay, swap_type)
 
         estimated_slippage_needed = 2 # TODO: actual slippage calculation
 
         time.sleep(config.API_REQUEST_DELAY)
 
-        swap_data_1inch = Quoter.get_1inch_swap_data(collateral_asset,
+        swap_data = Quoter.get_swap_data(collateral_asset,
                                                      borrowed_asset,
                                                      swap_amount,
                                                      config.SWAPPER,
                                                      LIQUIDATOR_EOA_PUBLIC_KEY,
                                                     #  config.LIQUIDATOR_CONTRACT,
                                                      config.SWAPPER,
+                                                     swap_type,
                                                      estimated_slippage_needed)
 
         leftover_collateral = seized_collateral_assets - swap_amount
@@ -951,9 +987,9 @@ class Liquidator:
         time.sleep(config.API_REQUEST_DELAY)
 
         # Convert leftover asset to WETH
-        (_, leftover_collateral_in_eth) = Quoter.get_1inch_quote(collateral_asset,
+        (_, leftover_collateral_in_eth) = Quoter.get_quote(collateral_asset,
                                                                  config.WETH,
-                                                                 leftover_collateral, 0)
+                                                                 leftover_collateral, 0, swap_type)
         time.sleep(config.API_REQUEST_DELAY)
 
         params = (
@@ -963,11 +999,11 @@ class Liquidator:
                 collateral_vault.address,
                 collateral_asset,
                 max_repay,
-                # seized_collateral_shares,
-                0, #TODO change this back to seized_collateral_shares
+                seized_collateral_shares,
                 swap_amount,
                 leftover_collateral,
-                swap_data_1inch,
+                swap_type,
+                swap_data,
                 config.PROFIT_RECEIVER
         )
 
@@ -1035,6 +1071,31 @@ class Quoter:
         pass
 
     @staticmethod
+    def get_quote(asset_in: str, asset_out: str,
+                  amount_asset_in: int, target_amount_out: int,
+                  swap_type: int):
+        if swap_type == 1: #1inch swap
+            return Quoter.get_1inch_quote(asset_in, asset_out, amount_asset_in, target_amount_out)
+        elif swap_type == 2: #Uniswap
+            return Quoter.get_uniswap_quote(asset_in, asset_out, amount_asset_in, target_amount_out)
+
+    @staticmethod
+    def get_swap_data(asset_in: str,
+                            asset_out: str,
+                            amount_in: int,
+                            swap_from: str,
+                            tx_origin: str,
+                            swap_receiver: str,
+                            swap_type: int,
+                            slippage: int = 2) -> Optional[str]:
+        if swap_type == 1:
+            return Quoter.get_1inch_swap_data(asset_in, asset_out, amount_in,
+                                              swap_from, tx_origin, swap_receiver, slippage)
+        elif swap_type == 2:
+            return Quoter.get_uniswap_swap_data(asset_in, asset_out, amount_in,
+                                                swap_from, tx_origin, swap_receiver, slippage)
+
+    @staticmethod
     def get_1inch_quote(asset_in: str,
                         asset_out: str,
                         amount_asset_in: int,
@@ -1055,7 +1116,7 @@ class Quoter:
         Returns:
             Tuple[int, int]: A tuple containing (actual_amount_in, actual_amount_out).
         """
-        def get_quote(params):
+        def get_api_quote(params):
             """
             Simple wrapper to get a quote from 1inch.
             """
@@ -1073,7 +1134,7 @@ class Quoter:
         try:
             # Special case exact in swap, don't need to do binary search
             if target_amount_out == 0:
-                amount_out = get_quote(params)
+                amount_out = get_api_quote(params)
                 if amount_out is None:
                     return (0, 0)
                 return (amount_asset_in, amount_out)
@@ -1087,9 +1148,13 @@ class Quoter:
 
             last_valid_amount_in, last_valid_amount_out = 0, 0
 
-
-            swap_amount = get_quote({"src": params["dst"], "dst": params["src"],
+            logger.info("Quoter: Initial request for src %s to dst %s and amount %s",
+                        params['dst'], params['src'], target_amount_out)
+            swap_amount = get_api_quote({"src": params["dst"], "dst": params["src"],
                                      "amount": target_amount_out})
+            
+            logger.info("Quoter: Initial guess for 1inch quote to get %s %s out from %s in: %s",
+                        target_amount_out, asset_out, asset_in, swap_amount)
             time.sleep(config.API_REQUEST_DELAY)
 
             min_amount_in = swap_amount * .95
@@ -1099,7 +1164,7 @@ class Quoter:
             while iteration_count < config.MAX_SEARCH_ITERATIONS:
                 swap_amount = int((min_amount_in + max_amount_in) / 2)
                 params["amount"] = swap_amount
-                amount_out = get_quote(params)
+                amount_out = get_api_quote(params)
 
                 if amount_out is None:
                     if last_valid_amount_out > target_amount_out:
@@ -1149,7 +1214,7 @@ class Quoter:
             return (params["amount"], amount_out)
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Quoter: Unexpected error in get_1inch_quote %s", ex, exc_info=True)
-            return (0, 0)
+            return (-1, -1)
 
     @staticmethod
     def get_1inch_swap_data(asset_in: str,
@@ -1194,6 +1259,23 @@ class Quoter:
         response = make_api_request(api_url, headers, params)
 
         return response["tx"]["data"] if response else None
+
+    @staticmethod
+    def get_uniswap_quote(asset_in: str, asset_out: str,
+                  amount_asset_in: int, target_amount_out: int):
+        #TODO do something to run autorouter npm package
+        return (0, 0)
+
+    @staticmethod
+    def get_uniswap_swap_data(asset_in: str,
+                            asset_out: str,
+                            amount_in: int,
+                            swap_from: str,
+                            tx_origin: str,
+                            swap_receiver: str,
+                            slippage: int = 2) -> Optional[str]:
+        #TODO do something to run autorouter npm package
+        return None
 
 
 if __name__ == "__main__":
