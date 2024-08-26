@@ -174,6 +174,10 @@ contract Liquidator {
             params.repayAmount,
             params.seizedCollateralAmount
         );
+        
+        if (IERC20(params.collateralAsset).balanceOf(address(this)) > 0) {
+            IERC20(params.collateralAsset).transfer(params.receiver, IERC20(params.collateralAsset).balanceOf(address(this)));
+        }
 
         return true;
     }

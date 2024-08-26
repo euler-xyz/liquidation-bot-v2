@@ -224,7 +224,6 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
         f"*Value Borrowed*: `${value_borrowed / 10 ** 18:.2f}`\n"
         f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n"
         f"Network: `{network_variables[loaded_config.CHAIN_ID]["name"]}`\n\n"
-        f"Checking liquidation profitability..."
     )
 
     slack_payload = {
@@ -380,7 +379,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
         formatted_value = value / 10 ** 18
         formatted_value = f"{formatted_value:.2f}"
 
-        message += f"{i}.`{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`\n"
+        message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`\n"
 
     message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
     message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"

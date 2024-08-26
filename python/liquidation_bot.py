@@ -70,11 +70,11 @@ class Vault:
         try:
             (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
                 Web3.to_checksum_address(account_address),
-                False
+                True
             ).call()
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Vault: Failed to get account liquidity for account %s: %s",
-                         account_address, ex, exc_info=True)
+            logger.error("Vault: Failed to get account liquidity for account %s: Contract error - %s",
+                         account_address, ex)
             return (balance, 0, 0)
 
 
@@ -96,8 +96,10 @@ class Vault:
         Returns:
             Tuple[int, int]: A tuple containing (max_repay, seized_collateral).
         """
-        logger.info("Vault: Checking liquidation for account %s, collateral %s, liquidator %s",
-                    borower_address, collateral_address, liquidator_address)
+        logger.info("Vault: Checking liquidation for account %s, collateral vault %s,"
+                    " liquidator address %s, borrowed asset %s",
+                    borower_address, collateral_address,
+                    liquidator_address, self.underlying_asset_address)
         (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(
             Web3.to_checksum_address(liquidator_address),
             Web3.to_checksum_address(borower_address),
@@ -170,7 +172,9 @@ class Account:
 
         self.current_health_score = collateral_value / liability_value
 
-        logger.info("Account: Account %s health score: %s", self.address, self.current_health_score)
+        logger.info("Account: %s health score: %s, Collateral Value: %s,"
+                    " Liability Value: %s", self.address, self.current_health_score,
+                    collateral_value, liability_value)
         return self.current_health_score
 
     def get_time_of_next_update(self) -> float:
@@ -206,7 +210,7 @@ class Account:
         # Randomly adjust the time by +/-10% to avoid syncronized checks across accounts/deployments
         self.time_of_next_update = time.time() + time_gap * random_adjustment
 
-        logger.info("Account: Account %s next update scheduled for %s", self.address,
+        logger.info("Account: %s next update scheduled for %s", self.address,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update)))
         return self.time_of_next_update
 
@@ -305,7 +309,7 @@ class AccountMonitor:
                 # check for special value that indicates
                 # account should be skipped & removed from queue
                 if next_update_time == -1:
-                    logger.info("AccountMonitor: Account %s has no position,"
+                    logger.info("AccountMonitor: %s has no position,"
                                 " skipping and removing from queue", address)
                     continue
 
@@ -340,12 +344,12 @@ class AccountMonitor:
             account = Account(address, vault)
             self.accounts[address] = account
 
-            logger.info("AccountMonitor: Adding account %s to account list with controller %s.",
+            logger.info("AccountMonitor: Adding %s to account list with controller %s.",
                         address,
                         vault.address)
         else:
             #TODO: remove other update timings that aren't this one
-            logger.info("AccountMonitor: Account %s already in list with controller %s.",
+            logger.info("AccountMonitor: %s already in list with controller %s.",
                         address,
                         vault.address)
 
@@ -362,11 +366,11 @@ class AccountMonitor:
             account = self.accounts.get(address)
 
             if not account:
-                logger.error("AccountMonitor: Account %s not found in account list.",
+                logger.error("AccountMonitor: %s not found in account list.",
                              address, exc_info=True)
                 return
 
-            logger.info("AccountMonitor: Updating account %s liquidity.", address)
+            logger.info("AccountMonitor: Updating %s liquidity.", address)
 
             health_score = account.update_liquidity()
             
@@ -388,7 +392,7 @@ class AccountMonitor:
                                              "for account %s to slack: %s",
                                              address, ex, exc_info=True)
 
-                    logger.info("AccountMonitor: Account %s is unhealthy, "
+                    logger.info("AccountMonitor: %s is unhealthy, "
                                 "checking liquidation profitability.",
                                 address)
                     (result, liquidation_data, params) = account.simulate_liquidation()
@@ -409,7 +413,7 @@ class AccountMonitor:
                         if self.execute_liquidation:
                             try:
                                 tx_hash = Liquidator.execute_liquidation(liquidation_data["tx"])
-                                logger.info("AccountMonitor: Account %s liquidated "
+                                logger.info("AccountMonitor: %s liquidated "
                                             "on collateral %s.",
                                             address,
                                             liquidation_data["collateral_address"])
@@ -541,12 +545,12 @@ class AccountMonitor:
                 health_score = account.update_liquidity()
 
                 if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor: Account %s has no borrow, skipping", address)
+                    logger.info("AccountMonitor: %s has no borrow, skipping", address)
                     continue
 
                 next_update_time = account.time_of_next_update
                 self.update_queue.put((next_update_time, address))
-                logger.info("AccountMonitor: Account %s added to queue"
+                logger.info("AccountMonitor: %s added to queue"
                             " with health score %s, next update at %s",
                             address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
                                                                  time.localtime(next_update_time)))
@@ -895,6 +899,9 @@ class Liquidator:
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
+                logger.info("Liquidator: Checking liquidation for account %s, borrowed asset %s, collateral asset %s",
+                            violator_address, borrowed_asset, collateral)
+                
                 liquidation_results = Liquidator.calculate_liquidation_profit(vault,
                                                                       violator_address,
                                                                       borrowed_asset,
@@ -929,7 +936,7 @@ class Liquidator:
                                      violator_address: str,
                                      borrowed_asset: str,
                                      collateral_vault: Vault,
-                                     liquidator_contract: Any) -> Dict[str, Any]:
+                                     liquidator_contract: Any) -> Tuple[Dict[str, Any], Any]:
         """
         Calculate the potential profit from liquidating an account using a specific collateral.
 
@@ -953,7 +960,9 @@ class Liquidator:
         seized_collateral_assets = vault.convert_to_assets(seized_collateral_shares)
 
         if max_repay == 0 or seized_collateral_shares == 0:
-            return {"profit": 0}
+            logger.info("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
+                        max_repay, seized_collateral_shares)
+            return ({"profit": 0}, None)
         
         swap_type = 1
         (swap_amount, _) = Quoter.get_quote(collateral_asset,
@@ -1280,7 +1289,7 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(True, True)
+        acct_monitor = AccountMonitor(False, True)
         acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
