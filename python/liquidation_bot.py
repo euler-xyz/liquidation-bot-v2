@@ -23,7 +23,7 @@ from utils import setup_logger, setup_w3, create_contract_instance, make_api_req
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
 API_KEY_1INCH = os.getenv("API_KEY_1INCH")
-LIQUIDATOR_EOA_PUBLIC_KEY = os.getenv("LIQUIDATOR_ADDRESS")
+LIQUIDATOR_EOA = os.getenv("LIQUIDATOR_EOA")
 LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv("LIQUIDATOR_PRIVATE_KEY")
 
 config = load_config()
@@ -162,7 +162,6 @@ class Account:
             self.address)
         self.balance = balance
 
-        # Assume that unitOfAccount is USD, TODO filter for this
         self.value_borrowed = liability_value
 
         # Special case for 0 values on balance or liability
@@ -355,7 +354,6 @@ class AccountMonitor:
                         address,
                         vault.address)
         else:
-            #TODO: remove other update timings that aren't this one
             logger.info("AccountMonitor: %s already in list with controller %s.",
                         address,
                         vault.address)
@@ -456,7 +454,6 @@ class AccountMonitor:
                         logger.info("AccountMonitor: "
                                     "Account %s is unhealthy but not profitable to liquidate.",
                                     address)
-                        # TODO: add filter for small account/repeatedly seen accounts
                 except Exception as ex: # pylint: disable=broad-except
                     logger.error("AccountMonitor: "
                                  "Exception simulating liquidation for account %s: %s",
@@ -977,7 +974,7 @@ class Liquidator:
 
         (max_repay, seized_collateral_shares) = vault.check_liquidation(violator_address,
                                                                  collateral_vault_address,
-                                                                 LIQUIDATOR_EOA_PUBLIC_KEY)
+                                                                 LIQUIDATOR_EOA)
 
         seized_collateral_assets = vault.convert_to_assets(seized_collateral_shares)
 
@@ -1007,7 +1004,7 @@ class Liquidator:
                                                      borrowed_asset,
                                                      swap_amount,
                                                      config.SWAPPER,
-                                                     LIQUIDATOR_EOA_PUBLIC_KEY,
+                                                     LIQUIDATOR_EOA,
                                                     #  config.LIQUIDATOR_CONTRACT,
                                                      config.SWAPPER,
                                                      swap_type,
@@ -1048,8 +1045,8 @@ class Liquidator:
             ).build_transaction({
                 "chainId": config.CHAIN_ID,
                 "gasPrice": suggested_gas_price,
-                "from": LIQUIDATOR_EOA_PUBLIC_KEY,
-                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA_PUBLIC_KEY)
+                "from": LIQUIDATOR_EOA,
+                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
             })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
@@ -1173,7 +1170,9 @@ class Quoter:
             # Binary search to find the amount in that will result in the target amount out
             # Overswaps slightly to make sure we can always repay max_repay
             min_amount_in, max_amount_in = 0, amount_asset_in
-            delta = config.SWAP_DELTA
+
+            # Allow for overswap of SWAP_DELTA percent of target amount
+            delta = config.SWAP_DELTA * target_amount_out
 
             iteration_count = 0
 

@@ -13,14 +13,14 @@ HS_UPPER_BOUND: 2.0
 
 # Update interval frequency (in seconds)
 MIN_UPDATE_INTERVAL: 10
-MAX_UPDATE_INTERVAL: 60 # 10 minutes
+MAX_UPDATE_INTERVAL: 1200 # 20 minutes
 
 # Interval for reporting low health accounts
 LOW_HEALTH_REPORT_INTERVAL: 21600 # 6 hours
 SLACK_REPORT_HEALTH_SCORE: 1.2
 
 # Threshold for excluding small positions from frequent notifications, in USD terms
-SMALL_POSITION_THRESHOLD: 10000000000000000000
+SMALL_POSITION_THRESHOLD: 10000000000000000000 # 10 USD
 SMALL_POSITION_REPORT_INTERVAL: 21600 # 6 hours
 
 # Bath size for scanning blocks on startup
@@ -28,14 +28,14 @@ BATCH_SIZE: 10000
 BATCH_INTERVAL: 0.1
 
 # Time to wait between scanning on regular intervals
-SCAN_INTERVAL: 60 # 5 minutes
+SCAN_INTERVAL: 120 # 2 minutes
 
 # Settings for 1INCH Quoting & other API calls
 NUM_RETRIES: 3
 RETRY_DELAY: 10
 
 # Acceptable amound of overswapping of collateral for 1INCH binary search
-SWAP_DELTA: 10000000
+SWAP_DELTA: .05 # 5%
 MAX_SEARCH_ITERATIONS: 20
 API_REQUEST_DELAY: 1
 
