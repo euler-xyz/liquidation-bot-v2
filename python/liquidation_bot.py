@@ -73,7 +73,8 @@ class Vault:
                 True
             ).call()
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Vault: Failed to get account liquidity for account %s: Contract error - %s",
+            logger.error("Vault: Failed to get account liquidity"
+                         " for account %s: Contract error - %s",
                          account_address, ex)
             return (balance, 0, 0)
 
@@ -208,7 +209,12 @@ class Account:
         random_adjustment = random.random() / 5 + .9
 
         # Randomly adjust the time by +/-10% to avoid syncronized checks across accounts/deployments
-        self.time_of_next_update = time.time() + time_gap * random_adjustment
+        time_of_next_update = time.time() + time_gap * random_adjustment
+
+        # if next update is already scheduled before calculated time and after now, keep it the same
+        if not(self.time_of_next_update < time_of_next_update
+               and self.time_of_next_update > time.time()):
+            self.time_of_next_update = time_of_next_update
 
         logger.info("Account: %s next update scheduled for %s", self.address,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update)))
@@ -294,7 +300,8 @@ class AccountMonitor:
         logger.info("AccountMonitor: Save thread started.")
 
         if self.notify:
-            low_health_report_thread = threading.Thread(target=self.periodic_report_low_health_accounts)
+            low_health_report_thread = threading.Thread(target=
+                                                        self.periodic_report_low_health_accounts)
             low_health_report_thread.start()
             logger.info("AccountMonitor: Low health report thread started.")
 
@@ -371,19 +378,25 @@ class AccountMonitor:
                 return
 
             logger.info("AccountMonitor: Updating %s liquidity.", address)
+            prev_scheduled_time = account.time_of_next_update
 
             health_score = account.update_liquidity()
-            
+
             if health_score < 1:
                 try:
                     if self.notify:
                         if account.address in self.recently_posted_low_value:
-                            if time.time() - self.recently_posted_low_value[account.address] < config.LOW_HEALTH_REPORT_INTERVAL and account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
-                                logger.info("Skipping posting notification for account %s, recently posted", address)
+                            if (time.time() - self.recently_posted_low_value[account.address]
+                                < config.LOW_HEALTH_REPORT_INTERVAL
+                                and account.value_borrowed < config.SMALL_POSITION_THRESHOLD):
+                                logger.info("Skipping posting notification "
+                                            "for account %s, recently posted", address)
                         else:
                             try:
-                                post_unhealthy_account_on_slack(address, account.controller.address, health_score, account.value_borrowed)
-                                
+                                post_unhealthy_account_on_slack(address, account.controller.address,
+                                                                health_score,
+                                                                account.value_borrowed)
+
                                 if account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
                                     self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
@@ -450,6 +463,13 @@ class AccountMonitor:
                                  address, ex, exc_info=True)
 
             next_update_time = account.time_of_next_update
+
+            # if next update hasn't changed, means we already have a check scheduled
+            if next_update_time == prev_scheduled_time:
+                logger.info("AccountMonitor: %s next update already scheduled for %s",
+                            address, time.strftime("%Y-%m-%d %H:%M:%S",
+                                                  time.localtime(next_update_time)))
+                return
 
             with self.condition:
                 self.update_queue.put((next_update_time, address))
@@ -572,7 +592,8 @@ class AccountMonitor:
             key = lambda account: account.current_health_score
         )
 
-        return [(account.address, account.current_health_score, account.value_borrowed) for account in sorted_accounts]
+        return [(account.address, account.current_health_score,
+                 account.value_borrowed) for account in sorted_accounts]
 
     def periodic_report_low_health_accounts(self):
         """
@@ -625,7 +646,7 @@ class AccountMonitor:
 class PullOracleHandler:
     """
     Class to handle checking and updating pull based oracles.
-    TODO: implement fully
+    TODO: implement
     """
     def __init__(self):
         self.lens_address = Web3.to_checksum_address(config.ORACLE_LENS)
@@ -830,7 +851,7 @@ class EVCListener:
                         start_block, current_block)
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("EVCListener: " 
+            logger.error("EVCListener: "
                          "Unexpected exception in batch scanning account logs on startup: %s",
                          ex, exc_info=True)
 
@@ -899,9 +920,10 @@ class Liquidator:
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
-                logger.info("Liquidator: Checking liquidation for account %s, borrowed asset %s, collateral asset %s",
+                logger.info("Liquidator: Checking liquidation for"
+                            "account %s, borrowed asset %s, collateral asset %s",
                             violator_address, borrowed_asset, collateral)
-                
+
                 liquidation_results = Liquidator.calculate_liquidation_profit(vault,
                                                                       violator_address,
                                                                       borrowed_asset,
@@ -963,7 +985,7 @@ class Liquidator:
             logger.info("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
                         max_repay, seized_collateral_shares)
             return ({"profit": 0}, None)
-        
+
         swap_type = 1
         (swap_amount, _) = Quoter.get_quote(collateral_asset,
                                                   borrowed_asset,
@@ -1158,10 +1180,10 @@ class Quoter:
             last_valid_amount_in, last_valid_amount_out = 0, 0
 
             logger.info("Quoter: Initial request for src %s to dst %s and amount %s",
-                        params['dst'], params['src'], target_amount_out)
+                        params["dst"], params["src"], target_amount_out)
             swap_amount = get_api_quote({"src": params["dst"], "dst": params["src"],
                                      "amount": target_amount_out})
-            
+
             logger.info("Quoter: Initial guess for 1inch quote to get %s %s out from %s in: %s",
                         target_amount_out, asset_out, asset_in, swap_amount)
             time.sleep(config.API_REQUEST_DELAY)
@@ -1184,7 +1206,7 @@ class Quoter:
                         return (last_valid_amount_in, last_valid_amount_out)
                     logger.warning("Quoter: Failed to get valid 1inch quote "
                                    "for %s %s to %s", swap_amount, asset_in, asset_out)
-                    return (0, 0)
+                    return (-1, -1)
 
                 logger.info("Quoter: 1inch quote for %s %s to %s: %s",
                             swap_amount, asset_in, asset_out, amount_out)
@@ -1218,7 +1240,7 @@ class Quoter:
                     logger.info("Quoter: Using last valid quote: %s %s to %s %s",
                                 last_valid_amount_in, asset_in, last_valid_amount_out, asset_out)
                     return (last_valid_amount_in, last_valid_amount_out)
-                return (0, 0)
+                return (-1, -1)
 
             return (params["amount"], amount_out)
         except Exception as ex: # pylint: disable=broad-except
@@ -1272,7 +1294,7 @@ class Quoter:
     @staticmethod
     def get_uniswap_quote(asset_in: str, asset_out: str,
                   amount_asset_in: int, target_amount_out: int):
-        #TODO do something to run autorouter npm package
+        #TODO implement
         return (0, 0)
 
     @staticmethod
@@ -1283,7 +1305,7 @@ class Quoter:
                             tx_origin: str,
                             swap_receiver: str,
                             slippage: int = 2) -> Optional[str]:
-        #TODO do something to run autorouter npm package
+        #TODO implement
         return None
 
 
@@ -1301,18 +1323,6 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
-
-        # router = "0xa15B7F02F57aaC6195271B41EfD3016a68Fc39A1"
-        # router = "0x862b1042f653AE74880D0d3EBf0DDEe90aB8601D"
-        # bases = ["0x0000000000000000000000000000000000000348",
-        #          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
-        # unit_of_account = "0x0000000000000000000000000000000000000348"
-
-        # pull_oracle_handler = PullOracleHandler()
-        # result = pull_oracle_handler.get_oracle_info(router, bases, unit_of_account)
-
-        # print(result)
-
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
