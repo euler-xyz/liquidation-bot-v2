@@ -32,10 +32,8 @@ Run:
 
 ### TODO:
 - Smarter oracle checking - pull based, pricing
-- Fallback to Uniswap if no quote
-- Filter for smaller/non profitable positions
-- Transfer shares to target address rather than withdraw
-- Update flow for taking on the position rather than swapping (second function in contract)
+- Implement uniswap fallback
+- Update flow for taking on the position rather than swapping (second function in contract), currently works only with contract holding balance
 
 ### Configuration
 
@@ -44,7 +42,7 @@ Make sure to build the contracts in both src and lib to have the correct ABIs lo
 Configuration through `.env` file:
 
 REQUIRED:
-- `LIQUIDATOR_ADDRESS, LIQUIDATOR_PRIVATE_KEY` - public/private key of EOA that will be used to liquidate
+- `LIQUIDATOR_EOA, LIQUIDATOR_PRIVATE_KEY` - public/private key of EOA that will be used to liquidate
 
 - `RPC_URL` - RPC provider endpoint (Infura, Rivet, Alchemy etc.)
 

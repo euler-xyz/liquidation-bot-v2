@@ -20,6 +20,17 @@ from web3.contract import Contract
 from dotenv import load_dotenv
 from urllib.parse import urlencode
 
+network_variables = {
+    1: {
+        "name": "Ethereum",
+        "explorer_url": "https://etherscan.io"
+    },
+    42161: {
+        "name": "Arbitrum",
+        "explorer_url": "https://arbiscan.io"
+    },
+}
+
 def load_config() -> SimpleNamespace:
     """
     Load configuration from a YAML file and return it as a SimpleNamespace object.
@@ -197,6 +208,31 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
     # Log the full exception information
     logger.critical("Uncaught exception:\n %s", trace_str)
 
+def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
+                    health_score: float, value_borrowed: int) -> None:
+    """
+    Post a message on Slack about an unhealthy account.
+    """
+    load_dotenv()
+    slack_url = os.getenv("SLACK_WEBHOOK_URL")
+
+    message = (
+        ":warning: *Unhealthy Account Detected* :warning:\n\n"
+        f"*Account*: `{account_address}`\n"
+        f"*Vault*: `{vault_address}`\n"
+        f"*Health Score*: `{health_score:.4f}`\n"
+        f"*Value Borrowed*: `${value_borrowed / 10 ** 18:.2f}`\n"
+        f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n"
+        f"Network: `{network_variables[loaded_config.CHAIN_ID]["name"]}`\n\n"
+    )
+
+    slack_payload = {
+        "text": message,
+        "username": "Liquidation Bot",
+        "icon_emoji": ":robot_face:"
+    }
+    requests.post(slack_url, json=slack_payload, timeout=10)
+
 
 def post_liquidation_opportunity_on_slack(account_address: str, vault_address: str,
                   liquidation_data: Optional[Dict[str, Any]] = None,
@@ -217,7 +253,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         # Unpack params
         violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, \
         max_repay, seized_collateral_shares, swap_amount, \
-        leftover_collateral, swap_data_1inch, receiver = params
+        leftover_collateral, swap_type, swap_data_1inch, receiver = params
 
         # Build URL parameters
         url_params = urlencode({
@@ -244,6 +280,8 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
             f"*Vault*: `{vault_address}`"
         )
 
+        config = load_config()
+
         formatted_data = (
             f"*Liquidation Opportunity Details:*\n"
             f"• Profit: {Web3.from_wei(liquidation_data["profit"], "ether")} ETH\n"
@@ -254,7 +292,8 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
             f"• Leftover Collateral in ETH terms (excluding gas): {Web3.from_wei(
                 liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
             f"<{execution_url}|Click here to execute this liquidation manually>\n\n"
-            f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}"
+            f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n\n"
+            f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
         )
         message += f"\n\n{formatted_data}"
 
@@ -287,7 +326,7 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
 
     config = load_config()
 
-    tx_url = f"{config.EXPLORER_URL}/tx/{tx_hash}"
+    tx_url = f"{network_variables[config.CHAIN_ID]["explorer_url"]}/tx/{tx_hash}"
 
     formatted_data = (
         f"*Liquidation Details:*\n"
@@ -297,7 +336,8 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         f"• Leftover Collateral: {Web3.from_wei(liquidation_data["leftover_collateral"], "ether")} {liquidation_data["collateral_asset"]}\n"
         f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
         f"• Transaction: <{tx_url}|View Transaction on Explorer>\n\n"
-        f"Time of liquidation: {time.strftime("%Y-%m-%d %H:%M:%S")}"
+        f"Time of liquidation: {time.strftime("%Y-%m-%d %H:%M:%S")}\n\n"
+        f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
     )
     message += f"\n\n{formatted_data}"
 
@@ -323,7 +363,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
     # Filter accounts below the threshold
     low_health_accounts = [
-        (address, score) for address, score in sorted_accounts
+        (address, score, value) for address, score, value in sorted_accounts
         if score < config.SLACK_REPORT_HEALTH_SCORE
     ]
 
@@ -332,15 +372,18 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
     message = ":warning: *Low Health Account Report* :warning:\n\n"
 
-    for i, (address, score) in enumerate(low_health_accounts, start=1):
+    for i, (address, score, value) in enumerate(low_health_accounts, start=1):
 
         # Format score to 4 decimal places
         formatted_score = f"{score:.4f}"
+        formatted_value = value / 10 ** 18
+        formatted_value = f"{formatted_value:.2f}"
 
-        message += f"{i}.`{address}`: Health Score `{formatted_score}`\n"
+        message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`\n"
 
     message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
     message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"
+    message += f"\nNetwork: `{network_variables[config.CHAIN_ID]["name"]}`"
 
     slack_payload = {
         "text": message,
