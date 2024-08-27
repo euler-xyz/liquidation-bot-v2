@@ -367,21 +367,23 @@ def post_low_health_account_report(sorted_accounts) -> None:
         if score < config.SLACK_REPORT_HEALTH_SCORE
     ]
 
-    if not low_health_accounts:
-        return  # No low health accounts to report
-
     message = ":warning: *Low Health Account Report* :warning:\n\n"
 
-    for i, (address, score, value) in enumerate(low_health_accounts, start=1):
+    if not low_health_accounts:
+        message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
 
-        # Format score to 4 decimal places
-        formatted_score = f"{score:.4f}"
-        formatted_value = value / 10 ** 18
-        formatted_value = f"{formatted_value:.2f}"
+    else:
+        for i, (address, score, value) in enumerate(low_health_accounts, start=1):
 
-        message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`\n"
+            # Format score to 4 decimal places
+            formatted_score = f"{score:.4f}"
+            formatted_value = value / 10 ** 18
+            formatted_value = f"{formatted_value:.2f}"
 
-    message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
+            message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`\n"
+
+        message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
+
     message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"
     message += f"\nNetwork: `{network_variables[config.CHAIN_ID]["name"]}`"
 

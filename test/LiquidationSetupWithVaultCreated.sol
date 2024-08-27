@@ -19,7 +19,7 @@ contract LiquidationSetup is Test, Script {
     address constant DAI = 0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1;
 
     address constant EVC_ADDRESS = 0xE45Ee4046bD755330D555dFe4aDA7839a3eEb926;
-    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x8A26338eB12D7EfDbF35f0ba01720E489d8c607d;
+    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0xA8A46596a7B17542d2cf6993FC61Ea0CBb4474c1;
     
     address constant profitReceiver = 0x140556939f9Cfa711078DeFBb01B3e51A53Bc464;
 
