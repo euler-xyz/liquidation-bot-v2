@@ -74,8 +74,10 @@ cd lib/evk-periphery && forge build && cd ../..
 mkdir logs state
 ```
 
-Run:
-`python python/liquidation_bot.py`
+**Run**:
+```bash
+python python/liquidation_bot.py
+```
 
 ### Configuration
 
