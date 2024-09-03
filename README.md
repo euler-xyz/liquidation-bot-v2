@@ -129,7 +129,6 @@ Configuration in `config.yaml` file:
 - `EVAULT_ABI_PATH, EVC_ABI_PATH, LIQUIDATOR_ABI_PATH, ORACLE_LENS_ABI_PATH` - Paths to compiled contracts
 
 - `CHAIN_ID` - Chain ID to run the bot on, Mainnet: 1, Arbitrum: 42161
-- `EXPLORER_URL` - Block explorer to be sent with Slack alerts, Mainnet: 'https://etherscan.io", Arbitrum: "https://arbiscan.io"
 
 
 ### Deploying
