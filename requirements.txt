@@ -38,7 +38,6 @@ numpy==2.0.0
 packaging==23.2
 parsimonious==0.10.0
 platformdirs==4.2.2
-pminit==0.8.0
 protobuf==5.27.0
 py-solc-x==2.0.3
 pycares==4.4.0
