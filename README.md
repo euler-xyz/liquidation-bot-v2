@@ -137,7 +137,10 @@ If you want to deploy your own version of the liquidator contract, you can run t
 forge script contracts/DeployLiquidator.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow
 ```
 
-To run the basic test script & broadcast to the configured RPC, run the below commmand:
+To run the basic test script & broadcast to the configured RPC, modify the [LiquidationSetupWithVaultCreated.sol test](test/LiquidationSetupWithVaultCreated.sol) with the correct contract addresses and uncomment the various steps of setting up a position, then run the below commmand:
+
 ```bash
 forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow --evm-version shanghai
 ```
+
+This test is intended to create a position on an existing vault. To test a liquitation, you can either wait for price fluctuations to happen or manually change the LTV of the vault using the create.euler.finance UI if it is a governed vault that you control.
