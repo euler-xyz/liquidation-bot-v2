@@ -4,15 +4,15 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
 
 ## How it works
 
-0. **Setup**:
-    - The bot uses variables from both the config.yaml file and the .env file to configure settings and private keys.
-    - The startup code is contained at the end of the python/liquidation_bot.py file, which also has two variable to set for the bot - `notify` & `execute_liquidation`, which determine if the bot will post to slack and if it will execute the liquidations found.
-    - Some dependencies have to be installed, details on which can be found below.
+**Setup**:
+    - The bot uses variables from both the [config.yaml](config.yaml) file and the [.env](.env.example) file to [configure](#configuration) settings and private keys.
+    - The startup code is contained at the end of the [python/liquidation_bot.py](python/liquidation_bot.py#L1311) file, which also has two variable to set for the bot - `notify` & `execute_liquidation`, which determine if the bot will post to slack and if it will execute the liquidations found.
+    - Some dependencies have to be [installed](#installation), details on which can be found below.
 
 1. **Account Monitoring**:
-   - The primary way of finding new accounts is scanning for `AccountStatusCheck` events emitted by the EVC contract to check for new & modified positions.
+   - The primary way of finding new accounts is [scanning](python/liquidation_bot.py#L742) for `AccountStatusCheck` events emitted by the EVC contract to check for new & modified positions.
    - This event is emitted every time a borrow is created or modified, and contains both the account address and vault address.
-   - Health scores are calculated using the `accountLiquidity` function implemented by the vaults themselves.
+   - Health scores are calculated using the `accountLiquidity` [function](python/liquidation_bot.py#L52) implemented by the vaults themselves.
    - Accounts are added to a priority queue based on their health score with a time of next update, with low health accounts being checked most frequently.
    - EVC logs are batched on bot startup to catch up to the current block, then scanned for new events at a regular interval.
 
@@ -22,8 +22,8 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
    - Gas cost is estimated for the liquidation transaction, then checks if the leftover collateral after repaying debt is greater than the gas cost when converted to ETH terms.
    - If this is the case, the liquidation is profitable and the bot will attempt to execute the transaction.
 
-3. **Liquidation Execution - Liquidator.sol**:
-   - If profitable, the bot constructs a transaction to call the `liquidate_single_collateral` function on the Liquidator contract.
+3. **Liquidation Execution - [Liquidator.sol](contracts/Liquidator.sol)**:
+   - If profitable, the bot constructs a transaction to call the `liquidate_single_collateral` [function](contracts/Liquidator.sol#L67) on the Liquidator contract.
    - The Liquidator contract then executes a batch of actions via the EVC containing the following steps:
      1. Enables borrow vault as a controller.
      2. Enable collateral vault as a collateral.
@@ -122,7 +122,7 @@ Configuration in `config.yaml` file:
 
 - `EVC_DEPLOYMENT_BLOCK` - Block that the contracs were deployed
 
-- `WETH, EVC, SWAPPER, SWAP_VERIFIER, LIQUIDATOR_CONTRACT, ORACLE_LENS` - Relevant deployed contract addresses
+- `WETH, EVC, SWAPPER, SWAP_VERIFIER, LIQUIDATOR_CONTRACT, ORACLE_LENS` - Relevant deployed contract addresses. The liquidator contract has been deployed on Mainnet, but feel free to redeploy.
 
 - `PROFIT_RECEIVER` - Targeted receiver of any profits from liquidations
 
