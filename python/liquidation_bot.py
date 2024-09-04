@@ -1411,7 +1411,7 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(False, False)
+        acct_monitor = AccountMonitor(True, True)
         acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
@@ -1427,4 +1427,4 @@ if __name__ == "__main__":
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
         message = f"Uncaught global exception: {e}"
-        # post_error_notification(message)
+        post_error_notification(message)
