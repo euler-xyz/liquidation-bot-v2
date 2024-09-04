@@ -76,7 +76,13 @@ class Vault:
             logger.error("Vault: Failed to get account liquidity"
                          " for account %s: Contract error - %s",
                          account_address, ex)
-            return (balance, 0, 0)
+            
+            #TODO: Catch a pyth error here
+            try:
+                (collateral_value, liability_value) = PythHandler.get_account_values_with_batch_simulation(self, account_address)
+            except Exception as exc: # pyline: disable=broad-except
+                logger.error("Vault: error trying to update account stats with Pyth handler: %s", exc, exc_info=True)
+                return (balance, 0, 0)
 
 
         return (balance, collateral_value, liability_value)
@@ -640,70 +646,78 @@ class AccountMonitor:
         self.executor.shutdown(wait=True)
         self.save_state()
 
-class PullOracleHandler:
+class PythHandler:
     """
-    Class to handle checking and updating pull based oracles.
+    Class to handle checking and updating Pyth oracles.
     TODO: implement
     """
     def __init__(self):
-        self.lens_address = Web3.to_checksum_address(config.ORACLE_LENS)
-        self.minimal_abi = [
-                {
-                    "type": "function",
-                    "name": "getOracleInfo",
-                    "inputs": [
-                    {
-                        "name": "oracleAddress",
-                        "type": "address",
-                        "internalType": "address",
-                    },
-                    {
-                        "name": "bases",
-                        "type": "address[]",
-                        "internalType": "address[]",
-                    },
-                    {
-                        "name": "unitOfAccount",
-                        "type": "address",
-                        "internalType": "address",
-                    },
-                    ],
-                    "outputs": [
-                    {
-                        "name": "",
-                        "type": "tuple",
-                        "internalType": "struct OracleDetailedInfo",
-                        "components": [
-                        {
-                            "name": "name",
-                            "type": "string",
-                            "internalType": "string",
-                        },
-                        {
-                            "name": "oracleInfo",
-                            "type": "bytes",
-                            "internalType": "bytes",
-                        },
-                        ],
-                    },
-                    ],
-                    "stateMutability": "view",
-                },
-            ]
+        pass
 
-        self.instance = w3.eth.contract(address=self.lens_address, abi=self.minimal_abi)
+    @staticmethod
+    def get_account_values_with_batch_simulation(vault, account_address):
+        feed_ids = PythHandler.get_feed_ids(vault)
+        update_data = PythHandler.get_pyth_update_data(feed_ids)
 
-    def get_oracle_info(self, oracle_address, bases, unit_of_account):
+        pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH)
+        update_fee = pyth.functions.getUpdateFee([update_data]).call()
+
+        liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
+
+        result = liquidator.functions.simulate_pyth_update_and_get_account_status([update_data], update_fee, vault.address, account_address).call()
+        return result
+
+    @staticmethod
+    def get_feed_ids(vault):
         try:
-            result = self.instance.functions.getOracleInfo(
-                oracle_address,
-                bases,
-                unit_of_account
-            ).call()
-            return result
+            #TODO: all of these are incorrect/incomplete, need to finish & decide on implementations
+            oracle_address = vault.functions.oracle().call()
+
+            #Option 1: get them from the lens contract
+            lens = create_contract_instance(config.ORACLE_LENS, config.ORACLE_LENS_ABI_PATH)
+            oracle_info = lens.functions.getOracleInfo(oracle_address).call()
+
+            #Option 2: some way to get them from the vault & oracle contracts directly
+            oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
+
+            #Option 3: using relevant asset names, get them from the hermes API
+            asset_addresses = vault.functions.asset().call()
+            assets = []
+            for address in asset_addresses:
+                token = create_contract_instance(address, config.ERC20_ABI_PATH)
+                symbol = token.functions.symbol().call()
+                assets.append(symbol)
+
+            return PythHandler.get_feed_ids_from_api(assets)
+
         except Exception as ex: # pylint: disable=broad-except
             logger.error(f"Error calling contract: {ex}", exc_info=True)
 
+    @staticmethod
+    def get_feed_ids_from_api(assets):
+        pyth_url = "https://hermes.pyth.network/v2/"
+
+        headers = {}
+
+        feeds = []
+        params = {"query":"btc", "asset_type":"crypto"}
+
+        for asset in assets:
+            params["query"] = asset
+            price_feeds = make_api_request(pyth_url + "price_feeds", headers, params)
+            feeds.append(next(feed["id"] for feed in price_feeds if feed["attributes"].get("base").lower() == params["query"].lower()))
+        
+        return feeds
+    
+    @staticmethod
+    def get_pyth_update_data(feed_ids):
+        pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
+        for id in feed_ids:
+            pyth_url += "ids[]=" + id + "&"
+        pyth_url = pyth_url[:-1]
+
+        api_return_data = make_api_request(pyth_url, {}, {})
+        return "0x" + api_return_data["binary"]["data"][0]
 
 class EVCListener:
     """
