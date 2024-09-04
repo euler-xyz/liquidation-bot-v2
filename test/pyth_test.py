@@ -58,3 +58,27 @@ print(feed_id_hex)
 # result = liquidator.functions.simulate_pyth_update_and_get_account_status([update_data], update_fee, vault_address, account_address).call()
 
 # print(result)
+
+
+# test_vault_address = "0x5229dFB54965EC0DFE2C787a735f7D6cc569309B"
+# test_vault = Vault(test_vault_address)
+
+# test_feed_ids = PythHandler.get_feed_ids(test_vault)
+# print("IDs:", test_feed_ids)
+
+# test_update_data = PythHandler.get_pyth_update_data(test_feed_ids)
+# print("Data:", test_update_data)
+
+# update_fee = PythHandler.get_pyth_update_fee(test_update_data)
+# print("Update fee:", update_fee)
+
+# liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
+
+# actual_vault_address = "0x577e289F663A4E29c231135c09d6a0713ce7AAff"
+# account_address = "0x37B5559c63821820EaAC5FF770e5C421d6A2676B"
+# call_result = liquidator.functions.simulate_pyth_update_and_get_account_status(
+#     [test_update_data], update_fee, actual_vault_address, account_address
+#     ).call({
+#         "value": update_fee
+#     })
+# print(call_result)

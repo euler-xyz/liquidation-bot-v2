@@ -83,6 +83,7 @@ class Vault:
             logger.error("Vault: Failed to get account liquidity"
                          " for account %s: Contract error - %s",
                          account_address, ex)
+            return (balance, 0, 0)
             
         return (balance, collateral_value, liability_value)
 
@@ -106,11 +107,21 @@ class Vault:
                     " liquidator address %s, borrowed asset %s",
                     borower_address, collateral_address,
                     liquidator_address, self.underlying_asset_address)
-        (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(
-            Web3.to_checksum_address(liquidator_address),
-            Web3.to_checksum_address(borower_address),
-            Web3.to_checksum_address(collateral_address)
-            ).call()
+        feed_ids = PythHandler.get_feed_ids(self)
+        if len(feed_ids) > 0:
+            (max_repay, seized_collateral) = PythHandler.check_liquidation_with_batch_simulation(
+                self,
+                Web3.to_checksum_address(liquidator_address),
+                Web3.to_checksum_address(borower_address),
+                Web3.to_checksum_address(collateral_address),
+                feed_ids
+                )
+        else:
+            (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(
+                Web3.to_checksum_address(liquidator_address),
+                Web3.to_checksum_address(borower_address),
+                Web3.to_checksum_address(collateral_address)
+                ).call()
         return (max_repay, seized_collateral)
 
     def convert_to_assets(self, amount: int) -> int:
@@ -674,14 +685,30 @@ class PythHandler:
     @staticmethod
     def get_account_values_with_batch_simulation(vault, account_address, feed_ids):
         update_data = PythHandler.get_pyth_update_data(feed_ids)
-
-        pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH)
-        update_fee = pyth.functions.getUpdateFee([update_data]).call()
+        update_fee = PythHandler.get_pyth_update_fee(update_data)
 
         liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
 
-        result = liquidator.functions.simulate_pyth_update_and_get_account_status([update_data], update_fee, vault.address, account_address).call()
-        return result
+        result = liquidator.functions.simulate_pyth_update_and_get_account_status(
+            [update_data], update_fee, vault.address, account_address
+            ).call({
+                "value": update_fee
+            })
+        return result[0], result[1]
+    
+    @staticmethod
+    def check_liquidation_with_batch_simulation(vault, liquidator_address, borrower_address, collateral_address, feed_ids):
+        update_data = PythHandler.get_pyth_update_data(feed_ids)
+        update_fee = PythHandler.get_pyth_update_fee(update_data)
+
+        liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
+
+        result = liquidator.functions.simulate_pyth_update_and_check_liquidation(
+            [update_data], update_fee, vault.address, liquidator_address, borrower_address, collateral_address
+            ).call({
+                "value": update_fee
+            })
+        return result[0], result[1]
 
     @staticmethod
     def get_feed_ids(vault):
@@ -689,8 +716,6 @@ class PythHandler:
             oracle_address = vault.get_oracle_address()
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
 
-            logger.info("PythHandler: Oracle name: %s", oracle.functions.name().call())
-            
             unit_of_account = vault.get_unit_of_account()
 
             collateral_vault_list = vault.get_ltv_list()
@@ -703,6 +728,7 @@ class PythHandler:
                 configured_oracle = create_contract_instance(configured_oracle_address, config.ORACLE_ABI_PATH)
                 configured_oracle_name = configured_oracle.functions.name().call()
                 if configured_oracle_name == "PythOracle":
+                    logger.info("PythHandler: Pyth oracle found for vault %s: Address - %s", vault.address, configured_oracle_address)
                     feed_ids.append(configured_oracle.functions.feedId().call().hex())
                 elif configured_oracle_name == "CrossOracle":
                     feed_ids.append(PythHandler.resolve_cross_oracle(configured_oracle))
@@ -734,6 +760,7 @@ class PythHandler:
 
     @staticmethod
     def get_pyth_update_data(feed_ids):
+        logger.info("PythHandler: Getting update data for feeds: %s", feed_ids)
         pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
         for id in feed_ids:
             pyth_url += "ids[]=" + id + "&"
@@ -744,6 +771,7 @@ class PythHandler:
     
     @staticmethod
     def get_pyth_update_fee(update_data):
+        logger.info("PythHandler: Getting update fee for data: %s", update_data)
         pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH)
         return pyth.functions.getUpdateFee([update_data]).call()
 
@@ -1096,14 +1124,29 @@ class Liquidator:
         #TODO: smarter way to do this
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
-        liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
-            params
-            ).build_transaction({
-                "chainId": config.CHAIN_ID,
-                "gasPrice": suggested_gas_price,
-                "from": LIQUIDATOR_EOA,
-                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
-            })
+        feed_ids = PythHandler.get_feed_ids(vault)
+
+        if len(feed_ids > 0):
+            update_data = PythHandler.get_pyth_update_data(feed_ids)
+            update_fee = PythHandler.get_pyth_update_fee(update_data)
+            liquidation_tx = liquidator_contract.functions.liquidate_single_collateral_with_pyth_oracle(
+                params, update_data
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+                    "value": update_fee
+                })
+        else:
+            liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
+                params
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
 
@@ -1368,7 +1411,7 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(True, True)
+        acct_monitor = AccountMonitor(False, False)
         acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
@@ -1380,24 +1423,8 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
-        # test_vault_address = "0x5229dFB54965EC0DFE2C787a735f7D6cc569309B"
-        # test_vault = Vault(test_vault_address)
-
-        # test_feed_ids = PythHandler.get_feed_ids(test_vault)
-        # print("IDs:", test_feed_ids)
-
-        # test_update_data = PythHandler.get_pyth_update_data(test_feed_ids)
-        # print("Data:", test_update_data)
-
-        # update_fee = PythHandler.get_pyth_update_fee(test_update_data)
-        # print("Update fee:", update_fee)
-
-        # liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
-        # result = liquidator.functions.simulate_pyth_update_and_get_account_status([test_update_data], update_fee, test_vault_address, "0x5f2a33BD41E39C4881f7f2a93C0b67bee0B207B6").call()
-
-        # print(result)
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
         message = f"Uncaught global exception: {e}"
-        post_error_notification(message)
+        # post_error_notification(message)
