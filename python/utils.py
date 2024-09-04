@@ -372,7 +372,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
         if score < config.SLACK_REPORT_HEALTH_SCORE
     ]
 
-    message = ":warning: *Low Health Account Report* :warning:\n\n"
+    message = ":warning: *Account Health Report* :warning:\n\n"
 
     if not low_health_accounts:
         message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
