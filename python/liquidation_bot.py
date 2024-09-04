@@ -917,7 +917,7 @@ class Liquidator:
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
-                logger.info("Liquidator: Checking liquidation for"
+                logger.info("Liquidator: Checking liquidation for "
                             "account %s, borrowed asset %s, collateral asset %s",
                             violator_address, borrowed_asset, collateral)
 
@@ -995,6 +995,8 @@ class Liquidator:
                                                   borrowed_asset,
                                                   seized_collateral_assets,
                                                   max_repay, swap_type)
+        
+        logger.info("Liquidator: Final swap amount %s", swap_amount)
 
         estimated_slippage_needed = 2 # TODO: actual slippage calculation
 
@@ -1015,9 +1017,18 @@ class Liquidator:
         time.sleep(config.API_REQUEST_DELAY)
 
         # Convert leftover asset to WETH
-        (_, leftover_collateral_in_eth) = Quoter.get_quote(collateral_asset,
-                                                                 config.WETH,
-                                                                 leftover_collateral, 0, swap_type)
+        if (collateral_asset != config.WETH):
+            (_, leftover_collateral_in_eth) = Quoter.get_quote(collateral_asset,
+                                                                    config.WETH,
+                                                                    leftover_collateral, 0, swap_type)
+        else:
+            leftover_collateral_in_eth = leftover_collateral
+
+        if leftover_collateral_in_eth < 0:
+            logger.warning("Liquidator: Negative leftover collateral value, aborting liquidation")
+            return None
+
+
         time.sleep(config.API_REQUEST_DELAY)
 
         params = (
@@ -1283,6 +1294,7 @@ class Quoter:
         logger.info("Getting 1inch swap data for %s %s %s %s %s %s %s",
                     amount_in, asset_in, asset_out, swap_from, tx_origin,
                     swap_receiver, slippage)
+        logger.info("Params: %s", params)
 
         api_url = f"https://api.1inch.dev/swap/v6.0/{config.CHAIN_ID}/swap"
         headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
@@ -1310,7 +1322,7 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(True, True)
+        acct_monitor = AccountMonitor(False, True)
         acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
