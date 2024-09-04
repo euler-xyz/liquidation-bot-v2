@@ -216,9 +216,11 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
 
+    spy_link = f"https://app.euler.finance/?spy={account_address}"
+
     message = (
         ":warning: *Unhealthy Account Detected* :warning:\n\n"
-        f"*Account*: `{account_address}`\n"
+        f"*Account*: `{account_address}`, <{spy_link}|Spy Mode>\n"
         f"*Vault*: `{vault_address}`\n"
         f"*Health Score*: `{health_score:.4f}`\n"
         f"*Value Borrowed*: `${value_borrowed / 10 ** 18:.2f}`\n"
@@ -255,6 +257,8 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         max_repay, seized_collateral_shares, swap_amount, \
         leftover_collateral, swap_type, swap_data_1inch, receiver = params
 
+        spy_link = f"https://app.euler.finance/?spy={account_address}"
+
         # Build URL parameters
         url_params = urlencode({
             "violator": violator_address,
@@ -276,7 +280,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
 
         message = (
             ":rotating_light: *Profitable Liquidation Opportunity Detected* :rotating_light:\n\n"
-            f"*Account*: `{account_address}`\n"
+            f"*Account*: `{account_address}`, <{spy_link}|Spy Mode>\n"
             f"*Vault*: `{vault_address}`"
         )
 
@@ -317,17 +321,18 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
+    spy_link = f"https://app.euler.finance/?spy={account_address}"
 
     message = (
         ":moneybag: *Liquidation Completed* :moneybag:\n\n"
-        f"*Liquidated Account*: `{account_address}`\n"
+        f"*Liquidated Account*: `{account_address}`, <{spy_link}|Spy Mode>\n"
         f"*Vault*: `{vault_address}`"
     )
 
     config = load_config()
 
     tx_url = f"{network_variables[config.CHAIN_ID]["explorer_url"]}/tx/{tx_hash}"
-
+    
     formatted_data = (
         f"*Liquidation Details:*\n"
         f"• Profit: {Web3.from_wei(liquidation_data["profit"], "ether")} ETH\n"
@@ -380,7 +385,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
             formatted_value = value / 10 ** 18
             formatted_value = f"{formatted_value:.2f}"
 
-            spy_link = f"https://main.dt61crx54oprj.amplifyapp.com/?spy={address}"
+            spy_link = f"https://app.euler.finance/?spy={address}"
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
