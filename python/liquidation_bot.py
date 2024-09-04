@@ -68,17 +68,23 @@ class Vault:
             return (0, 0, 0)
 
         try:
-            (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
-                Web3.to_checksum_address(account_address),
-                True
-            ).call()
+            # Check if vault contains a Pyth oracle
+            feed_ids = PythHandler.get_feed_ids(self)
+
+            if len(feed_ids) > 0:
+                logger.info("Vault: Pyth Oracle found for vault %s, getting account liquidity through simulation", self.address)
+                collateral_value, liability_value = PythHandler.get_account_values_with_batch_simulation(self, account_address, feed_ids)
+            else:
+                (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
+                    Web3.to_checksum_address(account_address),
+                    True
+                ).call()
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get account liquidity"
                          " for account %s: Contract error - %s",
                          account_address, ex)
             return (balance, 0, 0)
-
-
+            
         return (balance, collateral_value, liability_value)
 
     def check_liquidation(self,
@@ -101,11 +107,21 @@ class Vault:
                     " liquidator address %s, borrowed asset %s",
                     borower_address, collateral_address,
                     liquidator_address, self.underlying_asset_address)
-        (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(
-            Web3.to_checksum_address(liquidator_address),
-            Web3.to_checksum_address(borower_address),
-            Web3.to_checksum_address(collateral_address)
-            ).call()
+        feed_ids = PythHandler.get_feed_ids(self)
+        if len(feed_ids) > 0:
+            (max_repay, seized_collateral) = PythHandler.check_liquidation_with_batch_simulation(
+                self,
+                Web3.to_checksum_address(liquidator_address),
+                Web3.to_checksum_address(borower_address),
+                Web3.to_checksum_address(collateral_address),
+                feed_ids
+                )
+        else:
+            (max_repay, seized_collateral) = self.instance.functions.checkLiquidation(
+                Web3.to_checksum_address(liquidator_address),
+                Web3.to_checksum_address(borower_address),
+                Web3.to_checksum_address(collateral_address)
+                ).call()
         return (max_repay, seized_collateral)
 
     def convert_to_assets(self, amount: int) -> int:
@@ -119,6 +135,24 @@ class Vault:
             int: The amount of underlying assets.
         """
         return self.instance.functions.convertToAssets(amount).call()
+
+    def get_oracle_address(self) -> str:
+        """
+        Return oracle for this vault
+        """
+        return self.instance.functions.oracle().call()
+
+    def get_unit_of_account(self) -> str:
+        """
+        Return unit of account address for this vault
+        """
+        return self.instance.functions.unitOfAccount().call()
+    
+    def get_ltv_list(self):
+        """
+        Return list of LTVs for this vault
+        """
+        return self.instance.functions.LTVList().call()
 
 class Account:
     """
@@ -640,70 +674,106 @@ class AccountMonitor:
         self.executor.shutdown(wait=True)
         self.save_state()
 
-class PullOracleHandler:
+class PythHandler:
     """
-    Class to handle checking and updating pull based oracles.
+    Class to handle checking and updating Pyth oracles.
     TODO: implement
     """
     def __init__(self):
-        self.lens_address = Web3.to_checksum_address(config.ORACLE_LENS)
-        self.minimal_abi = [
-                {
-                    "type": "function",
-                    "name": "getOracleInfo",
-                    "inputs": [
-                    {
-                        "name": "oracleAddress",
-                        "type": "address",
-                        "internalType": "address",
-                    },
-                    {
-                        "name": "bases",
-                        "type": "address[]",
-                        "internalType": "address[]",
-                    },
-                    {
-                        "name": "unitOfAccount",
-                        "type": "address",
-                        "internalType": "address",
-                    },
-                    ],
-                    "outputs": [
-                    {
-                        "name": "",
-                        "type": "tuple",
-                        "internalType": "struct OracleDetailedInfo",
-                        "components": [
-                        {
-                            "name": "name",
-                            "type": "string",
-                            "internalType": "string",
-                        },
-                        {
-                            "name": "oracleInfo",
-                            "type": "bytes",
-                            "internalType": "bytes",
-                        },
-                        ],
-                    },
-                    ],
-                    "stateMutability": "view",
-                },
-            ]
+        pass
 
-        self.instance = w3.eth.contract(address=self.lens_address, abi=self.minimal_abi)
+    @staticmethod
+    def get_account_values_with_batch_simulation(vault, account_address, feed_ids):
+        update_data = PythHandler.get_pyth_update_data(feed_ids)
+        update_fee = PythHandler.get_pyth_update_fee(update_data)
 
-    def get_oracle_info(self, oracle_address, bases, unit_of_account):
+        liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
+
+        result = liquidator.functions.simulate_pyth_update_and_get_account_status(
+            [update_data], update_fee, vault.address, account_address
+            ).call({
+                "value": update_fee
+            })
+        return result[0], result[1]
+    
+    @staticmethod
+    def check_liquidation_with_batch_simulation(vault, liquidator_address, borrower_address, collateral_address, feed_ids):
+        update_data = PythHandler.get_pyth_update_data(feed_ids)
+        update_fee = PythHandler.get_pyth_update_fee(update_data)
+
+        liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
+
+        result = liquidator.functions.simulate_pyth_update_and_check_liquidation(
+            [update_data], update_fee, vault.address, liquidator_address, borrower_address, collateral_address
+            ).call({
+                "value": update_fee
+            })
+        return result[0], result[1]
+
+    @staticmethod
+    def get_feed_ids(vault):
         try:
-            result = self.instance.functions.getOracleInfo(
-                oracle_address,
-                bases,
-                unit_of_account
-            ).call()
-            return result
+            oracle_address = vault.get_oracle_address()
+            oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
+
+            unit_of_account = vault.get_unit_of_account()
+
+            collateral_vault_list = vault.get_ltv_list()
+            collateral_asset_list = [Vault(collateral_vault).underlying_asset_address for collateral_vault in collateral_vault_list]
+
+            feed_ids = []
+
+            for asset in collateral_asset_list:
+                configured_oracle_address = oracle.functions.getConfiguredOracle(asset, unit_of_account).call()
+                configured_oracle = create_contract_instance(configured_oracle_address, config.ORACLE_ABI_PATH)
+                configured_oracle_name = configured_oracle.functions.name().call()
+                if configured_oracle_name == "PythOracle":
+                    logger.info("PythHandler: Pyth oracle found for vault %s: Address - %s", vault.address, configured_oracle_address)
+                    feed_ids.append(configured_oracle.functions.feedId().call().hex())
+                elif configured_oracle_name == "CrossOracle":
+                    feed_ids.append(PythHandler.resolve_cross_oracle(configured_oracle))
+
+            return feed_ids
+
         except Exception as ex: # pylint: disable=broad-except
             logger.error(f"Error calling contract: {ex}", exc_info=True)
 
+    @staticmethod
+    def resolve_cross_oracle(cross_oracle):
+        feed_ids = []
+
+        oracle_base_address = cross_oracle.functions.oracleBaseCross().call()
+        oracle_base = create_contract_instance(oracle_base_address, config.ORACLE_ABI_PATH)
+        oracle_base_name = oracle_base.functions.name().call()
+        if oracle_base_name == "PythOracle":
+            feed_ids.append(oracle_base.functions.feedId().call().hex())
+        elif oracle_base_name == "CrossOracle":
+            feed_ids.append(PythHandler.resolve_cross_oracle(oracle_base))
+
+        oracle_quote_address = cross_oracle.functions.oracleCrossQuote().call()
+        oracle_quote = create_contract_instance(oracle_quote_address, config.ORACLE_ABI_PATH)
+        oracle_quote_name = oracle_quote.functions.name().call()
+        if oracle_quote_name == "PythOracle":
+            feed_ids.append(oracle_quote.functions.feedId().call())
+        elif oracle_quote_name == "CrossOracle":
+            feed_ids.append(PythHandler.resolve_cross_oracle(oracle_quote))
+
+    @staticmethod
+    def get_pyth_update_data(feed_ids):
+        logger.info("PythHandler: Getting update data for feeds: %s", feed_ids)
+        pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
+        for id in feed_ids:
+            pyth_url += "ids[]=" + id + "&"
+        pyth_url = pyth_url[:-1]
+
+        api_return_data = make_api_request(pyth_url, {}, {})
+        return "0x" + api_return_data["binary"]["data"][0]
+    
+    @staticmethod
+    def get_pyth_update_fee(update_data):
+        logger.info("PythHandler: Getting update fee for data: %s", update_data)
+        pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH)
+        return pyth.functions.getUpdateFee([update_data]).call()
 
 class EVCListener:
     """
@@ -1054,14 +1124,29 @@ class Liquidator:
         #TODO: smarter way to do this
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
-        liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
-            params
-            ).build_transaction({
-                "chainId": config.CHAIN_ID,
-                "gasPrice": suggested_gas_price,
-                "from": LIQUIDATOR_EOA,
-                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
-            })
+        feed_ids = PythHandler.get_feed_ids(vault)
+
+        if len(feed_ids > 0):
+            update_data = PythHandler.get_pyth_update_data(feed_ids)
+            update_fee = PythHandler.get_pyth_update_fee(update_data)
+            liquidation_tx = liquidator_contract.functions.liquidate_single_collateral_with_pyth_oracle(
+                params, update_data
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+                    "value": update_fee
+                })
+        else:
+            liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
+                params
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
 
