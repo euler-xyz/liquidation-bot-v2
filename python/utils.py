@@ -401,3 +401,32 @@ def post_low_health_account_report(sorted_accounts) -> None:
         print("Low health account report posted to Slack successfully.")
     except requests.RequestException as e:
         print(f"Failed to post low health account report to Slack: {e}")
+
+def post_error_notification(message) -> None:
+    """
+    Post an error notification to Slack.
+
+    Args:
+        message (str): The error message to be posted.
+    """
+
+    load_dotenv()
+    config = load_config()
+    slack_url = os.getenv("SLACK_WEBHOOK_URL")
+
+    error_message = f":rotating_light: *Error Notification* :rotating_light:\n\n{message}\n\n"
+    error_message += f"Time: {time.strftime("%Y-%m-%d %H:%M:%S")}\n"
+    error_message += f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
+
+    slack_payload = {
+        "text": error_message,
+        "username": "Liquidation Bot",
+        "icon_emoji": ":warning:"
+    }
+
+    try:
+        response = requests.post(slack_url, json=slack_payload, timeout=10)
+        response.raise_for_status()
+        print("Error notification posted to Slack successfully.")
+    except requests.RequestException as e:
+        print("Failed to post error notification to Slack: %s", e)

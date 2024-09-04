@@ -18,7 +18,7 @@ from web3 import Web3
 # from eth_abi.abi import encode, decode
 # from eth_utils import to_hex, keccak
 
-from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack, post_low_health_account_report, post_unhealthy_account_on_slack
+from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack, post_low_health_account_report, post_unhealthy_account_on_slack, post_error_notification
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -932,10 +932,13 @@ class Liquidator:
                     max_profit_data = profit_data
                     max_profit_params = params
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("Liquidator: "
-                             "Exception simulating liquidation "
+                message = ("Exception simulating liquidation "
                              "for account %s with collateral %s: %s",
-                             violator_address, collateral, ex, exc_info=True)
+                             violator_address, collateral, ex)
+                
+                logger.error("Liquidator: %s",
+                             message, exc_info=True)
+                post_error_notification(message)
                 continue
 
 
@@ -1099,8 +1102,9 @@ class Liquidator:
             logger.info("Liquidator: Liquidation transaction executed successfully.")
             return tx_hash.hex()
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Liquidator: Unexpected error in execute_liquidation %s",
-                         ex, exc_info=True)
+            message = f"Unexpected error in executing liquidation: {ex}"
+            logger.error(message, exc_info=True)
+            post_error_notification(message)
 
 class Quoter:
     """
@@ -1322,7 +1326,7 @@ class Quoter:
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(False, True)
+        acct_monitor = AccountMonitor(True, True)
         acct_monitor.load_state(config.SAVE_STATE_PATH)
 
         evc_listener = EVCListener(acct_monitor)
@@ -1337,3 +1341,5 @@ if __name__ == "__main__":
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
+        message = f"Uncaught global exception: {e}"
+        post_error_notification(message)
