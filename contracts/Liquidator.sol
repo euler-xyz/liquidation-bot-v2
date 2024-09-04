@@ -16,7 +16,7 @@ contract Liquidator {
     address public immutable swapVerifierAddress;
     address public immutable evcAddress;
 
-    address public constant PYTH = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
+    address public constant PYTH = 0xff1a0f4744e8582DF1aE09D5611b887B6a12925C;
 
     bytes32 public constant HANDLER_ONE_INCH = bytes32("1Inch");
     bytes32 public constant HANDLER_UNISWAP_AUTOROUTER = bytes32("UniswapAutoRouter");
@@ -240,7 +240,7 @@ contract Liquidator {
     }
 
     function simulate_pyth_update_and_get_account_status(bytes[] calldata pythUpdateData, uint256 pythUpdateFee, address vaultAddress, address accountAddress) external returns (uint256 collateralValue, uint256 liabilityValue) {
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](2);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](1);
 
         batchItems[0] = IEVC.BatchItem({
             onBehalfOfAccount: msg.sender,

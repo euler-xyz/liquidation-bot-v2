@@ -68,23 +68,22 @@ class Vault:
             return (0, 0, 0)
 
         try:
-            (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
-                Web3.to_checksum_address(account_address),
-                True
-            ).call()
+            # Check if vault contains a Pyth oracle
+            feed_ids = PythHandler.get_feed_ids(self)
+
+            if len(feed_ids) > 0:
+                logger.info("Vault: Pyth Oracle found for vault %s, getting account liquidity through simulation", self.address)
+                collateral_value, liability_value = PythHandler.get_account_values_with_batch_simulation(self, account_address, feed_ids)
+            else:
+                (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
+                    Web3.to_checksum_address(account_address),
+                    True
+                ).call()
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get account liquidity"
                          " for account %s: Contract error - %s",
                          account_address, ex)
             
-            #TODO: Catch a pyth error here
-            try:
-                (collateral_value, liability_value) = PythHandler.get_account_values_with_batch_simulation(self, account_address)
-            except Exception as exc: # pyline: disable=broad-except
-                logger.error("Vault: error trying to update account stats with Pyth handler: %s", exc, exc_info=True)
-                return (balance, 0, 0)
-
-
         return (balance, collateral_value, liability_value)
 
     def check_liquidation(self,
@@ -125,6 +124,24 @@ class Vault:
             int: The amount of underlying assets.
         """
         return self.instance.functions.convertToAssets(amount).call()
+
+    def get_oracle_address(self) -> str:
+        """
+        Return oracle for this vault
+        """
+        return self.instance.functions.oracle().call()
+
+    def get_unit_of_account(self) -> str:
+        """
+        Return unit of account address for this vault
+        """
+        return self.instance.functions.unitOfAccount().call()
+    
+    def get_ltv_list(self):
+        """
+        Return list of LTVs for this vault
+        """
+        return self.instance.functions.LTVList().call()
 
 class Account:
     """
@@ -655,8 +672,7 @@ class PythHandler:
         pass
 
     @staticmethod
-    def get_account_values_with_batch_simulation(vault, account_address):
-        feed_ids = PythHandler.get_feed_ids(vault)
+    def get_account_values_with_batch_simulation(vault, account_address, feed_ids):
         update_data = PythHandler.get_pyth_update_data(feed_ids)
 
         pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH)
@@ -670,45 +686,52 @@ class PythHandler:
     @staticmethod
     def get_feed_ids(vault):
         try:
-            #TODO: all of these are incorrect/incomplete, need to finish & decide on implementations
-            oracle_address = vault.functions.oracle().call()
-
-            #Option 1: get them from the lens contract
-            lens = create_contract_instance(config.ORACLE_LENS, config.ORACLE_LENS_ABI_PATH)
-            oracle_info = lens.functions.getOracleInfo(oracle_address).call()
-
-            #Option 2: some way to get them from the vault & oracle contracts directly
+            oracle_address = vault.get_oracle_address()
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
 
-            #Option 3: using relevant asset names, get them from the hermes API
-            asset_addresses = vault.functions.asset().call()
-            assets = []
-            for address in asset_addresses:
-                token = create_contract_instance(address, config.ERC20_ABI_PATH)
-                symbol = token.functions.symbol().call()
-                assets.append(symbol)
+            logger.info("PythHandler: Oracle name: %s", oracle.functions.name().call())
+            
+            unit_of_account = vault.get_unit_of_account()
 
-            return PythHandler.get_feed_ids_from_api(assets)
+            collateral_vault_list = vault.get_ltv_list()
+            collateral_asset_list = [Vault(collateral_vault).underlying_asset_address for collateral_vault in collateral_vault_list]
+
+            feed_ids = []
+
+            for asset in collateral_asset_list:
+                configured_oracle_address = oracle.functions.getConfiguredOracle(asset, unit_of_account).call()
+                configured_oracle = create_contract_instance(configured_oracle_address, config.ORACLE_ABI_PATH)
+                configured_oracle_name = configured_oracle.functions.name().call()
+                if configured_oracle_name == "PythOracle":
+                    feed_ids.append(configured_oracle.functions.feedId().call().hex())
+                elif configured_oracle_name == "CrossOracle":
+                    feed_ids.append(PythHandler.resolve_cross_oracle(configured_oracle))
+
+            return feed_ids
 
         except Exception as ex: # pylint: disable=broad-except
             logger.error(f"Error calling contract: {ex}", exc_info=True)
 
     @staticmethod
-    def get_feed_ids_from_api(assets):
-        pyth_url = "https://hermes.pyth.network/v2/"
+    def resolve_cross_oracle(cross_oracle):
+        feed_ids = []
 
-        headers = {}
+        oracle_base_address = cross_oracle.functions.oracleBaseCross().call()
+        oracle_base = create_contract_instance(oracle_base_address, config.ORACLE_ABI_PATH)
+        oracle_base_name = oracle_base.functions.name().call()
+        if oracle_base_name == "PythOracle":
+            feed_ids.append(oracle_base.functions.feedId().call().hex())
+        elif oracle_base_name == "CrossOracle":
+            feed_ids.append(PythHandler.resolve_cross_oracle(oracle_base))
 
-        feeds = []
-        params = {"query":"btc", "asset_type":"crypto"}
+        oracle_quote_address = cross_oracle.functions.oracleCrossQuote().call()
+        oracle_quote = create_contract_instance(oracle_quote_address, config.ORACLE_ABI_PATH)
+        oracle_quote_name = oracle_quote.functions.name().call()
+        if oracle_quote_name == "PythOracle":
+            feed_ids.append(oracle_quote.functions.feedId().call())
+        elif oracle_quote_name == "CrossOracle":
+            feed_ids.append(PythHandler.resolve_cross_oracle(oracle_quote))
 
-        for asset in assets:
-            params["query"] = asset
-            price_feeds = make_api_request(pyth_url + "price_feeds", headers, params)
-            feeds.append(next(feed["id"] for feed in price_feeds if feed["attributes"].get("base").lower() == params["query"].lower()))
-        
-        return feeds
-    
     @staticmethod
     def get_pyth_update_data(feed_ids):
         pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
@@ -718,6 +741,11 @@ class PythHandler:
 
         api_return_data = make_api_request(pyth_url, {}, {})
         return "0x" + api_return_data["binary"]["data"][0]
+    
+    @staticmethod
+    def get_pyth_update_fee(update_data):
+        pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH)
+        return pyth.functions.getUpdateFee([update_data]).call()
 
 class EVCListener:
     """
@@ -1352,6 +1380,22 @@ if __name__ == "__main__":
 
         while True:
             time.sleep(1)
+        # test_vault_address = "0x5229dFB54965EC0DFE2C787a735f7D6cc569309B"
+        # test_vault = Vault(test_vault_address)
+
+        # test_feed_ids = PythHandler.get_feed_ids(test_vault)
+        # print("IDs:", test_feed_ids)
+
+        # test_update_data = PythHandler.get_pyth_update_data(test_feed_ids)
+        # print("Data:", test_update_data)
+
+        # update_fee = PythHandler.get_pyth_update_fee(test_update_data)
+        # print("Update fee:", update_fee)
+
+        # liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
+        # result = liquidator.functions.simulate_pyth_update_and_get_account_status([test_update_data], update_fee, test_vault_address, "0x5f2a33BD41E39C4881f7f2a93C0b67bee0B207B6").call()
+
+        # print(result)
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
