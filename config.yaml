@@ -16,7 +16,7 @@ MIN_UPDATE_INTERVAL: 10
 MAX_UPDATE_INTERVAL: 1200 # 20 minutes
 
 # Interval for reporting low health accounts
-LOW_HEALTH_REPORT_INTERVAL: 900 # 6 hours
+LOW_HEALTH_REPORT_INTERVAL: 1800 # 6 hours
 SLACK_REPORT_HEALTH_SCORE: 10
 
 # Threshold for excluding small positions from frequent notifications, in USD terms
