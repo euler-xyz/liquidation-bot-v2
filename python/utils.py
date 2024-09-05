@@ -170,6 +170,16 @@ def retry_request(logger: logging.Logger,
         return wrapper
     return decorator
 
+def account_to_owner(account):
+    """
+    Get account owner from EVC
+    """
+    evc = create_contract_instance(loaded_config.EVC, loaded_config.EVC_ABI_PATH)
+    owner = evc.functions.getAccountOwner(account).call()
+    if owner == "0x0000000000000000000000000000000000000000":
+        owner = account
+    return owner
+
 @retry_request(logging.getLogger("liquidation_bot"))
 def make_api_request(url: str,
                      headers: Dict[str, str],
@@ -215,8 +225,9 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
-
-    spy_link = f"https://app.euler.finance/?spy={account_address}"
+    
+    owner_address = account_to_owner(account_address)
+    spy_link = f"https://app.euler.finance/?spy={owner_address}"
 
     message = (
         ":warning: *Unhealthy Account Detected* :warning:\n\n"
@@ -257,7 +268,8 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         max_repay, seized_collateral_shares, swap_amount, \
         leftover_collateral, swap_type, swap_data_1inch, receiver = params
 
-        spy_link = f"https://app.euler.finance/?spy={account_address}"
+        owner_address = account_to_owner(account_address)
+        spy_link = f"https://app.euler.finance/?spy={owner_address}"
 
         # Build URL parameters
         url_params = urlencode({
@@ -321,7 +333,8 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
-    spy_link = f"https://app.euler.finance/?spy={account_address}"
+    owner_address = account_to_owner(account_address)
+    spy_link = f"https://app.euler.finance/?spy={owner_address}"
 
     message = (
         ":moneybag: *Liquidation Completed* :moneybag:\n\n"
@@ -385,7 +398,8 @@ def post_low_health_account_report(sorted_accounts) -> None:
             formatted_value = value / 10 ** 18
             formatted_value = f"{formatted_value:.2f}"
 
-            spy_link = f"https://app.euler.finance/?spy={address}"
+            owner_address = account_to_owner(address)
+            spy_link = f"https://app.euler.finance/?spy={owner_address}"
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
