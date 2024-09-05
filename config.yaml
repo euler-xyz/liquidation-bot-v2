@@ -8,15 +8,15 @@ SAVE_STATE_PATH: "state/account_monitor.json"
 SAVE_INTERVAL: 1800 # 30 minutes
 
 # Health score bounds for min/max update interval frequency
-HS_LOWER_BOUND: 1.05
+HS_LOWER_BOUND: 1.01
 HS_UPPER_BOUND: 2.0
 
 # Update interval frequency (in seconds)
-MIN_UPDATE_INTERVAL: 10
-MAX_UPDATE_INTERVAL: 1200 # 20 minutes
+MIN_UPDATE_INTERVAL: 30
+MAX_UPDATE_INTERVAL: 1800 # 30 minutes
 
 # Interval for reporting low health accounts
-LOW_HEALTH_REPORT_INTERVAL: 1800 # 6 hours
+LOW_HEALTH_REPORT_INTERVAL: 1800 # 30 minutes
 SLACK_REPORT_HEALTH_SCORE: 10
 
 # Threshold for excluding small positions from frequent notifications, in USD terms
