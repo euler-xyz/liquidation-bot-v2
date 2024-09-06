@@ -1071,7 +1071,7 @@ class Liquidator:
 
         logger.info("Liquidator: Final swap amount %s", swap_amount)
 
-        estimated_slippage_needed = 1 # TODO: actual slippage calculation
+        estimated_slippage_needed = .1 # TODO: actual slippage calculation
 
         time.sleep(config.API_REQUEST_DELAY)
 
