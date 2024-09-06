@@ -941,6 +941,8 @@ class SmartUpdateListener:
         """
         self.account_monitor.update_account_liquidity(account)
 
+liquidation_error_slack_cooldown = {}
+
 class Liquidator:
     """
     Class to handle liquidation logic for accounts
@@ -1008,7 +1010,12 @@ class Liquidator:
                 
                 logger.error("Liquidator: %s",
                              message, exc_info=True)
-                post_error_notification(message)
+                
+                time_of_last_post = liquidation_error_slack_cooldown.get(violator_address, 0) 
+                now = time.time()
+                if (now - time_of_last_post) > config.ERROR_COOLDOWN:
+                    post_error_notification(message)
+                    time_of_last_post = now
                 continue
 
 
