@@ -170,7 +170,7 @@ def retry_request(logger: logging.Logger,
         return wrapper
     return decorator
 
-def account_to_owner(account):
+def get_spy_link(account):
     """
     Get account owner from EVC
     """
@@ -178,7 +178,12 @@ def account_to_owner(account):
     owner = evc.functions.getAccountOwner(account).call()
     if owner == "0x0000000000000000000000000000000000000000":
         owner = account
-    return owner
+
+    subaccount_number = int(int(account, 16) ^ int(owner, 16))
+
+    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+    
+    return spy_link
 
 @retry_request(logging.getLogger("liquidation_bot"))
 def make_api_request(url: str,
@@ -226,8 +231,7 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
     
-    owner_address = account_to_owner(account_address)
-    spy_link = f"https://app.euler.finance/?spy={owner_address}"
+    spy_link = get_spy_link(account_address)
 
     message = (
         ":warning: *Unhealthy Account Detected* :warning:\n\n"
@@ -268,8 +272,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         max_repay, seized_collateral_shares, swap_amount, \
         leftover_collateral, swap_type, swap_data_1inch, receiver = params
 
-        owner_address = account_to_owner(account_address)
-        spy_link = f"https://app.euler.finance/?spy={owner_address}"
+        spy_link = get_spy_link(account_address)
 
         # Build URL parameters
         url_params = urlencode({
@@ -333,8 +336,8 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
-    owner_address = account_to_owner(account_address)
-    spy_link = f"https://app.euler.finance/?spy={owner_address}"
+    
+    spy_link = get_spy_link(account_address)
 
     message = (
         ":moneybag: *Liquidation Completed* :moneybag:\n\n"
@@ -398,8 +401,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
             formatted_value = value / 10 ** 18
             formatted_value = f"{formatted_value:.2f}"
 
-            owner_address = account_to_owner(address)
-            spy_link = f"https://app.euler.finance/?spy={owner_address}"
+            spy_link = get_spy_link(address)
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
