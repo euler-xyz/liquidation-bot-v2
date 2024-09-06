@@ -16,7 +16,7 @@ contract Liquidator {
     address public immutable swapVerifierAddress;
     address public immutable evcAddress;
 
-    address public constant PYTH = 0xff1a0f4744e8582DF1aE09D5611b887B6a12925C;
+    address public immutable PYTH;
 
     bytes32 public constant HANDLER_ONE_INCH = bytes32("1Inch");
     bytes32 public constant HANDLER_UNISWAP_AUTOROUTER = bytes32("UniswapAutoRouter");
@@ -27,11 +27,12 @@ contract Liquidator {
     error Unauthorized();
     error LessThanExpectedCollateralReceived();
 
-    constructor(address _owner, address _swapperAddress, address _swapVerifierAddress, address _evcAddress) {
+    constructor(address _owner, address _swapperAddress, address _swapVerifierAddress, address _evcAddress, address _pythAddress) {
         owner = _owner;
         swapperAddress = _swapperAddress;
         swapVerifierAddress = _swapVerifierAddress;
         evcAddress = _evcAddress;
+        PYTH = _pythAddress;
 
         swapper = ISwapper(_swapperAddress);
         evc = IEVC(_evcAddress);

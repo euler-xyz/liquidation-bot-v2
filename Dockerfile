@@ -14,17 +14,11 @@ RUN git init && \
 # Manually clone submodules
 RUN mkdir -p lib/forge-std && \
     git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
-RUN mkdir -p lib/evk-periphery && \
-    git clone https://github.com/euler-xyz/evk-periphery.git lib/evk-periphery
 
 # Run Forge commands
 RUN forge install --no-commit
 RUN forge update
 RUN forge build
-
-RUN cd /app/lib/evk-periphery && \
-    forge build && \
-    cd ../..
 
 # Create a non-privileged user
 ARG UID=10001

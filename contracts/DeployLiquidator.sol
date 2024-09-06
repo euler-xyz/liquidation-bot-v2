@@ -16,11 +16,12 @@ contract DeployLiquidator is Script {
         address swapperAddress = 0x7813D94D8276fb1658e7fC842564684005515c9e;
         address swapVerifierAddress = 0xae26485ACDDeFd486Fe9ad7C2b34169d360737c7;
         address evcAddress = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
+        address pyth = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
 
         address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
 
-        Liquidator liquidator = new Liquidator(deployer, swapperAddress, swapVerifierAddress, evcAddress);
+        Liquidator liquidator = new Liquidator(deployer, swapperAddress, swapVerifierAddress, evcAddress, pyth);
 
         console2.log("Liquidator deployed at: ", address(liquidator));
     }

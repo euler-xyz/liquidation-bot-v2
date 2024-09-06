@@ -58,10 +58,9 @@ PYTH: "0x4305FB66699C3B2702D4d05CF36551390A4c69C6"
 PROFIT_RECEIVER: "0x8cbB534874bab83e44a7325973D2F04493359dF8" #TODO change to DAO address
 
 # Compiled contract paths
-EVAULT_ABI_PATH: "lib/evk-periphery/out/EVault.sol/EVault.json"
-EVC_ABI_PATH: "lib/evk-periphery/out/EthereumVaultConnector.sol/EthereumVaultConnector.json"
+EVAULT_ABI_PATH: "contracts/EVault.json"
+EVC_ABI_PATH: "contracts/EthereumVaultConnector.json"
 LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
-ORACLE_LENS_ABI_PATH: "lib/evk-periphery/out/OracleLens.sol/OracleLens.json"
 ORACLE_ABI_PATH: "contracts/IOracle.json"
 PYTH_ABI_PATH: "contracts/IPyth.json"
 ERC20_ABI_PATH: "out/IERC20.sol/IERC20.json"
