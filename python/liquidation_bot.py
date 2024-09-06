@@ -457,24 +457,25 @@ class AccountMonitor:
                                              address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
-                                tx_hash = Liquidator.execute_liquidation(liquidation_data["tx"])
-                                logger.info("AccountMonitor: %s liquidated "
-                                            "on collateral %s.",
-                                            address,
-                                            liquidation_data["collateral_address"])
-                                if self.notify:
-                                    try:
-                                        logger.info("AccountMonitor: Posting liquidation result "
-                                                    "to slack for account %s.", address)
-                                        post_liquidation_result_on_slack(address,
-                                                                         account.controller.address,
-                                                                         liquidation_data,
-                                                                         tx_hash)
-                                    except Exception as ex: # pylint: disable=broad-except
-                                        logger.error("AccountMonitor: "
-                                             "Failed to post liquidation result "
-                                             " for account %s to slack: %s",
-                                             address, ex, exc_info=True)
+                                tx_hash, tx_receipt = Liquidator.execute_liquidation(liquidation_data["tx"])
+                                if tx_hash and tx_receipt:
+                                    logger.info("AccountMonitor: %s liquidated "
+                                                "on collateral %s.",
+                                                address,
+                                                liquidation_data["collateral_address"])
+                                    if self.notify:
+                                        try:
+                                            logger.info("AccountMonitor: Posting liquidation result "
+                                                        "to slack for account %s.", address)
+                                            post_liquidation_result_on_slack(address,
+                                                                            account.controller.address,
+                                                                            liquidation_data,
+                                                                            tx_hash)
+                                        except Exception as ex: # pylint: disable=broad-except
+                                            logger.error("AccountMonitor: "
+                                                "Failed to post liquidation result "
+                                                " for account %s to slack: %s",
+                                                address, ex, exc_info=True)
 
                                 # Update account health score after liquidation
                                 # Need to know how healthy the account is after liquidation
@@ -1130,33 +1131,70 @@ class Liquidator:
 
         logger.info("Liquidator: Liquidation details: %s", params)
 
-        #TODO: smarter way to do this
-        suggested_gas_price = int(w3.eth.gas_price * 1.2)
-
         feed_ids = PythHandler.get_feed_ids(vault)
 
+        # #TODO: smarter way to do this
+        # suggested_gas_price = int(w3.eth.gas_price * 1.2)
+
+        # if len(feed_ids)> 0:
+        #     logger.info("Liquidator: executing with pyth")
+        #     update_data = PythHandler.get_pyth_update_data(feed_ids)
+        #     update_fee = PythHandler.get_pyth_update_fee(update_data)
+        #     liquidation_tx = liquidator_contract.functions.liquidate_single_collateral_with_pyth_oracle(
+        #         params, update_data
+        #         ).build_transaction({
+        #             "chainId": config.CHAIN_ID,
+        #             "gasPrice": suggested_gas_price,
+        #             "from": LIQUIDATOR_EOA,
+        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+        #             "value": update_fee
+        #         })
+        # else:
+        #     logger.info("Liquidator: executing normally")
+        #     liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
+        #         params
+        #         ).build_transaction({
+        #             "chainId": config.CHAIN_ID,
+        #             "gasPrice": suggested_gas_price,
+        #             "from": LIQUIDATOR_EOA,
+        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+        #         })
+
+        #From flashbots example code
+
+        latest = w3.eth.get_block("latest")
+        base_fee = latest["baseFeePerGas"]
+
+        max_priority_fee = Web3.to_wei(2, "gwei")
+
+        max_fee = base_fee + max_priority_fee
+
         if len(feed_ids)> 0:
-            logger.info("Liquidator: exexuting with pyth")
+            logger.info("Liquidator: executing with pyth")
             update_data = PythHandler.get_pyth_update_data(feed_ids)
             update_fee = PythHandler.get_pyth_update_fee(update_data)
             liquidation_tx = liquidator_contract.functions.liquidate_single_collateral_with_pyth_oracle(
                 params, update_data
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
-                    "gasPrice": suggested_gas_price,
                     "from": LIQUIDATOR_EOA,
                     "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
-                    "value": update_fee
+                    "value": update_fee,
+                    "gas": 21000,
+                    "maxFeePerGas": max_fee,
+                    "maxPriorityFeePerGas": max_priority_fee
                 })
         else:
-            logger.info("Liquidator: exexuting with normally")
+            logger.info("Liquidator: executing normally")
             liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
                 params
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
-                    "gasPrice": suggested_gas_price,
                     "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+                    "gas": 21000,
+                    "maxFeePerGas": max_fee,
+                    "maxPriorityFeePerGas": max_priority_fee
                 })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
@@ -1181,10 +1219,13 @@ class Liquidator:
         try:
             logger.info("Liquidator: Executing liquidation transaction %s...",
                         liquidation_transaction)
-            signed_tx = w3.eth.account.sign_transaction(liquidation_transaction,
+            flashbots_provider = "https://rpc.flashbots.net"
+            flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
+
+            signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
                                                         LIQUIDATOR_EOA_PRIVATE_KEY)
-            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+            tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
             liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                            config.LIQUIDATOR_ABI_PATH)
@@ -1196,11 +1237,12 @@ class Liquidator:
                 logger.info("Liquidator: %s", event["args"])
 
             logger.info("Liquidator: Liquidation transaction executed successfully.")
-            return tx_hash.hex()
+            return tx_hash.hex(), tx_receipt
         except Exception as ex: # pylint: disable=broad-except
             message = f"Unexpected error in executing liquidation: {ex}"
             logger.error(message, exc_info=True)
             post_error_notification(message)
+            return None, None
 
 class Quoter:
     """
