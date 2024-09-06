@@ -1068,10 +1068,10 @@ class Liquidator:
                                                   borrowed_asset,
                                                   seized_collateral_assets,
                                                   max_repay, swap_type)
-        
+
         logger.info("Liquidator: Final swap amount %s", swap_amount)
 
-        estimated_slippage_needed = 2 # TODO: actual slippage calculation
+        estimated_slippage_needed = 1 # TODO: actual slippage calculation
 
         time.sleep(config.API_REQUEST_DELAY)
 
@@ -1096,6 +1096,8 @@ class Liquidator:
                                                                     leftover_collateral, 0, swap_type)
         else:
             leftover_collateral_in_eth = leftover_collateral
+
+        logger.info("Liquidator: Seized collatearl assets: %s, swap amount: %s, leftover_collatearl: %s", seized_collateral_assets, swap_amount, leftover_collateral_in_eth)
 
         if leftover_collateral_in_eth < 0:
             logger.warning("Liquidator: Negative leftover collateral value, aborting liquidation")
@@ -1126,7 +1128,8 @@ class Liquidator:
 
         feed_ids = PythHandler.get_feed_ids(vault)
 
-        if len(feed_ids > 0):
+        if len(feed_ids)> 0:
+            logger.info("Liquidator: exexuting with pyth")
             update_data = PythHandler.get_pyth_update_data(feed_ids)
             update_fee = PythHandler.get_pyth_update_fee(update_data)
             liquidation_tx = liquidator_contract.functions.liquidate_single_collateral_with_pyth_oracle(
@@ -1139,6 +1142,7 @@ class Liquidator:
                     "value": update_fee
                 })
         else:
+            logger.info("Liquidator: exexuting with normally")
             liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
                 params
                 ).build_transaction({
