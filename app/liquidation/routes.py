@@ -29,10 +29,19 @@ def get_all_positions():
     logger.info("API: Getting all positions")
     sorted_accounts = monitor.get_accounts_by_health_score()
 
-    response = [
-        {"address": address, "health_score": health_score, "value_borrowed": value_borrowed}
-        for (address, health_score, value_borrowed) in sorted_accounts
-        if not math.isinf(health_score)
-    ]
+    response = []
+    for (address, health_score, value_borrowed) in sorted_accounts:
+        owner, sub_account = get_subaccount_number(address)
+        if math.isinf(health_score):
+            continue
+        response.append({"address": owner, "sub_account": sub_account, "health_score": health_score, "value_borrowed": value_borrowed})
 
     return make_response(jsonify(response))
+
+def get_subaccount_number(account):
+    owner = evc_listener.evc_instance.functions.getAccountOwner(account).call()
+    if owner == "0x0000000000000000000000000000000000000000":
+        owner = account
+
+    subaccount_number = int(int(account, 16) ^ int(owner, 16))
+    return owner, subaccount_number
