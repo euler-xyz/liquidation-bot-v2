@@ -1,4 +1,4 @@
-from python.utils import make_api_request, load_config, create_contract_instance
+from app.liquidation.utils import make_api_request, load_config, create_contract_instance
 
 pyth_url = "https://hermes.pyth.network/v2/"
 

@@ -18,7 +18,17 @@ from web3 import Web3
 # from eth_abi.abi import encode, decode
 # from eth_utils import to_hex, keccak
 
-from utils import setup_logger, setup_w3, create_contract_instance, make_api_request, global_exception_handler, post_liquidation_opportunity_on_slack, load_config, post_liquidation_result_on_slack, post_low_health_account_report, post_unhealthy_account_on_slack, post_error_notification
+from app.liquidation.utils import (setup_logger,
+                   setup_w3,
+                   create_contract_instance,
+                   make_api_request,
+                   global_exception_handler,
+                   post_liquidation_opportunity_on_slack,
+                   load_config,
+                   post_liquidation_result_on_slack,
+                   post_low_health_account_report,
+                   post_unhealthy_account_on_slack,
+                   post_error_notification)
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -1461,21 +1471,29 @@ class Quoter:
         #TODO implement
         return None
 
+def get_account_monitor_and_evc_listener():
+    acct_monitor = AccountMonitor(True, True)
+    acct_monitor.load_state(config.SAVE_STATE_PATH)
+
+    evc_listener = EVCListener(acct_monitor)
+
+    return (acct_monitor, evc_listener)
 
 if __name__ == "__main__":
     try:
-        acct_monitor = AccountMonitor(True, True)
-        acct_monitor.load_state(config.SAVE_STATE_PATH)
+        # acct_monitor = AccountMonitor(True, True)
+        # acct_monitor.load_state(config.SAVE_STATE_PATH)
 
-        evc_listener = EVCListener(acct_monitor)
+        # evc_listener = EVCListener(acct_monitor)
 
-        evc_listener.batch_account_logs_on_startup()
+        # evc_listener.batch_account_logs_on_startup()
 
-        threading.Thread(target=acct_monitor.start_queue_monitoring).start()
-        threading.Thread(target=evc_listener.start_event_monitoring).start()
+        # threading.Thread(target=acct_monitor.start_queue_monitoring).start()
+        # threading.Thread(target=evc_listener.start_event_monitoring).start()
 
-        while True:
-            time.sleep(1)
+        # while True:
+        #     time.sleep(1)
+        pass
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)

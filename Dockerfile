@@ -47,4 +47,6 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["python", "python/liquidation_bot.py"]
+# CMD ["python", "python/liquidation_bot.py"]
+# Run the application
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "application:application"]
