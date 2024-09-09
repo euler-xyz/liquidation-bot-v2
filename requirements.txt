@@ -22,7 +22,7 @@ eth-typing==4.2.3
 eth-utils==4.1.1
 eth_abi==5.1.0
 Flask==3.0.3
-Flask-Cors==4.0.0
+Flask-Cors==5.0.0
 gunicorn==21.2.0
 frozenlist==1.4.1
 hexbytes==0.3.1
