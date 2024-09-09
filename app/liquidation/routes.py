@@ -34,7 +34,7 @@ def get_all_positions():
         owner, sub_account = get_subaccount_number(address)
         if math.isinf(health_score):
             continue
-        response.append({"address": owner, "sub_account": sub_account, "health_score": health_score, "value_borrowed": value_borrowed})
+        response.append({"address": owner, "account_address": address, "sub_account": sub_account, "health_score": health_score, "value_borrowed": value_borrowed})
 
     return make_response(jsonify(response))
 
