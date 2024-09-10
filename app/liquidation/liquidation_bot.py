@@ -240,22 +240,23 @@ class Account:
 
         time_gap = 0
 
-        # Simple linear interpolation between min and max
-        # update intervals based on health score bounds
-        if self.current_health_score < config.HS_LOWER_BOUND:
-            time_gap = config.MIN_UPDATE_INTERVAL
-        elif self.current_health_score > config.HS_UPPER_BOUND:
-            time_gap = config.MAX_UPDATE_INTERVAL
-        else:
-            slope = config.MAX_UPDATE_INTERVAL - config.MIN_UPDATE_INTERVAL
-            slope /= (config.HS_UPPER_BOUND - config.HS_LOWER_BOUND)
-            intercept = config.MIN_UPDATE_INTERVAL - slope * config.HS_LOWER_BOUND
-            time_gap = slope * self.current_health_score + intercept
 
-        random_adjustment = random.random() / 5 + .9
+        if self.current_health_score >= config.HS_SAFE:
+            time_gap = config.MAX_UPDATE_INTERVAL
+        elif config.HS_HIGH_RISK <= self.current_health_score < config.HS_SAFE:
+            # Linear decrease from MAX_UPDATE_INTERVAL to HIGH_RISK_UPDATE_INTERVAL
+            slope = (config.MAX_UPDATE_INTERVAL - config.HIGH_RISK_UPDATE_INTERVAL) / (config.HS_SAFE - config.HS_HIGH_RISK)
+            time_gap = config.HIGH_RISK_UPDATE_INTERVAL + slope * (self.current_health_score - config.HS_HIGH_RISK)
+        elif config.HS_LIQUIDATION < self.current_health_score < config.HS_HIGH_RISK:
+            # Exponential decrease from HIGH_RISK_UPDATE_INTERVAL to MIN_UPDATE_INTERVAL
+            exponent = (config.HS_HIGH_RISK - self.current_health_score) / (config.HS_HIGH_RISK - config.HS_LIQUIDATION)
+            time_gap = config.MIN_UPDATE_INTERVAL + (config.HIGH_RISK_UPDATE_INTERVAL - config.MIN_UPDATE_INTERVAL) * math.exp(-5 * exponent)
+        else:
+            time_gap = config.MIN_UPDATE_INTERVAL
+
 
         # Randomly adjust the time by +/-10% to avoid syncronized checks across accounts/deployments
-        time_of_next_update = time.time() + time_gap * random_adjustment
+        time_of_next_update = time.time() + time_gap * random.uniform(0.9, 1.1)
 
         # if next update is already scheduled before calculated time and after now, keep it the same
         if not(self.time_of_next_update < time_of_next_update
