@@ -270,7 +270,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         # Unpack params
         violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, \
         max_repay, seized_collateral_shares, swap_amount, \
-        leftover_collateral, swap_type, swap_data_1inch, receiver = params
+        leftover_collateral, _, swap_data_1inch, receiver = params
 
         spy_link = get_spy_link(account_address)
 
@@ -384,7 +384,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
     # Filter accounts below the threshold
     low_health_accounts = [
-        (address, score, value) for address, score, value in sorted_accounts
+        (address, _, _, score, value, _, _) for address, score, value, _, _ in sorted_accounts
         if score < config.SLACK_REPORT_HEALTH_SCORE
     ]
 

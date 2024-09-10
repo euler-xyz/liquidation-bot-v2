@@ -58,6 +58,8 @@ class Vault:
         self.instance = create_contract_instance(address, config.EVAULT_ABI_PATH)
 
         self.underlying_asset_address = self.instance.functions.asset().call()
+        self.vault_name = self.instance.functions.name().call()
+        self.vault_symbol = self.instance.functions.symbol().call()
 
     def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
         """
@@ -174,6 +176,7 @@ class Account:
     """
     def __init__(self, address, controller: Vault):
         self.address = address
+        self.owner, self.subaccount_number = EVCListener.get_account_owner_and_subaccount_number(self.address)
         self.controller = controller
         self.time_of_next_update = time.time()
         self.current_health_score = math.inf
@@ -634,8 +637,10 @@ class AccountMonitor:
             key = lambda account: account.current_health_score
         )
 
-        return [(account.address, account.current_health_score,
-                 account.value_borrowed) for account in sorted_accounts]
+        return [(account.address, account.owner, account.subaccount_number,
+                 account.current_health_score, account.value_borrowed,
+                 account.controller.vault_name, account.controller.vault_symbol)
+                 for account in sorted_accounts]
 
     def periodic_report_low_health_accounts(self):
         """
@@ -773,8 +778,8 @@ class PythHandler:
     def get_pyth_update_data(feed_ids):
         logger.info("PythHandler: Getting update data for feeds: %s", feed_ids)
         pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
-        for id in feed_ids:
-            pyth_url += "ids[]=" + id + "&"
+        for feed_id in feed_ids:
+            pyth_url += "ids[]=" + feed_id + "&"
         pyth_url = pyth_url[:-1]
 
         api_return_data = make_api_request(pyth_url, {}, {})
@@ -932,6 +937,16 @@ class EVCListener:
             logger.error("EVCListener: "
                          "Unexpected exception in batch scanning account logs on startup: %s",
                          ex, exc_info=True)
+
+    @staticmethod
+    def get_account_owner_and_subaccount_number(account):
+        evc = create_contract_instance(config.EVC, config.EVC_ABI_PATH)
+        owner = evc.functions.getAccountOwner(account).call()
+        if owner == "0x0000000000000000000000000000000000000000":
+            owner = account
+
+        subaccount_number = int(int(account, 16) ^ int(owner, 16))
+        return owner, subaccount_number
 
 # Future feature, smart monitor to trigger manual update of an account
 # based on a large price change (or some other trigger)
@@ -1457,7 +1472,8 @@ class Quoter:
     @staticmethod
     def get_uniswap_quote(asset_in: str, asset_out: str,
                   amount_asset_in: int, target_amount_out: int):
-        #TODO implement
+        logger.info("Quoter: Requesting Uniswap quote for %s %s to %s (target out: %s)",
+                    amount_asset_in, asset_in, asset_out, target_amount_out)
         return (0, 0)
 
     @staticmethod
@@ -1468,7 +1484,9 @@ class Quoter:
                             tx_origin: str,
                             swap_receiver: str,
                             slippage: int = 2) -> Optional[str]:
-        #TODO implement
+        logger.info("Quoter: Requesting Uniswap swap data for"
+                    " %s %s to %s, from %s, origin %s, receiver %s, slippage %s%%",
+                    amount_in, asset_in, asset_out, swap_from, tx_origin, swap_receiver, slippage)
         return None
 
 def get_account_monitor_and_evc_listener():
@@ -1497,5 +1515,5 @@ if __name__ == "__main__":
 
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
-        message = f"Uncaught global exception: {e}"
-        post_error_notification(message)
+        error_message = f"Uncaught global exception: {e}"
+        post_error_notification(error_message)

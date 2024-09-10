@@ -1,6 +1,6 @@
+"""Module for handling API routes"""
 import threading
-from flask import Blueprint, request, make_response, jsonify
-from web3 import Web3
+from flask import Blueprint, make_response, jsonify
 import math
 
 from .liquidation_bot import logger, get_account_monitor_and_evc_listener
@@ -30,11 +30,12 @@ def get_all_positions():
     sorted_accounts = monitor.get_accounts_by_health_score()
 
     response = []
-    for (address, health_score, value_borrowed) in sorted_accounts:
-        owner, sub_account = get_subaccount_number(address)
+    for (address, owner, sub_account, health_score, value_borrowed, vault_name, vault_symbol) in sorted_accounts:
         if math.isinf(health_score):
             continue
-        response.append({"address": owner, "account_address": address, "sub_account": sub_account, "health_score": health_score, "value_borrowed": value_borrowed})
+        response.append({"address": owner, "account_address": address, "sub_account": sub_account,
+                         "health_score": health_score, "value_borrowed": value_borrowed,
+                         "vault_name": vault_name, "vault_symbol": vault_symbol})
 
     return make_response(jsonify(response))
 
