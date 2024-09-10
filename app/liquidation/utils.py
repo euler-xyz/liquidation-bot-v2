@@ -384,7 +384,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
     # Filter accounts below the threshold
     low_health_accounts = [
-        (address, _, _, score, value, _, _) for address, score, value, _, _ in sorted_accounts
+        (address, owner, subaccount, score, value, _, _) for address, owner, subaccount, score, value, _, _ in sorted_accounts
         if score < config.SLACK_REPORT_HEALTH_SCORE
     ]
 
@@ -394,14 +394,14 @@ def post_low_health_account_report(sorted_accounts) -> None:
         message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
 
     else:
-        for i, (address, score, value) in enumerate(low_health_accounts, start=1):
+        for i, (address, owner, subaccount_number, score, value, _, _) in enumerate(low_health_accounts, start=1):
 
             # Format score to 4 decimal places
             formatted_score = f"{score:.4f}"
             formatted_value = value / 10 ** 18
             formatted_value = f"{formatted_value:.2f}"
 
-            spy_link = get_spy_link(address)
+            spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
