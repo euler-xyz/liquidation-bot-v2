@@ -204,6 +204,11 @@ def make_api_request(url: str,
     response.raise_for_status()
     return response.json()
 
+def get_eth_usd_quote(amount: int = 10**18):
+    config = load_config()
+    oracle = create_contract_instance(config.ETH_ADAPTER, config.ROUTER_ABI_PATH)
+    return oracle.functions.getQuote(amount, config.WETH, config.USD).call()
+
 
 def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> None:
     """

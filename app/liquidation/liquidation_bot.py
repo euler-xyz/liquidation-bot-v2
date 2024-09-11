@@ -28,7 +28,8 @@ from app.liquidation.utils import (setup_logger,
                    post_liquidation_result_on_slack,
                    post_low_health_account_report,
                    post_unhealthy_account_on_slack,
-                   post_error_notification)
+                   post_error_notification,
+                   get_eth_usd_quote)
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -60,6 +61,9 @@ class Vault:
         self.underlying_asset_address = self.instance.functions.asset().call()
         self.vault_name = self.instance.functions.name().call()
         self.vault_symbol = self.instance.functions.symbol().call()
+
+        self.unit_of_account = self.instance.functions.unitOfAccount().call()
+        self.oracle_address = self.instance.functions.oracle().call()
 
     def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
         """
@@ -147,18 +151,6 @@ class Vault:
             int: The amount of underlying assets.
         """
         return self.instance.functions.convertToAssets(amount).call()
-
-    def get_oracle_address(self) -> str:
-        """
-        Return oracle for this vault
-        """
-        return self.instance.functions.oracle().call()
-
-    def get_unit_of_account(self) -> str:
-        """
-        Return unit of account address for this vault
-        """
-        return self.instance.functions.unitOfAccount().call()
     
     def get_ltv_list(self):
         """
@@ -210,6 +202,11 @@ class Account:
         self.balance = balance
 
         self.value_borrowed = liability_value
+        if self.controller.unit_of_account == config.WETH:
+            logger.info("Account: Getting a quote for %s WETH, unit of account %s", liability_value, self.controller.unit_of_account)
+            self.value_borrowed = get_eth_usd_quote(liability_value)
+
+            logger.info("Account: value borrowed: %s", self.value_borrowed)
 
         # Special case for 0 values on balance or liability
         if liability_value == 0:
@@ -730,10 +727,10 @@ class PythHandler:
     @staticmethod
     def get_feed_ids(vault):
         try:
-            oracle_address = vault.get_oracle_address()
+            oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
 
-            unit_of_account = vault.get_unit_of_account()
+            unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
             collateral_asset_list = [Vault(collateral_vault).underlying_asset_address for collateral_vault in collateral_vault_list]
@@ -1280,7 +1277,7 @@ class Quoter:
     @staticmethod
     def get_quote(asset_in: str, asset_out: str,
                   amount_asset_in: int, target_amount_out: int,
-                  swap_type: int):
+                  swap_type: int = 1):
         if swap_type == 1: #1inch swap
             return Quoter.get_1inch_quote(asset_in, asset_out, amount_asset_in, target_amount_out)
         elif swap_type == 2: #Uniswap
@@ -1491,7 +1488,7 @@ class Quoter:
         return None
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(True, True)
+    acct_monitor = AccountMonitor(False, False)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
