@@ -414,10 +414,10 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
-        message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
-        message += f"\nTotal borrow amount in USD: {total_value:,.2f}"
+        message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}`: `{len(low_health_accounts)}`"
+        message += f"\nTotal borrow amount in USD: `{total_value:,.2f}`"
 
-    message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"
+    message += f"\nTime of report: `{time.strftime("%Y-%m-%d %H:%M:%S")}`"
     message += f"\nNetwork: `{network_variables[config.CHAIN_ID]["name"]}`"
 
     slack_payload = {
