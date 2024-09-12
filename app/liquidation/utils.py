@@ -395,22 +395,27 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
     message = ":warning: *Account Health Report* :warning:\n\n"
 
+    total_value = 0
+
     if not low_health_accounts:
         message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
-
     else:
         for i, (address, owner, subaccount_number, score, value, _, _) in enumerate(low_health_accounts, start=1):
 
             # Format score to 4 decimal places
             formatted_score = f"{score:.4f}"
             formatted_value = value / 10 ** 18
-            formatted_value = f"{formatted_value:.2f}"
+            
+            total_value += formatted_value
+            
+            formatted_value = f"{formatted_value:,.2f}"
 
             spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
         message += f"\nTotal accounts with health score below {config.SLACK_REPORT_HEALTH_SCORE}: {len(low_health_accounts)}"
+        message += f"\nTotal borrow amount in USD: {total_value:,.2f}"
 
     message += f"\nTime of report: {time.strftime("%Y-%m-%d %H:%M:%S")}"
     message += f"\nNetwork: `{network_variables[config.CHAIN_ID]["name"]}`"
