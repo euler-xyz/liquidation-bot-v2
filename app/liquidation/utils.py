@@ -268,7 +268,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
-    liquidation_ui_url = os.getenv("LIQUIDATION_UI_URL")
+    RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
 
     if liquidation_data and params:
 
@@ -295,7 +295,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         })
 
         # Construct the full URL
-        execution_url = f"{liquidation_ui_url}/liquidation/execute?{url_params}"
+        execution_url = f"{RISK_DASHBOARD_URL}/liquidation/execute?{url_params}"
 
 
         message = (
@@ -416,7 +416,8 @@ def post_low_health_account_report(sorted_accounts) -> None:
 
         message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}`: `{len(low_health_accounts)}`"
         message += f"\nTotal borrow amount in USD: `${total_value:,.2f}`"
-
+    RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
+    message += f"\n<{RISK_DASHBOARD_URL}|Risk Dashboard>"
     message += f"\nTime of report: `{time.strftime("%Y-%m-%d %H:%M:%S")}`"
     message += f"\nNetwork: `{network_variables[config.CHAIN_ID]["name"]}`"
 

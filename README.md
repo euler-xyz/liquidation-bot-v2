@@ -97,7 +97,7 @@ REQUIRED:
 
 OPTIONAL:
 - `SLACK_WEBHOOK_URL` - Optional URL to post notifications to slack
-- `LIQUIDATION_UI_URL` - Optional, can include a link in slack notifications to manually liquidate a position
+- `RISK_DASHBOARD_URL` - Optional, can include a link in slack notifications to manually liquidate a position
 - `DEPOSITOR_ADDRESS, DEPOSITOR_PRIVATE_KEY, BORROWER_ADDRESS, BORROWER_PRIVATE_KEY` - Optional, for running 
 
 
