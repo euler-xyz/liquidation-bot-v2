@@ -733,14 +733,21 @@ class PythHandler:
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            collateral_asset_list = [Vault(collateral_vault).underlying_asset_address for collateral_vault in collateral_vault_list]
+            asset_list = [Vault(collateral_vault).underlying_asset_address for collateral_vault in collateral_vault_list]
+            asset_list.append(vault.underlying_asset_address)
 
             feed_ids = []
 
-            for asset in collateral_asset_list:
+            for asset in asset_list:
                 configured_oracle_address = oracle.functions.getConfiguredOracle(asset, unit_of_account).call()
+                # logger.info("PythHandler: configured oracle in %s for asset %s with unit of account %s: %s", oracle_address, asset, unit_of_account, configured_oracle_address)
                 configured_oracle = create_contract_instance(configured_oracle_address, config.ORACLE_ABI_PATH)
-                configured_oracle_name = configured_oracle.functions.name().call()
+                
+                try:
+                    configured_oracle_name = configured_oracle.functions.name().call()
+                except Exception as ex:
+                    logger.info("PythHandler: Error calling contract for oracle at %s, asset %s: %s", configured_oracle_address, asset, ex)
+                    continue
                 if configured_oracle_name == "PythOracle":
                     logger.info("PythHandler: Pyth oracle found for vault %s: Address - %s", vault.address, configured_oracle_address)
                     feed_ids.append(configured_oracle.functions.feedId().call().hex())

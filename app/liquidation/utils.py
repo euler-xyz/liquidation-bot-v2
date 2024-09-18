@@ -223,7 +223,7 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
     logger = logging.getLogger("liquidation_bot")
 
     # Get the full traceback as a string
-    trace_str = "".join(tb.format_exception(exctype, value, tb))
+    trace_str = "".join(traceback.format_exception(exctype, value, tb))
 
     # Log the full exception information
     logger.critical("Uncaught exception:\n %s", trace_str)
@@ -235,7 +235,7 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
     """
     load_dotenv()
     slack_url = os.getenv("SLACK_WEBHOOK_URL")
-    
+
     spy_link = get_spy_link(account_address)
 
     message = (

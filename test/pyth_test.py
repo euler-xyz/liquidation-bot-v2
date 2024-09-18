@@ -1,20 +1,18 @@
 from app.liquidation.utils import make_api_request, load_config, create_contract_instance
+from web3 import Web3
 
 pyth_url = "https://hermes.pyth.network/v2/"
 
 headers = {}
 
-assets = ["eth", "btc"]
-
-feeds = []
-params = {"query":"btc", "asset_type":"crypto"}
-
-for asset in assets:
-    params["query"] = asset
-    price_feeds = make_api_request(pyth_url + "price_feeds", headers, params)
-    feeds.append(next(feed["id"] for feed in price_feeds if feed["attributes"].get("base").lower() == params["query"].lower()))
-
 price_update_input_url = pyth_url + "updates/price/latest?"
+
+# feeds = ["ca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c",
+#          "6ec879b1e9963de5ee97e9c8710b742d6228252a5e2ca12d4ae81d7fe5ee8c5d",
+#          "e393449f6aff8a4b6d3e1165a7c9ebec103685f3b41e60db4277b5b6d10e7326"]
+
+feeds = ['ca3ba9a619a4b3755c10ac7d5e760275aa95e9823d38a84fedd416856cdba37c', '6ec879b1e9963de5ee97e9c8710b742d6228252a5e2ca12d4ae81d7fe5ee8c5d', 'e393449f6aff8a4b6d3e1165a7c9ebec103685f3b41e60db4277b5b6d10e7326', 'eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a']
+
 
 print(feeds)
 
@@ -25,7 +23,7 @@ price_update_input_url = price_update_input_url[:-1]
 
 return_data = make_api_request(price_update_input_url, {}, {})
 
-update_data = '0x' + return_data['binary']['data'][0]
+update_data = "0x" + return_data["binary"]["data"][0]
 
 config = load_config()
 
@@ -37,48 +35,20 @@ print(update_fee)
 
 liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
 
-vault_address = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
-account_address = "0x831429a969928a2780b5c447118f5531C4dF06F6"
+print(liquidator.functions.PYTH().call())
+print(liquidator.functions.evcAddress().call())
+
+vault_address = Web3.to_checksum_address("0xce45EF0414dE3516cAF1BCf937bF7F2Cf67873De")
+account_address = Web3.to_checksum_address("0xA5f0f68dCc5bE108126d79ded881ef2993841c2f")
 
 vault = create_contract_instance(vault_address, config.EVAULT_ABI_PATH)
-result = vault.functions.accountLiquidity(account_address, True).call()
 
-oracle_address = vault.functions.oracle().call()
-# oracle_address = "0x680922A0BEB9701A92B97C4e5B6e7f1A4a3AdF8A"
+print("update data: ", update_data)
 
-oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
-name = oracle.functions.name().call()
-print(name)
+result = liquidator.functions.simulate_pyth_update_and_get_account_status(
+    [update_data], update_fee, vault_address, account_address
+    ).call(
+        {"value": update_fee}
+    )
 
-feed_id = oracle.functions.feedId().call()
-print(feed_id)
-feed_id_hex = feed_id.hex()
-print(feed_id_hex)
-
-# result = liquidator.functions.simulate_pyth_update_and_get_account_status([update_data], update_fee, vault_address, account_address).call()
-
-# print(result)
-
-
-# test_vault_address = "0x5229dFB54965EC0DFE2C787a735f7D6cc569309B"
-# test_vault = Vault(test_vault_address)
-
-# test_feed_ids = PythHandler.get_feed_ids(test_vault)
-# print("IDs:", test_feed_ids)
-
-# test_update_data = PythHandler.get_pyth_update_data(test_feed_ids)
-# print("Data:", test_update_data)
-
-# update_fee = PythHandler.get_pyth_update_fee(test_update_data)
-# print("Update fee:", update_fee)
-
-# liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT, config.LIQUIDATOR_ABI_PATH)
-
-# actual_vault_address = "0x577e289F663A4E29c231135c09d6a0713ce7AAff"
-# account_address = "0x37B5559c63821820EaAC5FF770e5C421d6A2676B"
-# call_result = liquidator.functions.simulate_pyth_update_and_get_account_status(
-#     [test_update_data], update_fee, actual_vault_address, account_address
-#     ).call({
-#         "value": update_fee
-#     })
-# print(call_result)
+print(result)
