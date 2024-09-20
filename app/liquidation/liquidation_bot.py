@@ -273,7 +273,7 @@ class Account:
             Tuple[bool, Optional[Dict[str, Any]]]: A tuple containing a boolean indicating
             if liquidation is profitable, and a dictionary with liquidation details if profitable.
         """
-        result = Liquidator.simulate_liquidation(self.controller, self.address)
+        result = Liquidator.simulate_liquidation(self.controller, self.address, self)
         return result
 
     def to_dict(self) -> Dict[str, Any]:
@@ -439,7 +439,7 @@ class AccountMonitor:
                                 post_unhealthy_account_on_slack(address, account.controller.address,
                                                                 health_score,
                                                                 account.value_borrowed)
-
+                                logger.info("Valut borrowed: %s", account.value_borrowed)
                                 if account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
                                     self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
@@ -567,17 +567,21 @@ class AccountMonitor:
                     state = json.load(f)
 
                 self.vaults = {address: Vault(address) for address in state["vaults"]}
-                logger.info(f"Loaded {len(self.vaults)} vaults: {list(self.vaults.keys())}")
+                logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
 
                 self.accounts = {address: Account.from_dict(data, self.vaults)
                                  for address, data in state["accounts"].items()}
-                logger.info(f"Loaded {len(self.accounts)} accounts:")
+                logger.info("Loaded %s accounts:", len(self.accounts))
 
                 for address, account in self.accounts.items():
-                    logger.info(f"  Account {address}: Controller: {account.controller.address}, "
-                                f"Health Score: {account.current_health_score}, "
-                                f"Next Update: {time.strftime("%Y-%m-%d %H:%M:%S",
-                                time.localtime(account.time_of_next_update))}")
+                    logger.info("  Account %s: Controller: %s, "
+                                "Health Score: %s, "
+                                "Next Update: %s",
+                                address,
+                                account.controller.address,
+                                account.current_health_score,
+                                time.strftime("%Y-%m-%d %H:%M:%S",
+                                time.localtime(account.time_of_next_update)))
 
                 self.rebuild_queue()
 
@@ -985,7 +989,8 @@ class Liquidator:
 
     @staticmethod
     def simulate_liquidation(vault: Vault,
-                             violator_address: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
+                             violator_address: str,
+                             violator_account: Account) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
         Simulate the liquidation of an account.
         Chooses the maximum profitable liquidation from the available collaterals, if one exists.
@@ -1036,17 +1041,20 @@ class Liquidator:
                     max_profit_params = params
             except Exception as ex: # pylint: disable=broad-except
                 message = ("Exception simulating liquidation "
-                             "for account %s with collateral %s: %s",
-                             violator_address, collateral, ex)
-                
-                logger.error("Liquidator: %s",
-                             message, exc_info=True)
-                
-                time_of_last_post = liquidation_error_slack_cooldown.get(violator_address, 0) 
+                             f"for account {violator_address} with collateral {collateral}: {ex}")
+
+                logger.error("Liquidator: %s", message, exc_info=True)
+
+                time_of_last_post = liquidation_error_slack_cooldown.get(violator_address, 0)
+                value_borrowed = violator_account.value_borrowed
+
                 now = time.time()
-                if (now - time_of_last_post) > config.ERROR_COOLDOWN:
+                time_elapsed = now - time_of_last_post
+                if ((value_borrowed > config.SMALL_POSITION_THRESHOLD and time_elapsed > config.ERROR_COOLDOWN)
+                    or (value_borrowed <= config.SMALL_POSITION_THRESHOLD and time_elapsed > config.SMALL_POSITION_REPORT_INTERVAL)):
                     post_error_notification(message)
                     time_of_last_post = now
+                    liquidation_error_slack_cooldown[violator_address] = time_of_last_post
                 continue
 
 
@@ -1365,7 +1373,7 @@ class Quoter:
             if target_amount_out == 0:
                 amount_out = get_api_quote(params)
                 if amount_out is None:
-                    return (0, 0)
+                    return (-1, -1)
                 return (amount_asset_in, amount_out)
 
             # Binary search to find the amount in that will result in the target amount out
