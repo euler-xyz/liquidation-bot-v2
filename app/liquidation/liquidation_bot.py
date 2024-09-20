@@ -1199,7 +1199,7 @@ class Liquidator:
 
         max_fee = base_fee + max_priority_fee
 
-        suggested_gas_price = int(w3.eth.gas_price * 1.1)
+        suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
         if len(feed_ids)> 0:
             logger.info("Liquidator: executing with pyth")
@@ -1219,15 +1219,24 @@ class Liquidator:
                 })
         else:
             logger.info("Liquidator: executing normally")
+            # liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
+            #     params
+            #     ).build_transaction({
+            #         "chainId": config.CHAIN_ID,
+            #         "from": LIQUIDATOR_EOA,
+            #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+            #         "gas": 21000,
+            #         "maxFeePerGas": max_fee,
+            #         "maxPriorityFeePerGas": max_priority_fee
+            #     })
+            
             liquidation_tx = liquidator_contract.functions.liquidate_single_collateral(
                 params
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
                     "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
-                    "gas": 21000,
-                    "maxFeePerGas": max_fee,
-                    "maxPriorityFeePerGas": max_priority_fee
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
                 })
 
         net_profit = leftover_collateral_in_eth - w3.eth.estimate_gas(liquidation_tx)
@@ -1252,13 +1261,19 @@ class Liquidator:
         try:
             logger.info("Liquidator: Executing liquidation transaction %s...",
                         liquidation_transaction)
-            flashbots_provider = "https://rpc.flashbots.net"
-            flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
+            # flashbots_provider = "https://rpc.flashbots.net"
+            # flashbots_relay = "https://relay.flashbots.net"
+            # flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
 
-            signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
+            # signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
+            #                                             LIQUIDATOR_EOA_PRIVATE_KEY)
+            # tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            # tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+            signed_tx = w3.eth.account.sign_transaction(liquidation_transaction,
                                                         LIQUIDATOR_EOA_PRIVATE_KEY)
-            tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
             liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                            config.LIQUIDATOR_ABI_PATH)
