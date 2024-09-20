@@ -1199,6 +1199,8 @@ class Liquidator:
 
         max_fee = base_fee + max_priority_fee
 
+        suggested_gas_price = int(w3.eth.gas_price * 1.1)
+
         if len(feed_ids)> 0:
             logger.info("Liquidator: executing with pyth")
             update_data = PythHandler.get_pyth_update_data(feed_ids)
@@ -1210,6 +1212,7 @@ class Liquidator:
                     "from": LIQUIDATOR_EOA,
                     "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
                     "value": update_fee,
+                    "gasPrice": suggested_gas_price,
                     "gas": 21000,
                     "maxFeePerGas": max_fee,
                     "maxPriorityFeePerGas": max_priority_fee
