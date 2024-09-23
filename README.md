@@ -54,6 +54,7 @@ There are quite a few optimizations/improvements that likely could be made with 
    - More precise swap calculations in tandem with Uniswap swaps to avoid overswapping
    - Additional safety checks on amounts in Liquidator contract
    - Deconstruction of Pull oracle batches to avoid unnecessary updates on oracles that aren't being used
+   - Secure routing via flashbots/bundling/etc
 
 
 ## How to run the bot
