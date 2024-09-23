@@ -29,13 +29,12 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
      7. Submit batch to EVC.
     
     
-    - There is a secondary flow still being developed to use the liquidator contract as an EVC operator, which would allow the bot to operate on behalf of another account and pull the debt position alongside the collateral to the account directly. This flow will be particularly useful for liquidating positions without swapping the collateral to the debt asset, fort hings such as permissioned RWA liquidations.
+    - There is a secondary flow still being developed to use the liquidator contract as an EVC operator, which would allow the bot to operate on behalf of another account and pull the debt position alongside the collateral to the account directly. This flow will be particularly useful for liquidating positions without swapping the collateral to the debt asset, for things such as permissioned RWA liquidations.
 
 4. **Swap Quotation**:
    - The bot currently uses 1inch API to get quotes for swapping seized collateral to repay debt.
    - 1inch unfortunatley does not support exact output swaps, so we perform a binary search to find the optimal swap amount resulting in swapping slightly more collateral than needed to repay debt.
    - The bot will eventually have a fallback to uniswap swapping if 1inch is unable to provide a quote, which would also allow for more precise exact output swaps.
-
 
 5. **Profit Handling**:
    - Any profit (excess collateral after repayment) is sent to a designated receiver address.
