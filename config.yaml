@@ -1,0 +1,80 @@
+# Path to save location for logs
+LOGS_PATH: "logs/account_monitor_logs.log"
+
+# Path to save location for state
+SAVE_STATE_PATH: "state/account_monitor.json"
+
+# Path to save location for state (in seconds)
+SAVE_INTERVAL: 1800 # 30 minutes
+
+# Health score bounds for min/max update interval frequency
+HS_LIQUIDATION: 1.0
+HS_HIGH_RISK: 1.02
+HS_SAFE: 1.2
+
+# Update interval frequency (in seconds)
+MIN_UPDATE_INTERVAL: 30
+HIGH_RISK_UPDATE_INTERVAL: 300
+MAX_UPDATE_INTERVAL: 3600 # 60 minutes
+
+# Interval for reporting low health accounts
+LOW_HEALTH_REPORT_INTERVAL: 21600 # 30 minutes
+SLACK_REPORT_HEALTH_SCORE: 10
+
+# Threshold for excluding small positions from frequent notifications, in USD terms
+SMALL_POSITION_THRESHOLD: 500000000000000000000 # 500 USD
+SMALL_POSITION_REPORT_INTERVAL: 7200 # 2 hours
+
+ERROR_COOLDOWN: 900
+
+# Bath size for scanning blocks on startup
+BATCH_SIZE: 10000
+BATCH_INTERVAL: 0.1
+
+# Time to wait between scanning on regular intervals
+SCAN_INTERVAL: 120 # 2 minutes
+
+# Settings for 1INCH Quoting & other API calls
+NUM_RETRIES: 3
+RETRY_DELAY: 10
+
+# Acceptable amound of overswapping of collateral for 1INCH binary search
+SWAP_DELTA: .001 # 1%
+MAX_SEARCH_ITERATIONS: 20
+API_REQUEST_DELAY: .25
+
+# EVC Deployment Block
+EVC_DEPLOYMENT_BLOCK: 20529207
+
+# Addresses of relevant contracts
+WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+USD: "0x0000000000000000000000000000000000000348"
+BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+
+EVC: "0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383"
+ORACLE_LENS: "0x500e768Ad118035bB326AD723bcA116291923D38"
+SWAPPER: "0x7813D94D8276fb1658e7fC842564684005515c9e"
+SWAP_VERIFIER: "0xae26485ACDDeFd486Fe9ad7C2b34169d360737c7"
+
+LIQUIDATOR_CONTRACT: "0xe730e2548Abf263a5B4E42ACA8F8b31Cd4045a93"
+
+PYTH: "0x4305FB66699C3B2702D4d05CF36551390A4c69C6"
+
+ETH_ADAPTER: "0x10674C8C1aE2072d4a75FE83f1E159425fd84E1D"
+BTC_ADAPTER: "0x0484Df76f561443d93548D86740b5C4A826e5A33"
+
+# Receiver of profits
+PROFIT_RECEIVER: "0x8cbB534874bab83e44a7325973D2F04493359dF8"
+
+
+# Compiled contract paths
+EVAULT_ABI_PATH: "contracts/EVault.json"
+EVC_ABI_PATH: "contracts/EthereumVaultConnector.json"
+LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
+ORACLE_ABI_PATH: "contracts/IOracle.json"
+PYTH_ABI_PATH: "contracts/IPyth.json"
+ERC20_ABI_PATH: "out/IERC20.sol/IERC20.json"
+ROUTER_ABI_PATH: "contracts/EulerRouter.json"
+
+# Chain ID
+CHAIN_ID: 1
