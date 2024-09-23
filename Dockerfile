@@ -6,6 +6,8 @@ FROM 310118226683.dkr.ecr.eu-west-1.amazonaws.com/python:${PYTHON_VERSION} as ba
 # Copy the project files
 COPY . .
 
+RUN apt-get update && apt-get install -y nodejs npm
+
 # Initialize git repository
 RUN git init && \
     git add -A && \
