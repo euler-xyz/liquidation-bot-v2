@@ -45,7 +45,18 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
    - The bot also sends a report of all low health accounts at regularly scheduled intervals, which can be configured in the config.yaml file.
    - In order to receive notifications, a slack channel must be set up and a webhook URL must be provided in the .env file.
 
-## How the bot works
+#### Improvement Notes
+There are quite a few optimizations/improvements that likely could be made with more time, for instance:
+   - Storing enabled collateral/controller within the liquidator contract itself to avoid calls to EVC to check & enable already enabled collaterals
+   - Reducing the number of calls made to the RPC with smarter caching
+   - Smarter gas price & slippage profitability checks
+   - Potentially skipping interaction with Liquidator contract entirely and constructing batch off chain
+   - More precise swap calculations in tandem with Uniswap swaps to avoid overswapping
+   - Additional safety checks on amounts in Liquidator contract
+   - Deconstruction of Pull oracle batches to avoid unnecessary updates on oracles that aren't being used
+
+
+## How to run the bot
 
 
 ### Installation
