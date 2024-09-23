@@ -31,3 +31,5 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+/redstone_script/node_modules

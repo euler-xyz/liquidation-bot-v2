@@ -20,8 +20,16 @@ contract DeployLiquidator is Script {
 
         address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
+        
+        uint256 beforeGas = gasleft();
+        console2.log("Gas before: ", beforeGas);
+        console2.log("Gas price: ", tx.gasprice);
 
         Liquidator liquidator = new Liquidator(deployer, swapperAddress, swapVerifierAddress, evcAddress, pyth);
+        uint256 afterGas = gasleft();
+        console2.log("Gas after: ", afterGas);
+
+        console2.log("Total gas cost: ", (beforeGas - afterGas) * tx.gasprice);
 
         console2.log("Liquidator deployed at: ", address(liquidator));
     }

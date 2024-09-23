@@ -5,9 +5,9 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
 ## How it works
 
 1. **Account Monitoring**:
-   - The primary way of finding new accounts is [scanning](python/liquidation_bot.py#L742) for `AccountStatusCheck` events emitted by the EVC contract to check for new & modified positions.
+   - The primary way of finding new accounts is [scanning](app/liquidation/liquidation_bot.py#L950) for `AccountStatusCheck` events emitted by the EVC contract to check for new & modified positions.
    - This event is emitted every time a borrow is created or modified, and contains both the account address and vault address.
-   - Health scores are calculated using the `accountLiquidity` [function](python/liquidation_bot.py#L52) implemented by the vaults themselves.
+   - Health scores are calculated using the `accountLiquidity` [function](app/liqiudation/liquidation_bot.py#L101) implemented by the vaults themselves.
    - Accounts are added to a priority queue based on their health score with a time of next update, with low health accounts being checked most frequently.
    - EVC logs are batched on bot startup to catch up to the current block, then scanned for new events at a regular interval.
 
@@ -18,7 +18,7 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
    - If this is the case, the liquidation is profitable and the bot will attempt to execute the transaction.
 
 3. **Liquidation Execution - [Liquidator.sol](contracts/Liquidator.sol)**:
-   - If profitable, the bot constructs a transaction to call the `liquidate_single_collateral` [function](contracts/Liquidator.sol#L67) on the Liquidator contract.
+   - If profitable, the bot constructs a transaction to call the `liquidateSingleCollateral` [function](contracts/Liquidator.sol#L70) on the Liquidator contract.
    - The Liquidator contract then executes a batch of actions via the EVC containing the following steps:
      1. Enables borrow vault as a controller.
      2. Enable collateral vault as a collateral.
@@ -51,14 +51,9 @@ Bot to perform liquidations on the Euler platform. [Liquidation docs.](https://d
 
 ### Installation
 
-The bot can be run either via building a docker container or manually.
+The bot can be run either via building a docker container or manually. In both instances, it runs via a flask app to expose some endpoints for account health dashboards & metrics.
 
 Before running either, setup a .env file by copying the .env.example file and updating with the relevant contract addresses, an EOA private key, & API keys. Then, check config.yaml to make sure parameters, contracts, and ABI paths have been set up correctly.
-
-#### Docker
-After creating the .env file, the below command will create a container, install all dependencies, and start the liquidation bot:
-`docker compose build --progress=plain && docker compose up`
-
 
 #### Running locally
 To run locally, we need to install some dependencies and build the contracts. This will setup a python virtual environment for installing dependencies. The below command assumes we have foundry installed, which can installed from the [Foundry Book](https://book.getfoundry.sh/).
@@ -69,6 +64,7 @@ foundryup
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+cd redstone_script && npm install && cd ..
 forge install && forge build
 cd lib/evk-periphery && forge build && cd ../..
 mkdir logs state
@@ -76,8 +72,15 @@ mkdir logs state
 
 **Run**:
 ```bash
-python python/liquidation_bot.py
+python flask run --port 8080
 ```
+Change the Port number to whatever port is desired for exposing the relevant endpoints from the [routes.py](app/liquidation/routes.py) file.
+
+#### Docker
+After creating the .env file, the below command will create a container, install all dependencies, and start the liquidation bot:
+`docker compose build --progress=plain && docker compose up`
+
+This may require some configuration changes on the Docker image to a basic Python enabled container.
 
 ### Configuration
 
@@ -146,3 +149,6 @@ forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url $RPC_URL --broa
 ```
 
 This test is intended to create a position on an existing vault. To test a liquitation, you can either wait for price fluctuations to happen or manually change the LTV of the vault using the create.euler.finance UI if it is a governed vault that you control.
+
+
+forge script contracts/DeployLiquidator.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow --with-gas-price 34028450205 
