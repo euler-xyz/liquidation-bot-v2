@@ -32,7 +32,8 @@ from app.liquidation.utils import (setup_logger,
                    post_error_notification,
                    get_eth_usd_quote,
                    get_btc_usd_quote,
-                   get_mtbill_usd_quote)
+                   get_mtbill_usd_quote,
+                   get_usdc_usd_quote)
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -1682,8 +1683,10 @@ class Quoter:
         amount_usd = get_mtbill_usd_quote(amount_minus_fee)
 
         #TODO: usd -> USDC conversion
+        usdc_usd_rate = get_usdc_usd_quote()
+        amount_usdc = amount_usd / usdc_usd_rate
         
-        return amount_usd
+        return amount_usdc
 
 def get_account_monitor_and_evc_listener():
     acct_monitor = AccountMonitor(False, False)
