@@ -214,6 +214,11 @@ def get_btc_usd_quote(amount: int = 10**18):
     oracle = create_contract_instance(config.BTC_ADAPTER, config.ROUTER_ABI_PATH)
     return oracle.functions.getQuote(amount, config.BTC, config.USD).call()
 
+def get_mtbill_usd_quote(amount: int = 10**18):
+    config = load_config()
+    oracle = create_contract_instance(config.MTBILL_ADAPTER, config.ROUTER_ABI_PATH)
+    return oracle.functions.getQuote(amount, config.MTBILL, config.USD).call()
+
 
 def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> None:
     """

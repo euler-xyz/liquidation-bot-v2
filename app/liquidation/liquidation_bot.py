@@ -31,7 +31,8 @@ from app.liquidation.utils import (setup_logger,
                    post_unhealthy_account_on_slack,
                    post_error_notification,
                    get_eth_usd_quote,
-                   get_btc_usd_quote)
+                   get_btc_usd_quote,
+                   get_mtbill_usd_quote)
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -1340,6 +1341,9 @@ class Liquidator:
 
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
+        if collateral_asset == config.MTBILL:
+            swap_type = 3 # Swap type 3 for mTBILL additional step
+
         if len(pyth_feed_ids)> 0:
             logger.info("Liquidator: executing with pyth")
             update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
@@ -1451,6 +1455,12 @@ class Quoter:
     def get_quote(asset_in: str, asset_out: str,
                   amount_asset_in: int, target_amount_out: int,
                   swap_type: int = 1):
+        
+        if asset_in == config.MTBILL:
+            amount_usdc = Quoter.get_mtbill_to_usdc_quote(amount_asset_in)
+            asset_in = config.USDC
+            amount_asset_in = amount_usdc
+
         if swap_type == 1: #1inch swap
             return Quoter.get_1inch_quote(asset_in, asset_out, amount_asset_in, target_amount_out)
         elif swap_type == 2: #Uniswap
@@ -1465,6 +1475,12 @@ class Quoter:
                             swap_receiver: str,
                             swap_type: int,
                             slippage: int = 2) -> Optional[str]:
+        
+        if asset_in == config.MTBILL:
+            amount_usdc = Quoter.get_mtbill_to_usdc_quote(amount_in)
+            asset_in = config.USDC
+            amount_in = amount_usdc
+
         if swap_type == 1:
             return Quoter.get_1inch_swap_data(asset_in, asset_out, amount_in,
                                               swap_from, tx_origin, swap_receiver, slippage)
@@ -1660,8 +1676,17 @@ class Quoter:
                     amount_in, asset_in, asset_out, swap_from, tx_origin, swap_receiver, slippage)
         return None
 
+    @staticmethod
+    def get_mtbill_to_usdc_quote(amount):
+        amount_minus_fee = amount * (1 - .0007) # 0.07% fee on redemption
+        amount_usd = get_mtbill_usd_quote(amount_minus_fee)
+
+        #TODO: usd -> USDC conversion
+        
+        return amount_usd
+
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(True, True)
+    acct_monitor = AccountMonitor(False, False)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
