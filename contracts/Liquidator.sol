@@ -18,8 +18,13 @@ contract Liquidator {
 
     address public immutable PYTH;
 
-    bytes32 public constant HANDLER_ONE_INCH = bytes32("1Inch");
-    bytes32 public constant HANDLER_UNISWAP_AUTOROUTER = bytes32("UniswapAutoRouter");
+    bytes32 public constant HANDLER_GENERIC = bytes32("Generic");
+    bytes32 public constant HANDLER_UNISWAP_V2 = bytes32("UniswapV2");
+
+    address public constant ONE_INCH_AGGREGATOR = 0x111111125421cA6dc452d289314280a0f8842A65;
+
+    uint256 internal constant MODE_EXACT_IN = 0;
+    uint256 internal constant MODE_EXACT_OUT = 1;
 
     ISwapper swapper;
     IEVC evc;
@@ -76,15 +81,16 @@ contract Liquidator {
             multicallItems[0] = abi.encodeCall(
                 ISwapper.swap,
                 ISwapper.SwapParams({
-                    handler: HANDLER_ONE_INCH,
-                    mode: 0,
+                    handler: HANDLER_GENERIC,
+                    mode: MODE_EXACT_IN,
                     account: address(0), // ignored
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
                     amountOut: 0,
                     vaultIn: address(0), // ignored
+                    accountIn: address(0),
                     receiver: address(0), // ignored
-                    data: params.swapData
+                    data: abi.encode(ONE_INCH_AGGREGATOR, params.swapData)
                 })
             );
         } else {
@@ -92,12 +98,13 @@ contract Liquidator {
                 ISwapper.swap,
                     ISwapper.SwapParams({
                     handler: HANDLER_UNISWAP_AUTOROUTER,
-                    mode: 1,
+                    mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
                     amountOut: params.repayAmount,
-                    vaultIn: params.collateralVault,    
+                    vaultIn: params.collateralVault,
+                    accountIn: address(this),
                     receiver: swapperAddress,
                     data: params.swapData
                 })
@@ -194,15 +201,16 @@ contract Liquidator {
             multicallItems[0] = abi.encodeCall(
                 ISwapper.swap,
                 ISwapper.SwapParams({
-                    handler: HANDLER_ONE_INCH,
-                    mode: 0,
+                    handler: HANDLER_GENERIC,
+                    mode: MODE_EXACT_IN,
                     account: address(0), // ignored
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
                     amountOut: 0,
                     vaultIn: address(0), // ignored
+                    accountIn: address(0),
                     receiver: address(0), // ignored
-                    data: params.swapData
+                    data: abi.encode(ONE_INCH_AGGREGATOR, params.swapData)
                 })
             );
         } else {
@@ -210,12 +218,13 @@ contract Liquidator {
                 ISwapper.swap,
                     ISwapper.SwapParams({
                     handler: HANDLER_UNISWAP_AUTOROUTER,
-                    mode: 1,
+                    mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
                     amountOut: params.repayAmount,
-                    vaultIn: params.collateralVault,    
+                    vaultIn: params.collateralVault,
+                    accountIn: address(this),
                     receiver: swapperAddress,
                     data: params.swapData
                 })
@@ -320,15 +329,16 @@ contract Liquidator {
             multicallItems[0] = abi.encodeCall(
                 ISwapper.swap,
                 ISwapper.SwapParams({
-                    handler: HANDLER_ONE_INCH,
-                    mode: 0,
+                    handler: HANDLER_GENERIC,
+                    mode: MODE_EXACT_IN,
                     account: address(0), // ignored
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
                     amountOut: 0,
                     vaultIn: address(0), // ignored
+                    accountIn: address(0),
                     receiver: address(0), // ignored
-                    data: params.swapData
+                    data: abi.encode(ONE_INCH_AGGREGATOR, params.swapData)
                 })
             );
         } else {
@@ -336,12 +346,13 @@ contract Liquidator {
                 ISwapper.swap,
                     ISwapper.SwapParams({
                     handler: HANDLER_UNISWAP_AUTOROUTER,
-                    mode: 1,
+                    mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
                     amountOut: params.repayAmount,
-                    vaultIn: params.collateralVault,    
+                    vaultIn: params.collateralVault,
+                    accountIn: address(this),
                     receiver: swapperAddress,
                     data: params.swapData
                 })
