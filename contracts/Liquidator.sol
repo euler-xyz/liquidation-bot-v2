@@ -104,7 +104,7 @@ contract Liquidator {
                 ISwapper.swap,
                     ISwapper.SwapParams({
                     handler: HANDLER_UNISWAP_AUTOROUTER,
-                    mode: 1,
+                    mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
@@ -250,6 +250,7 @@ contract Liquidator {
                     amountOut: 0,
                     vaultIn: address(0), // ignored
                     accountIn: address(0),
+                    accountIn: address(0),
                     receiver: address(0), // ignored
                     data: abi.encode(ONEINCH_AGGREGATOR_V6, params.swapData)
                 })
@@ -259,7 +260,7 @@ contract Liquidator {
                 ISwapper.swap,
                     ISwapper.SwapParams({
                     handler: HANDLER_UNISWAP_AUTOROUTER,
-                    mode: 1,
+                    mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
@@ -378,6 +379,7 @@ contract Liquidator {
                     amountOut: 0,
                     vaultIn: address(0), // ignored
                     accountIn: address(0),
+                    accountIn: address(0),
                     receiver: address(0), // ignored
                     data: abi.encode(ONEINCH_AGGREGATOR_V6, params.swapData)
                 })
@@ -387,7 +389,7 @@ contract Liquidator {
                 ISwapper.swap,
                     ISwapper.SwapParams({
                     handler: HANDLER_UNISWAP_AUTOROUTER,
-                    mode: 1,
+                    mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
                     tokenOut: params.borrowedAsset,
