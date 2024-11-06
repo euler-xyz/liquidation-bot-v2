@@ -92,13 +92,17 @@ class Vault:
             # Check if vault contains a Pyth oracle
             self.pyth_feed_ids, self.redstone_feed_ids = PullOracleHandler.get_feed_ids(self)
 
-            if len(self.pyth_feed_ids) > 0:
+            if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
+                logger.info("Vault: Pyth & Redstone oracle found for vault %s, "
+                            "getting account liquidity through simulation", self.address)
+                collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_and_redstone_simulation(self, account_address, self.pyth_feed_ids, self.redstone_feed_ids)
+            elif len(self.pyth_feed_ids) > 0:
                 logger.info("Vault: Pyth Oracle found for vault %s, "
                             "getting account liquidity through simulation", self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_batch_simulation(
                     self, account_address, self.pyth_feed_ids)
             elif len(self.redstone_feed_ids) > 0:
-                logger.info("Vault: Pyth Oracle found for vault %s, "
+                logger.info("Vault: Redstone Oracle found for vault %s, "
                             "getting account liquidity through simulation", self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_redstone_batch_simulation(
                     self, account_address, self.redstone_feed_ids)
@@ -136,6 +140,15 @@ class Vault:
                     borower_address, collateral_address,
                     liquidator_address, self.underlying_asset_address)
 
+        if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
+            (max_repay, seized_collateral) = PullOracleHandler.check_liquidation_with_pyth_and_redstone_simulation(
+                self,
+                Web3.to_checksum_address(liquidator_address),
+                Web3.to_checksum_address(borower_address),
+                Web3.to_checksum_address(collateral_address),
+                self.pyth_feed_ids,
+                self.redstone_feed_ids
+                )
         if len(self.pyth_feed_ids) > 0:
             (max_repay, seized_collateral) = PullOracleHandler.check_liquidation_with_pyth_batch_simulation(
                 self,
@@ -728,6 +741,40 @@ class PullOracleHandler:
         pass
 
     @staticmethod
+    def get_account_values_with_pyth_and_redstone_simulation(vault, account_address, pyth_feed_ids, redstone_feed_ids):
+        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+        pyth_update_fee = PullOracleHandler.get_pyth_update_fee(pyth_update_data)
+
+        redstone_addresses, redstone_update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
+
+        liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT,
+                                              config.LIQUIDATOR_ABI_PATH)
+
+        result = liquidator.functions.simulatePythAndRedstoneAccountStatus(
+            [pyth_update_data], pyth_update_fee, redstone_update_data, redstone_addresses, vault.address, account_address
+            ).call({
+                "value": pyth_update_fee
+            })
+        return result[0], result[1]
+    
+    @staticmethod
+    def check_liquidation_with_pyth_and_redstone_simulation(vault, liquidator_address, borrower_address, collateral_address, pyth_feed_ids, redstone_feed_ids):
+        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+        pyth_update_fee = PullOracleHandler.get_pyth_update_fee(pyth_update_data)
+
+        redstone_addresses, redstone_update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
+
+        liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT,
+                                              config.LIQUIDATOR_ABI_PATH)
+
+        result = liquidator.functions.simulatePythAndRedstoneLiquidation(
+            [pyth_update_data], pyth_update_fee, redstone_update_data, redstone_addresses, vault.address, liquidator_address, borrower_address, collateral_address
+            ).call({
+                "value": pyth_update_fee
+            })
+        return result[0], result[1]
+
+    @staticmethod
     def get_account_values_with_pyth_batch_simulation(vault, account_address, feed_ids):
         update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
         update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
@@ -1222,7 +1269,7 @@ class Liquidator:
                                                                  collateral_vault_address,
                                                                  LIQUIDATOR_EOA)
 
-        seized_collateral_assets = vault.convert_to_assets(seized_collateral_shares)
+        seized_collateral_assets = collateral_vault.convert_to_assets(seized_collateral_shares)
 
         if max_repay == 0 or seized_collateral_shares == 0:
             logger.info("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
@@ -1233,14 +1280,14 @@ class Liquidator:
         (swap_amount, _) = Quoter.get_quote(collateral_asset,
                                                   borrowed_asset,
                                                   seized_collateral_assets,
-                                                  max_repay, swap_type)
+                                                  int(max_repay * (1 + config.OVERSWAP_AMOUNT)), swap_type)
         # If something fails with 1inch, try uniswap
         if swap_amount == -1:
             swap_type = 2
             (swap_amount, _) = Quoter.get_quote(collateral_asset,
                                                   borrowed_asset,
                                                   seized_collateral_assets,
-                                                  max_repay, swap_type)
+                                                  int(max_repay * (1 + config.OVERSWAP_AMOUNT)), swap_type)
 
         logger.info("Liquidator: Final swap amount %s", swap_amount)
 
