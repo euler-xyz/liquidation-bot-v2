@@ -97,7 +97,7 @@ contract Liquidator {
             multicallItems[0] = abi.encodeCall(
                 ISwapper.swap,
                     ISwapper.SwapParams({
-                    handler: HANDLER_UNISWAP_AUTOROUTER,
+                    handler: HANDLER_UNISWAP_V2,
                     mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
@@ -217,7 +217,7 @@ contract Liquidator {
             multicallItems[0] = abi.encodeCall(
                 ISwapper.swap,
                     ISwapper.SwapParams({
-                    handler: HANDLER_UNISWAP_AUTOROUTER,
+                    handler: HANDLER_UNISWAP_V2,
                     mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
@@ -345,7 +345,7 @@ contract Liquidator {
             multicallItems[0] = abi.encodeCall(
                 ISwapper.swap,
                     ISwapper.SwapParams({
-                    handler: HANDLER_UNISWAP_AUTOROUTER,
+                    handler: HANDLER_UNISWAP_V2,
                     mode: MODE_EXACT_IN,
                     account: swapperAddress,
                     tokenIn: params.collateralAsset,
