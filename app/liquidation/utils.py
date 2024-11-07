@@ -395,12 +395,12 @@ def post_low_health_account_report(sorted_accounts) -> None:
     # Filter accounts below the threshold
     low_health_accounts = [
         (address, owner, subaccount, score, value, _, _) for address, owner, subaccount, score, value, _, _ in sorted_accounts
-        if score < config.SLACK_REPORT_HEALTH_SCORE
+        if score < config.SLACK_REPORT_HEALTH_SCORE and value > (config.BORROW_VALUE_THRESHOLD * 10**18)
     ]
 
-    message = ":warning: *Account Health Report* :warning:\n\n"
+    total_value = sum(value / 10**18 for _, _, _, _, value, _, _ in sorted_accounts)
 
-    total_value = 0
+    message = ":warning: *Account Health Report* :warning:\n\n"
 
     if not low_health_accounts:
         message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
@@ -410,8 +410,6 @@ def post_low_health_account_report(sorted_accounts) -> None:
             # Format score to 4 decimal places
             formatted_score = f"{score:.4f}"
             formatted_value = value / 10 ** 18
-            
-            total_value += formatted_value
             
             formatted_value = f"{formatted_value:,.2f}"
 

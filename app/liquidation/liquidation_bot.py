@@ -1222,7 +1222,7 @@ class Liquidator:
                                                                  collateral_vault_address,
                                                                  LIQUIDATOR_EOA)
 
-        seized_collateral_assets = vault.convert_to_assets(seized_collateral_shares)
+        seized_collateral_assets = collateral_vault.convert_to_assets(seized_collateral_shares)
 
         if max_repay == 0 or seized_collateral_shares == 0:
             logger.info("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
@@ -1233,14 +1233,14 @@ class Liquidator:
         (swap_amount, _) = Quoter.get_quote(collateral_asset,
                                                   borrowed_asset,
                                                   seized_collateral_assets,
-                                                  max_repay, swap_type)
+                                                 int(max_repay  * ( 1 + config.OVERSWAP_AMOUNT)) , swap_type)
         # If something fails with 1inch, try uniswap
         if swap_amount == -1:
             swap_type = 2
             (swap_amount, _) = Quoter.get_quote(collateral_asset,
                                                   borrowed_asset,
                                                   seized_collateral_assets,
-                                                  max_repay, swap_type)
+                                                  int(max_repay  * ( 1 + config.OVERSWAP_AMOUNT)) , swap_type)
 
         logger.info("Liquidator: Final swap amount %s", swap_amount)
 
