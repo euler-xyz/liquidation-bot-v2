@@ -577,7 +577,7 @@ contract Liquidator {
 
         (IEVC.BatchItemResult[] memory batchItemsResult,,) = evc.batchSimulation(batchItems);
 
-        (collateralValue, liabilityValue) = abi.decode(batchItemsResult[1].result, (uint256, uint256));
+        (collateralValue, liabilityValue) = abi.decode(batchItemsResult[redstoneUpdateData.length].result, (uint256, uint256));
 
         return (collateralValue, liabilityValue);
     }
@@ -603,7 +603,73 @@ contract Liquidator {
 
         (IEVC.BatchItemResult[] memory batchItemsResult,,) = evc.batchSimulation(batchItems);
 
-        (maxRepay, seizedCollateral) = abi.decode(batchItemsResult[1].result, (uint256, uint256));
+        (maxRepay, seizedCollateral) = abi.decode(batchItemsResult[redstoneUpdateData.length].result, (uint256, uint256));
+
+        return (maxRepay, seizedCollateral);
+    }
+
+    function simulatePythAndRedstoneAccountStatus(bytes[] calldata pythUpdateData, uint256 pythUpdateFee, bytes[] calldata redstoneUpdateData, address[] calldata adapterAddresses, address vaultAddress, address accountAddress) external payable returns (uint256 collateralValue, uint256 liabilityValue) {
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](redstoneUpdateData.length + 2);
+
+        batchItems[0] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: PYTH,
+            value: pythUpdateFee,
+            data: abi.encodeCall(IPyth.updatePriceFeeds, pythUpdateData)
+        });
+
+        for (uint256 i = 1; i < redstoneUpdateData.length; i++){
+            batchItems[i] = IEVC.BatchItem({
+                onBehalfOfAccount: address(this),
+                targetContract: adapterAddresses[i],
+                value: 0,
+                data: redstoneUpdateData[i]
+            });
+        }
+
+        batchItems[redstoneUpdateData.length + 1] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: vaultAddress,
+            value: 0,
+            data: abi.encodeCall(IRiskManager.accountLiquidity, (accountAddress, true))
+        });
+
+        (IEVC.BatchItemResult[] memory batchItemsResult,,) = evc.batchSimulation{value: pythUpdateFee}(batchItems);
+
+        (collateralValue, liabilityValue) = abi.decode(batchItemsResult[redstoneUpdateData.length + 1].result, (uint256, uint256));
+
+        return (collateralValue, liabilityValue);
+    }
+
+    function simulatePythAndRedstoneLiquidation(bytes[] calldata pythUpdateData, uint256 pythUpdateFee, bytes[] calldata redstoneUpdateData, address[] calldata adapterAddresses, address vaultAddress, address liquidatorAddress, address borrowerAddress, address collateralAddress) external payable returns (uint256 maxRepay, uint256 seizedCollateral) {
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](redstoneUpdateData.length + 2);
+
+        batchItems[0] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: PYTH,
+            value: pythUpdateFee,
+            data: abi.encodeCall(IPyth.updatePriceFeeds, pythUpdateData)
+        });
+
+        for (uint256 i = 1; i < redstoneUpdateData.length; i++){
+            batchItems[i] = IEVC.BatchItem({
+                onBehalfOfAccount: address(this),
+                targetContract: adapterAddresses[i],
+                value: 0,
+                data: redstoneUpdateData[i]
+            });
+        }
+
+        batchItems[redstoneUpdateData.length + 1] = IEVC.BatchItem({
+            onBehalfOfAccount: address(this),
+            targetContract: vaultAddress,
+            value: 0,
+            data: abi.encodeCall(ILiquidation.checkLiquidation, (liquidatorAddress, borrowerAddress, collateralAddress))
+        });
+
+        (IEVC.BatchItemResult[] memory batchItemsResult,,) = evc.batchSimulation{value: pythUpdateFee}(batchItems);
+
+        (maxRepay, seizedCollateral) = abi.decode(batchItemsResult[redstoneUpdateData.length + 1].result, (uint256, uint256));
 
         return (maxRepay, seizedCollateral);
     }
