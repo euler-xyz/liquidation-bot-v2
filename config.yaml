@@ -9,18 +9,18 @@ SAVE_INTERVAL: 1800 # 30 minutes
 
 # Health score bounds for min/max update interval frequency
 HS_LIQUIDATION: 1.0
-HS_HIGH_RISK: 1.02
+HS_HIGH_RISK: 1.05
 HS_SAFE: 1.2
 
 # Update interval frequency (in seconds)
-MIN_UPDATE_INTERVAL: 30
-HIGH_RISK_UPDATE_INTERVAL: 300
+MIN_UPDATE_INTERVAL: 60
+HIGH_RISK_UPDATE_INTERVAL: 600
 MAX_UPDATE_INTERVAL: 3600 # 60 minutes
 
 # Interval for reporting low health accounts
 LOW_HEALTH_REPORT_INTERVAL: 21600 # 30 minutes
-SLACK_REPORT_HEALTH_SCORE: 3
-BORROW_VALUE_THRESHOLD: 100 # $100 minimum for reporting
+SLACK_REPORT_HEALTH_SCORE: 1.05
+BORROW_VALUE_THRESHOLD: 1000 # $1000 minimum for reporting
 
 # Threshold for excluding small positions from frequent notifications, in USD terms
 SMALL_POSITION_THRESHOLD: 500000000000000000000 # 500 USD
