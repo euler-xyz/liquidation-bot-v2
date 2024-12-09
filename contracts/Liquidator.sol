@@ -113,7 +113,8 @@ contract Liquidator {
 
         // Use swapper contract to repay borrowed asset
         multicallItems[1] =
-            abi.encodeCall(ISwapper.repay, (params.borrowedAsset, params.vault, params.repayAmount, address(this)));
+            // abi.encodeCall(ISwapper.repay, (params.borrowedAsset, params.vault, params.repayAmount, address(this)));
+            abi.encodeCall(ISwapper.repay, (params.borrowedAsset, params.vault, type(uint256).max, address(this)));
 
         // Sweep any dust left in the swapper contract
         multicallItems[2] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, params.receiver));
@@ -136,6 +137,8 @@ contract Liquidator {
             data: abi.encodeCall(IEVC.enableCollateral, (address(this), params.collateralVault))
         });
 
+        (uint256 maxRepay, ) = ILiquidation(params.vault).checkLiquidation(address(this), params.violatorAddress, params.collateralVault);
+        
         // Step 3: Liquidate account in violation
         batchItems[2] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
@@ -143,7 +146,7 @@ contract Liquidator {
             value: 0,
             data: abi.encodeCall(
                 ILiquidation.liquidate,
-                (params.violatorAddress, params.collateralVault, params.repayAmount, 0) // TODO: adjust minimum collateral
+                (params.violatorAddress, params.collateralVault, maxRepay, 0) // TODO: adjust minimum collateral
             )
         });
 
