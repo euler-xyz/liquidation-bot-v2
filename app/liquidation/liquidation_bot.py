@@ -1725,18 +1725,6 @@ def get_account_monitor_and_evc_listener():
 
 if __name__ == "__main__":
     try:
-        # acct_monitor = AccountMonitor(True, True)
-        # acct_monitor.load_state(config.SAVE_STATE_PATH)
-
-        # evc_listener = EVCListener(acct_monitor)
-
-        # evc_listener.batch_account_logs_on_startup()
-
-        # threading.Thread(target=acct_monitor.start_queue_monitoring).start()
-        # threading.Thread(target=evc_listener.start_event_monitoring).start()
-
-        # while True:
-        #     time.sleep(1)
         pass
 
     except Exception as e: # pylint: disable=broad-except
