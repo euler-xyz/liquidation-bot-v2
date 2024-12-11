@@ -16,6 +16,7 @@ from typing import Tuple, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from web3 import Web3
+from web3.logs import DISCARD
 
 from app.liquidation.utils import (setup_logger,
                    setup_w3,
@@ -1488,7 +1489,7 @@ class Liquidator:
             liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                            config.LIQUIDATOR_ABI_PATH)
 
-            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt)
+            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt, errors=DISCARD)
 
             logger.info("Liquidator: Liquidation details: ")
             for event in result:
@@ -1557,7 +1558,7 @@ class Quoter:
             logger.error("Quote too low")
             return None
         
-        return response["data"]["swap"]
+        return response["data"]
 
     @staticmethod
     def get_quote(asset_in: str, asset_out: str,
