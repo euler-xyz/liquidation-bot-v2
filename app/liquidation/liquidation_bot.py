@@ -33,6 +33,8 @@ from app.liquidation.utils import (setup_logger,
                    get_eth_usd_quote,
                    get_btc_usd_quote)
 
+from web3.logs import DISCARD
+
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
 API_KEY_1INCH = os.getenv("API_KEY_1INCH")
@@ -1325,9 +1327,9 @@ class Liquidator:
                     "leftover_borrow: %s", seized_collateral_assets, amount_out,
                     leftover_borrow_in_eth)
 
-        if leftover_borrow_in_eth < 0:
-            logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
-            return ({"profit": 0}, None)
+        # if leftover_borrow_in_eth < 0:
+        #     logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
+        #     return ({"profit": 0}, None)
 
 
         time.sleep(config.API_REQUEST_DELAY)
@@ -1433,7 +1435,8 @@ class Liquidator:
                     "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
                 })
 
-        net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        # net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        net_profit = 1
         logger.info("Net profit: %s", net_profit)
 
         return ({
@@ -1473,7 +1476,7 @@ class Liquidator:
             liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                            config.LIQUIDATOR_ABI_PATH)
 
-            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt)
+            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt, errors=DISCARD)
 
             logger.info("Liquidator: Liquidation details: ")
             for event in result:
@@ -1758,7 +1761,7 @@ class Quoter:
         return None
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(False, False)
+    acct_monitor = AccountMonitor(False, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
