@@ -373,8 +373,25 @@ class AccountMonitor:
         self.last_saved_block = 0
         self.notify = notify
         self.execute_liquidation = execute_liquidation
-
         self.recently_posted_low_value = {}
+
+        # Add test account directly
+        test_address = w3.to_checksum_address("0xF612Fc2524305A416e5fE5d721C91BDDa3aDe7bb")
+        
+        # Add both vaults
+        collateral_vault_address = w3.to_checksum_address("0x631D8E808f2c4177a8147Eaa39a4F57C47634dE8")
+        controller_vault_address = w3.to_checksum_address("0xa992d3777282c44ee980e9b0ca9bd0c0e4f737af")
+        
+        # Create and store both vaults
+        self.vaults[collateral_vault_address] = Vault(collateral_vault_address)
+        self.vaults[controller_vault_address] = Vault(controller_vault_address)
+        
+        # Create and store the account with the controller vault
+        test_account = Account(test_address, self.vaults[controller_vault_address])
+        self.accounts[test_address] = test_account
+        
+        # Add to update queue
+        self.update_queue.put((time.time(), test_address))
 
     def start_queue_monitoring(self) -> None:
         """
@@ -989,30 +1006,34 @@ class EVCListener:
     """
     def __init__(self, account_monitor: AccountMonitor):
         self.account_monitor = account_monitor
-
         self.evc_instance = create_contract_instance(config.EVC, config.EVC_ABI_PATH)
-
         self.scanned_blocks = set()
+        
+        # Set latest block to current to skip historical scanning
+        self.account_monitor.latest_block = w3.eth.block_number
+        self.account_monitor.last_saved_block = self.account_monitor.latest_block
+
+    def batch_account_logs_on_startup(self) -> None:
+        """
+        Skip batch processing for test purposes
+        """
+        logger.info("EVCListener: Skipping historical log scanning for test purposes")
+        return
 
     def start_event_monitoring(self) -> None:
         """
-        Start monitoring for EVC events.
-        Scans from last scanned block stored by account monitor
-        up to the current block number (minus 1 to try to account for reorgs).
+        Modified to only monitor specific test address
         """
+        test_address = "0xF612Fc2524305A416e5fE5d721C91BDDa3aDe7bb"
+        
         while True:
             try:
-                current_block = w3.eth.block_number - 1
-
-                if self.account_monitor.latest_block < current_block:
-                    self.scan_block_range_for_account_status_check(
-                        self.account_monitor.latest_block,
-                        current_block)
-            except Exception as ex: # pylint: disable=broad-except
+                # Just update the test account periodically
+                # self.account_monitor.update_account_liquidity(test_address)
+                time.sleep(config.SCAN_INTERVAL)
+            except Exception as ex:
                 logger.error("EVCListener: Unexpected exception in event monitoring: %s",
                              ex, exc_info=True)
-
-            time.sleep(config.SCAN_INTERVAL)
 
     #pylint: disable=W0102
     def scan_block_range_for_account_status_check(self,
@@ -1086,47 +1107,6 @@ class EVCListener:
                 else:
                     time.sleep(config.RETRY_DELAY) # cooldown between retries
 
-
-    def batch_account_logs_on_startup(self) -> None:
-        """
-        Batch process account logs on startup.
-        Goes in reverse order to build smallest queue possible with most up to date info
-        """
-        try:
-            # If the account monitor has a saved state,
-            # assume it has been loaded from that and start from the last saved block
-            start_block = max(int(config.EVC_DEPLOYMENT_BLOCK),
-                              self.account_monitor.last_saved_block)
-
-            current_block = w3.eth.block_number
-
-            batch_block_size = config.BATCH_SIZE
-
-            logger.info("EVCListener: "
-                        "Starting batch scan of AccountStatusCheck events from block %s to %s.",
-                        start_block, current_block)
-
-            seen_accounts = set()
-
-            while start_block < current_block:
-                end_block = min(start_block + batch_block_size, current_block)
-
-                self.scan_block_range_for_account_status_check(start_block, end_block,
-                                                               seen_accounts=seen_accounts)
-                self.account_monitor.save_state()
-
-                start_block = end_block + 1
-
-                time.sleep(config.BATCH_INTERVAL) # Sleep in between batches to avoid rate limiting
-
-            logger.info("EVCListener: "
-                        "Finished batch scan of AccountStatusCheck events from block %s to %s.",
-                        start_block, current_block)
-
-        except Exception as ex: # pylint: disable=broad-except
-            logger.error("EVCListener: "
-                         "Unexpected exception in batch scanning account logs on startup: %s",
-                         ex, exc_info=True)
 
     @staticmethod
     def get_account_owner_and_subaccount_number(account):
@@ -1235,7 +1215,7 @@ class Liquidator:
                      time_elapsed > config.ERROR_COOLDOWN)
                     or (value_borrowed <= config.SMALL_POSITION_THRESHOLD and
                         time_elapsed > config.SMALL_POSITION_REPORT_INTERVAL)):
-                    post_error_notification(message)
+                    # post_error_notification(message)
                     time_of_last_post = now
                     liquidation_error_slack_cooldown[violator_address] = time_of_last_post
                 continue
@@ -1306,7 +1286,7 @@ class Liquidator:
         if not swap_api_response:
             return ({"profit": 0}, None)
 
-        amount_out = swap_api_response['amountOut']
+        amount_out = int(swap_api_response['amountOut'])
         leftover_borrow = amount_out - max_repay
 
         if borrowed_asset != config.WETH:
@@ -1316,10 +1296,10 @@ class Liquidator:
                 token_out = config.WETH,
                 amount = leftover_borrow,
                 min_amount_out = 0,
-                receiver = LIQUIDATOR_EOA,
+                receiver = config.SWAPPER,
                 vault_in = vault.address,
-                account_in = LIQUIDATOR_EOA,
-                account_out = LIQUIDATOR_EOA,
+                account_in = config.SWAPPER,
+                account_out = config.SWAPPER,
                 swapper_mode = "0",
                 slippage = config.SWAP_SLIPPAGE,
                 deadline = config.SWAP_DEADLINE,
@@ -1327,7 +1307,7 @@ class Liquidator:
                 current_debt = 0,
                 target_debt = 0
             )
-            leftover_borrow_in_eth = borrow_to_eth_response['amountOut']
+            leftover_borrow_in_eth = int(borrow_to_eth_response['amountOut'])
         else:
             leftover_borrow_in_eth = leftover_borrow
 
@@ -1335,6 +1315,10 @@ class Liquidator:
 
         swap_data = []
         for _, item in enumerate(swap_api_response['swap']['multicallItems']):
+            logger.info("Item: %s", item)
+            if item['functionName'] != 'swap':
+                logger.info("Item skipped")
+                continue
             swap_data.append(item['data'])
 
         logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
@@ -1360,6 +1344,7 @@ class Liquidator:
         )
 
         logger.info("Liquidator: Liquidation details: %s", params)
+        logger.info("Multicall data: %s", swap_data)
 
         pyth_feed_ids = vault.pyth_feed_ids
         redstone_feed_ids = vault.redstone_feed_ids
@@ -1499,7 +1484,7 @@ class Liquidator:
         except Exception as ex: # pylint: disable=broad-except
             message = f"Unexpected error in executing liquidation: {ex}"
             logger.error(message, exc_info=True)
-            post_error_notification(message)
+            # post_error_notification(message)
             return None, None
 
 class Quoter:
@@ -1557,7 +1542,7 @@ class Quoter:
             logger.error("Quote too low")
             return None
         
-        return response["data"]["swap"]
+        return response["data"]
 
     @staticmethod
     def get_quote(asset_in: str, asset_out: str,
@@ -1787,4 +1772,4 @@ if __name__ == "__main__":
     except Exception as e: # pylint: disable=broad-except
         logger.critical("Uncaught exception: %s", e, exc_info=True)
         error_message = f"Uncaught global exception: {e}"
-        post_error_notification(error_message)
+        # post_error_notification(error_message)
