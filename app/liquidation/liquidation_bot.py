@@ -16,8 +16,6 @@ from typing import Tuple, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from web3 import Web3
-# from eth_abi.abi import encode, decode
-# from eth_utils import to_hex, keccak
 
 from app.liquidation.utils import (setup_logger,
                    setup_w3,
