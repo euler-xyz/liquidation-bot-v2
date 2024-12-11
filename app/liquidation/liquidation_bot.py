@@ -1306,7 +1306,7 @@ class Liquidator:
         if not swap_api_response:
             return ({"profit": 0}, None)
 
-        amount_out = swap_api_response['amountOut']
+        amount_out = int(swap_api_response['amountOut'])
         leftover_borrow = amount_out - max_repay
 
         if borrowed_asset != config.WETH:
@@ -1316,10 +1316,10 @@ class Liquidator:
                 token_out = config.WETH,
                 amount = leftover_borrow,
                 min_amount_out = 0,
-                receiver = LIQUIDATOR_EOA,
+                receiver = config.SWAPPER,
                 vault_in = vault.address,
-                account_in = LIQUIDATOR_EOA,
-                account_out = LIQUIDATOR_EOA,
+                account_in = config.SWAPPER,
+                account_out = config.SWAPPER,
                 swapper_mode = "0",
                 slippage = config.SWAP_SLIPPAGE,
                 deadline = config.SWAP_DEADLINE,
@@ -1327,7 +1327,7 @@ class Liquidator:
                 current_debt = 0,
                 target_debt = 0
             )
-            leftover_borrow_in_eth = borrow_to_eth_response['amountOut']
+            leftover_borrow_in_eth = int(borrow_to_eth_response['amountOut'])
         else:
             leftover_borrow_in_eth = leftover_borrow
 
@@ -1335,6 +1335,8 @@ class Liquidator:
 
         swap_data = []
         for _, item in enumerate(swap_api_response['swap']['multicallItems']):
+            if item['functionName'] != 'swap':
+                continue
             swap_data.append(item['data'])
 
         logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
