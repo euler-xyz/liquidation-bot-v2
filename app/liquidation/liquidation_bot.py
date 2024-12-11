@@ -1288,18 +1288,18 @@ class Liquidator:
         swap_api_response = Quoter.get_swap_api_quote(
             chain_id = config.CHAIN_ID,
             token_in = collateral_asset,
-            token_out = borrowed_asset,
-            amount = seized_collateral_assets,
-            min_amount_out = max_repay,
-            receiver = vault.address,
-            vault_in = collateral_vault_address,
-            account_in = LIQUIDATOR_EOA,
-            account_out = LIQUIDATOR_EOA,
+            token_out = config.WETH,
+            amount = leftover_borrow,
+            min_amount_out = 0,
+            receiver = config.SWAPPER,
+            vault_in = vault.address,
+            account_in = config.SWAPPER,
+            account_out = config.SWAPPER,
             swapper_mode = "0",
             slippage = config.SWAP_SLIPPAGE,
             deadline = config.SWAP_DEADLINE,
             is_repay = False,
-            current_debt = max_repay,
+            current_debt = 0,
             target_debt = 0
         )
 
