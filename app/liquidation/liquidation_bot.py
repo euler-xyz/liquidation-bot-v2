@@ -1540,10 +1540,10 @@ class Quoter:
             "accountOut": account_out,
             "swapperMode": swapper_mode,  # TARGET_DEBT mode
             "slippage": str(slippage),
-            "deadline": str(deadline),  # 30 min
+            "deadline": str(deadline), 
             "isRepay": str(is_repay),
-            "currentDebt": str(current_debt),  # 2000 USDC debt
-            "targetDebt": str(target_debt)  # Fully repay the debt
+            "currentDebt": str(current_debt),
+            "targetDebt": str(target_debt)
         }
 
         response = make_api_request(SWAP_API_URL, headers={}, params=params)

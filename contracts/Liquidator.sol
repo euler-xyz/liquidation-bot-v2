@@ -88,7 +88,7 @@ contract Liquidator {
         // Step 1: enable controller
         batchItems[0] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableController, (address(this), params.vault))
         });
@@ -96,7 +96,7 @@ contract Liquidator {
         // Step 2: enable collateral
         batchItems[1] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableCollateral, (address(this), params.collateralVault))
         });
@@ -178,7 +178,7 @@ contract Liquidator {
         // Step 1: enable controller
         batchItems[1] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableController, (address(this), params.vault))
         });
@@ -188,7 +188,7 @@ contract Liquidator {
         // Step 2: enable collateral
         batchItems[2] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableCollateral, (address(this), params.collateralVault))
         });
@@ -240,9 +240,9 @@ contract Liquidator {
         return true;
     }
 
-    function liquidateSingleCollateralWithRedstoneOracle(LiquidationParams calldata params,  bytes[] calldata swapperData, bytes[] calldata redstoneUpdateData, address[] calldata adapterAddresses) external payable returns (bool success) {
+    function liquidateSingleCollateralWithRedstoneOracle(LiquidationParams memory params,  bytes[] calldata swapperData, bytes[] calldata redstoneUpdateData, address[] calldata adapterAddresses) external payable returns (bool success) {
         bytes[] memory multicallItems = new bytes[](swapperData.length + 2);
-
+        
         for (uint256 i = 0; i < swapperData.length; i++){
             multicallItems[i] = swapperData[i];
         }
@@ -272,7 +272,7 @@ contract Liquidator {
         // Step 1: enable controller
         batchItems[numberOfOracleUpdates] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableController, (address(this), params.vault))
         });
@@ -280,12 +280,12 @@ contract Liquidator {
         // Step 2: enable collateral
         batchItems[numberOfOracleUpdates + 1] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableCollateral, (address(this), params.collateralVault))
         });
 
-        (uint256 maxRepay, uint256 maxYield) = ILiquidation(params.vault).checkLiquidation(address(this), params.violatorAddress, params.collateralVault);
+        (params.repayAmount, params.seizedCollateralAmount) = ILiquidation(params.vault).checkLiquidation(address(this), params.violatorAddress, params.collateralVault);
 
         // Step 3: Liquidate account in violation
         batchItems[numberOfOracleUpdates + 2] =  IEVC.BatchItem({
@@ -294,7 +294,7 @@ contract Liquidator {
             value: 0,
             data: abi.encodeCall(
                 ILiquidation.liquidate,
-                (params.violatorAddress, params.collateralVault, maxRepay, 0) // TODO: adjust minimum collateral
+                (params.violatorAddress, params.collateralVault, params.repayAmount, 0) // TODO: adjust minimum collateral
             )
         });
 
@@ -303,7 +303,7 @@ contract Liquidator {
             onBehalfOfAccount: address(this),
             targetContract: params.collateralVault,
             value: 0,
-            data: abi.encodeCall(IERC4626.withdraw, (maxYield, swapperAddress, address(this)))
+            data: abi.encodeCall(IERC4626.withdraw, (params.seizedCollateralAmount, swapperAddress, address(this)))
         });
 
         // Step 5: Swap collateral for borrowed asset, repay, and sweep overswapped borrow asset
@@ -317,14 +317,14 @@ contract Liquidator {
         // Submit batch to EVC
         evc.batch(batchItems);
 
-        emit Liquidation(
-            params.violatorAddress,
-            params.vault,
-            params.borrowedAsset,
-            params.collateralAsset,
-            params.repayAmount,
-            params.seizedCollateralAmount
-        );
+        // emit Liquidation(
+        //     params.violatorAddress,
+        //     params.vault,
+        //     params.borrowedAsset,
+        //     params.collateralAsset,
+        //     params.repayAmount,
+        //     params.seizedCollateralAmount
+        // );
 
         if (IERC20(params.collateralVault).balanceOf(address(this)) > 0) {
             IERC20(params.collateralVault).transfer(params.receiver, IERC20(params.collateralVault).balanceOf(address(this)));
@@ -343,14 +343,14 @@ contract Liquidator {
 
         batchItems[0] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableController, (address(this), params.vault))
         });
 
         batchItems[1] = IEVC.BatchItem({
             onBehalfOfAccount: address(0),
-            targetContract: address(evc),
+            targetContract: evcAddress,
             value: 0,
             data: abi.encodeCall(IEVC.enableCollateral, (address(this), params.collateralVault))
         });
