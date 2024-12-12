@@ -378,11 +378,11 @@ class AccountMonitor:
         self.recently_posted_low_value = {}
 
         # Add test account directly
-        test_address = w3.to_checksum_address("0xF612Fc2524305A416e5fE5d721C91BDDa3aDe7bb")
-        
+        test_address = w3.to_checksum_address("0x831429A969928a2780b5C447118f5531c4dF06F5")
+
         # Add both vaults
-        collateral_vault_address = w3.to_checksum_address("0x631D8E808f2c4177a8147Eaa39a4F57C47634dE8")
-        controller_vault_address = w3.to_checksum_address("0xa992d3777282c44ee980e9b0ca9bd0c0e4f737af")
+        collateral_vault_address = w3.to_checksum_address("0x27052EA5E307B6e8566D9eE560231C6742a6c03c")
+        controller_vault_address = w3.to_checksum_address("0x67e4e4e73947257ca62d118e0fbc56d06f11d96f")
         
         # Create and store both vaults
         self.vaults[collateral_vault_address] = Vault(collateral_vault_address)
@@ -1026,7 +1026,7 @@ class EVCListener:
         """
         Modified to only monitor specific test address
         """
-        test_address = "0xF612Fc2524305A416e5fE5d721C91BDDa3aDe7bb"
+        test_address = "0x831429A969928a2780b5C447118f5531c4dF06F5"
         
         while True:
             try:
@@ -1279,7 +1279,7 @@ class Liquidator:
             account_out = config.SWAPPER,
             swapper_mode = "0",
             slippage = config.SWAP_SLIPPAGE,
-            deadline = config.SWAP_DEADLINE,
+            deadline = int(time.time()) + config.SWAP_DEADLINE,
             is_repay = False,
             current_debt = max_repay,
             target_debt = 0
@@ -1304,7 +1304,7 @@ class Liquidator:
                 account_out = LIQUIDATOR_EOA,
                 swapper_mode = "0",
                 slippage = config.SWAP_SLIPPAGE,
-                deadline = config.SWAP_DEADLINE,
+                deadline = int(time.time()) + config.SWAP_DEADLINE,
                 is_repay = False,
                 current_debt = 0,
                 target_debt = 0
@@ -1761,7 +1761,7 @@ class Quoter:
         return None
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(False, True)
+    acct_monitor = AccountMonitor(True, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)

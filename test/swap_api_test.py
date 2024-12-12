@@ -1,6 +1,7 @@
 import requests
 from typing import TypedDict
 from eth_utils import to_checksum_address
+from time import time
 
 class SwapResponse(TypedDict):
     swapperAddress: str
@@ -72,16 +73,16 @@ def get_swap_quote(
 
 # Example usage
 if __name__ == "__main__":
-    IN_VAULT = "0x631D8E808f2c4177a8147Eaa39a4F57C47634dE8"
+    IN_VAULT = "0x27052ea5e307b6e8566d9ee560231c6742a6c03c"
     LIQUIDATOR_EOA = "0x8cbB534874bab83e44a7325973D2F04493359dF8" 
-    BORROW_VAULT = "0xa992d3777282c44ee980e9b0ca9bd0c0e4f737af"
+    BORROW_VAULT = "0x67e4e4e73947257Ca62D118E0FBC56D06f11d96F"
     
     try:
         swap_response = get_swap_quote(
             chain_id=1,
-            token_in="0x8c9532a60E0E7C6BbD2B2c1303F63aCE1c3E9811",
+            token_in="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
             token_out="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  
-            amount=int(.03518*10**18),
+            amount=48959825,
             # amount=int(.04061*10**18),
             min_amount_out=0,
             receiver=BORROW_VAULT,
@@ -91,7 +92,7 @@ if __name__ == "__main__":
             account_out=LIQUIDATOR_EOA,
             swapper_mode="0",
             slippage=1.0,
-            deadline=600,
+            deadline=int(time()) + 600,
             is_repay=False,
             # current_debt=int(.04061*10**18),
             current_debt=0,
@@ -135,6 +136,7 @@ if __name__ == "__main__":
 
         print(swap_data)
 
+        print(.007*10**18)
     except ValueError as e:
         print(f"Quote check failed: {e}")
     except Exception as e:
