@@ -1296,7 +1296,7 @@ class Liquidator:
             account_out = config.SWAPPER,
             swapper_mode = "0",
             slippage = config.SWAP_SLIPPAGE,
-            deadline = config.SWAP_DEADLINE,
+            deadline = int(time.time()) + config.SWAP_DEADLINE,
             is_repay = False,
             current_debt = max_repay,
             target_debt = 0
@@ -1321,7 +1321,7 @@ class Liquidator:
                 account_out = LIQUIDATOR_EOA,
                 swapper_mode = "0",
                 slippage = config.SWAP_SLIPPAGE,
-                deadline = config.SWAP_DEADLINE,
+                deadline = int(time.time()) + config.SWAP_DEADLINE,
                 is_repay = False,
                 current_debt = 0,
                 target_debt = 0
