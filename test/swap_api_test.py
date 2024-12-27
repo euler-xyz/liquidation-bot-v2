@@ -83,7 +83,7 @@ if __name__ == "__main__":
             chain_id=1,
             token_in="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
             token_out="0xDD629E5241CbC5919847783e6C96B2De4754e438",  
-            amount=170415589282,
+            amount=172840208846,
             # amount=int(.04061*10**18),
             min_amount_out=0,
             receiver=BORROW_VAULT,
@@ -137,7 +137,6 @@ if __name__ == "__main__":
 
         print(swap_data)
 
-        print(.007*10**18)
     except ValueError as e:
         print(f"Quote check failed: {e}")
     except Exception as e:

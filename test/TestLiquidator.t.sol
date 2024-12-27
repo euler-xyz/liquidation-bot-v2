@@ -4,19 +4,45 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Liquidator} from "../contracts/Liquidator.sol";
+import {IEVault, IRiskManager, IBorrowing, ILiquidation} from "../contracts/IEVault.sol";
+import {IERC4626, IERC20} from "../contracts/IEVault.sol";
 
 
 contract LiquidatorTest is Test {
-    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x8d244058D946801bf39df29F1F67C7A4b3201521;
-    address constant VAULT = 0xce45EF0414dE3516cAF1BCf937bF7F2Cf67873De;
-    address constant ACCOUNT = 0xA5f0f68dCc5bE108126d79ded881ef2993841c2f;
+    address constant LIQUIDATOR_CONTRACT_ADDRESS = 0x95121eb54007C4e1B41Aa5E9248000e34cbC3729;
+    address constant ACCOUNT = 0xBE18F84532d8F7fB6D7919401c0096F3E257db86;
+    address constant VAULT = 0x298966b32C968884F716F762f6759e8e5811aE14;
+    address constant BORROW_ASSET = 0xDD629E5241CbC5919847783e6C96B2De4754e438;
+    address constant COLLATERAL = 0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9;
+    address constant COLLATERAL_ASSET = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     
+    uint256 deployerPrivateKey = vm.envUint("LIQUIDATOR_PRIVATE_KEY");
+    address liquidatorEOA = vm.addr(deployerPrivateKey);
 
     Liquidator liquidator;
 
     function setUp() public {
 
         liquidator = Liquidator(payable(LIQUIDATOR_CONTRACT_ADDRESS));
+    }
+
+    function testExecuteLiquidation() public {
+        (uint256 repayAmount, uint256 seizedCollateralAmount) = ILiquidation(VAULT).checkLiquidation(LIQUIDATOR_CONTRACT_ADDRESS, ACCOUNT, COLLATERAL);
+
+        Liquidator.LiquidationParams memory params = Liquidator.LiquidationParams({
+            violatorAddress: ACCOUNT,
+            vault: VAULT,
+            borrowedAsset: BORROW_ASSET,
+            collateralVault: COLLATERAL,
+            collateralAsset: COLLATERAL_ASSET,
+            repayAmount: repayAmount,
+            seizedCollateralAmount: seizedCollateralAmount,
+            receiver: liquidatorEOA
+        });
+
+        console.log("Repay amount: ", repayAmount);
+        console.log("Seized collateral: ", seizedCollateralAmount);
+        console.log("Collateral as assets: ", IERC4626(COLLATERAL).convertToAssets(seizedCollateralAmount));   
     }
 
     function testLiquidatorWithPythUpdate() public {

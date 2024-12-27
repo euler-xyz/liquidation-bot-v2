@@ -102,7 +102,7 @@ contract Liquidator {
         });
 
         (uint256 maxRepay, uint256 maxYield) = ILiquidation(params.vault).checkLiquidation(address(this), params.violatorAddress, params.collateralVault);
-        
+        // maxYield = IERC4626(params.collateralVault).convertToAssets(maxYield);
         // Step 3: Liquidate account in violation
         batchItems[2] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
@@ -119,7 +119,7 @@ contract Liquidator {
             onBehalfOfAccount: address(this),
             targetContract: params.collateralVault,
             value: 0,
-            data: abi.encodeCall(IERC4626.withdraw, (maxYield, swapperAddress, address(this)))
+            data: abi.encodeCall(IERC4626.redeem, (maxYield, swapperAddress, address(this)))
         });
 
         // Step 5: Swap collateral for borrowed asset, repay, and sweep overswapped borrow asset
