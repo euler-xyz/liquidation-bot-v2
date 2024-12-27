@@ -16,6 +16,7 @@ from typing import Tuple, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from web3 import Web3
+from web3.logs import DISCARD
 # from eth_abi.abi import encode, decode
 # from eth_utils import to_hex, keccak
 
@@ -27,13 +28,17 @@ from app.liquidation.utils import (setup_logger,
                    post_liquidation_opportunity_on_slack,
                    load_config,
                    post_liquidation_result_on_slack,
-                   post_low_health_account_report,
-                   post_unhealthy_account_on_slack,
-                   post_error_notification,
+                #    post_low_health_account_report,
+                #    post_unhealthy_account_on_slack,
+                #    post_error_notification,
                    get_eth_usd_quote,
                    get_btc_usd_quote)
 
-from web3.logs import DISCARD
+
+### SETUP FOR MANUAL LIQUIDATION
+UNDERWATER_ACCOUNT = "0xBE18F84532d8F7fB6D7919401c0096F3E257db86"
+COLLATERAL_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
+CONTROLLER_VAULT_ADDRESS = "0x298966b32C968884F716F762f6759e8e5811aE14"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -378,11 +383,11 @@ class AccountMonitor:
         self.recently_posted_low_value = {}
 
         # Add test account directly
-        test_address = w3.to_checksum_address("0xBE18F84532d8F7fB6D7919401c0096F3E257db86")
+        test_address = w3.to_checksum_address(UNDERWATER_ACCOUNT)
 
         # Add both vaults
-        collateral_vault_address = w3.to_checksum_address("0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9")
-        controller_vault_address = w3.to_checksum_address("0x298966b32C968884F716F762f6759e8e5811aE14")
+        collateral_vault_address = w3.to_checksum_address(COLLATERAL_VAULT_ADDRESS)
+        controller_vault_address = w3.to_checksum_address(CONTROLLER_VAULT_ADDRESS)
         
         # Create and store both vaults
         self.vaults[collateral_vault_address] = Vault(collateral_vault_address)
@@ -1026,8 +1031,6 @@ class EVCListener:
         """
         Modified to only monitor specific test address
         """
-        test_address = "0xbE18f84532d8f7fb6d7919401C0096f3e257DB8b"
-        
         while True:
             try:
                 # Just update the test account periodically
