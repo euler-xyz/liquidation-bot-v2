@@ -378,11 +378,11 @@ class AccountMonitor:
         self.recently_posted_low_value = {}
 
         # Add test account directly
-        test_address = w3.to_checksum_address("0x831429A969928a2780b5C447118f5531c4dF06F5")
+        test_address = w3.to_checksum_address("0xBE18F84532d8F7fB6D7919401c0096F3E257db86")
 
         # Add both vaults
-        collateral_vault_address = w3.to_checksum_address("0x27052EA5E307B6e8566D9eE560231C6742a6c03c")
-        controller_vault_address = w3.to_checksum_address("0x67e4e4e73947257ca62d118e0fbc56d06f11d96f")
+        collateral_vault_address = w3.to_checksum_address("0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9")
+        controller_vault_address = w3.to_checksum_address("0x298966b32C968884F716F762f6759e8e5811aE14")
         
         # Create and store both vaults
         self.vaults[collateral_vault_address] = Vault(collateral_vault_address)
@@ -498,9 +498,9 @@ class AccountMonitor:
                                             "for account %s, recently posted", address)
                         else:
                             try:
-                                post_unhealthy_account_on_slack(address, account.controller.address,
-                                                                health_score,
-                                                                account.value_borrowed)
+                                # post_unhealthy_account_on_slack(address, account.controller.address,
+                                #                                 health_score,
+                                #                                 account.value_borrowed)
                                 logger.info("Valut borrowed: %s", account.value_borrowed)
                                 if account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
                                     self.recently_posted_low_value[account.address] = time.time()
@@ -714,7 +714,7 @@ class AccountMonitor:
         while self.running:
             try:
                 sorted_accounts = self.get_accounts_by_health_score()
-                post_low_health_account_report(sorted_accounts)
+                # post_low_health_account_report(sorted_accounts)
                 time.sleep(config.LOW_HEALTH_REPORT_INTERVAL)
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("AccountMonitor: Failed to post low health account report: %s", ex,
@@ -1026,7 +1026,7 @@ class EVCListener:
         """
         Modified to only monitor specific test address
         """
-        test_address = "0x831429A969928a2780b5C447118f5531c4dF06F5"
+        test_address = "0xbE18f84532d8f7fb6d7919401C0096f3e257DB8b"
         
         while True:
             try:
@@ -1497,6 +1497,7 @@ class Quoter:
     def __init__(self):
         pass
 
+    @staticmethod
     def get_swap_api_quote(
         chain_id: int,
         token_in: str, 
@@ -1534,7 +1535,7 @@ class Quoter:
         }
 
         response = make_api_request(SWAP_API_URL, headers={}, params=params)
-        
+        logger.info(response)
         if not response or not response["success"]:
             logger.error("Unable to get quote from swap api")
             return None

@@ -53,7 +53,8 @@ def get_swap_quote(
         "targetDebt": str(target_debt)  # Fully repay the debt
     }
 
-    response = requests.get("http://localhost:3002/swap", params=params)
+    # response = requests.get("http://localhost:3002/swap", params=params)
+    response = requests.get("https://data.euler.finance/swap", params=params)
     
     if not response.ok:
         raise Exception(f"Request failed: {response.status_code} {response.text}")
@@ -73,16 +74,16 @@ def get_swap_quote(
 
 # Example usage
 if __name__ == "__main__":
-    IN_VAULT = "0x27052ea5e307b6e8566d9ee560231c6742a6c03c"
+    IN_VAULT = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
     LIQUIDATOR_EOA = "0x8cbB534874bab83e44a7325973D2F04493359dF8" 
-    BORROW_VAULT = "0x67e4e4e73947257Ca62D118E0FBC56D06f11d96F"
+    BORROW_VAULT = "0x298966b32C968884F716F762f6759e8e5811aE14"
     
     try:
         swap_response = get_swap_quote(
             chain_id=1,
             token_in="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            token_out="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  
-            amount=48959825,
+            token_out="0xDD629E5241CbC5919847783e6C96B2De4754e438",  
+            amount=170415589282,
             # amount=int(.04061*10**18),
             min_amount_out=0,
             receiver=BORROW_VAULT,
