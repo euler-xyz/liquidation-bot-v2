@@ -1288,7 +1288,7 @@ class Liquidator:
             chain_id = config.CHAIN_ID,
             token_in = collateral_asset,
             token_out = borrowed_asset,
-            amount = seized_collateral_assets,
+            amount = int(seized_collateral_assets *.999),
             min_amount_out = max_repay,
             receiver = config.SWAPPER,
             vault_in = collateral_vault_address,
