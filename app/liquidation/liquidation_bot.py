@@ -16,8 +16,7 @@ from typing import Tuple, Dict, Any, Optional
 
 from dotenv import load_dotenv
 from web3 import Web3
-# from eth_abi.abi import encode, decode
-# from eth_utils import to_hex, keccak
+from web3.logs import DISCARD
 
 from app.liquidation.utils import (setup_logger,
                    setup_w3,
@@ -38,6 +37,7 @@ load_dotenv()
 API_KEY_1INCH = os.getenv("API_KEY_1INCH")
 LIQUIDATOR_EOA = os.getenv("LIQUIDATOR_EOA")
 LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv("LIQUIDATOR_PRIVATE_KEY")
+SWAP_API_URL = os.getenv("SWAP_API_URL")
 
 config = load_config()
 
@@ -1196,8 +1196,8 @@ class Liquidator:
             "profit": 0,
             "collateral_address": None,
             "collateral_asset": None,
-            "leftover_collateral": 0, 
-            "leftover_collateral_in_eth": 0
+            "leftover_borrow": 0, 
+            "leftover_borrow_in_eth": 0
         }
         max_profit_params = None
 
@@ -1243,11 +1243,11 @@ class Liquidator:
         if max_profit_data["tx"]:
             logger.info("Liquidator: Profitable liquidation found for account %s. "
                         "Collateral: %s, Underlying Collateral Asset: %s, "
-                        "Remaining collateral after swap and repay: %s, "
+                        "Remaining borrow asset after swap and repay: %s, "
                         "Estimated profit in ETH: %s",
                         violator_address, max_profit_data["collateral_address"],
-                        max_profit_data["collateral_asset"], max_profit_data["leftover_collateral"],
-                        max_profit_data["leftover_collateral_in_eth"])
+                        max_profit_data["collateral_asset"], max_profit_data["leftover_borrow"],
+                        max_profit_data["leftover_borrow_in_eth"])
             return (True, max_profit_data, max_profit_params)
         return (False, None, None)
 
@@ -1284,55 +1284,67 @@ class Liquidator:
                         max_repay, seized_collateral_shares)
             return ({"profit": 0}, None)
 
-        swap_type = 1
-        (swap_amount, _) = Quoter.get_quote(collateral_asset,
-                                                  borrowed_asset,
-                                                  seized_collateral_assets,
-                                                 int(max_repay  * ( 1 + config.OVERSWAP_AMOUNT)) , swap_type)
-        # If something fails with 1inch, try uniswap
-        if swap_amount == -1:
-            swap_type = 2
-            (swap_amount, _) = Quoter.get_quote(collateral_asset,
-                                                  borrowed_asset,
-                                                  seized_collateral_assets,
-                                                  int(max_repay  * ( 1 + config.OVERSWAP_AMOUNT)) , swap_type)
+        swap_api_response = Quoter.get_swap_api_quote(
+            chain_id = config.CHAIN_ID,
+            token_in = collateral_asset,
+            token_out = borrowed_asset,
+            amount = int(seized_collateral_assets *.999),
+            min_amount_out = max_repay,
+            receiver = config.SWAPPER,
+            vault_in = collateral_vault_address,
+            account_in = config.SWAPPER,
+            account_out = config.SWAPPER,
+            swapper_mode = "0",
+            slippage = config.SWAP_SLIPPAGE,
+            deadline = int(time.time()) + config.SWAP_DEADLINE,
+            is_repay = False,
+            current_debt = max_repay,
+            target_debt = 0
+        )
 
-        logger.info("Liquidator: Final swap amount %s", swap_amount)
+        if not swap_api_response:
+            return ({"profit": 0}, None)
 
-        estimated_slippage_needed = .1 # TODO: actual slippage calculation
+        amount_out = int(swap_api_response['amountOut'])
+        leftover_borrow = amount_out - max_repay
 
-        time.sleep(config.API_REQUEST_DELAY)
-
-        swap_data = Quoter.get_swap_data(collateral_asset,
-                                                     borrowed_asset,
-                                                     swap_amount,
-                                                     config.SWAPPER,
-                                                     LIQUIDATOR_EOA,
-                                                    #  config.LIQUIDATOR_CONTRACT,
-                                                     config.SWAPPER,
-                                                     swap_type,
-                                                     estimated_slippage_needed)
-
-        leftover_collateral = seized_collateral_assets - swap_amount
-
-        time.sleep(config.API_REQUEST_DELAY)
-
-        # Convert leftover asset to WETH
-        if collateral_asset != config.WETH:
-            (_, leftover_collateral_in_eth) = Quoter.get_quote(collateral_asset,
-                                                                    config.WETH,
-                                                                    leftover_collateral,
-                                                                    0, swap_type)
+        if borrowed_asset != config.WETH:
+            borrow_to_eth_response = Quoter.get_swap_api_quote(
+                chain_id = config.CHAIN_ID,
+                token_in = borrowed_asset,
+                token_out = config.WETH,
+                amount = leftover_borrow,
+                min_amount_out = 0,
+                receiver = LIQUIDATOR_EOA,
+                vault_in = vault.address,
+                account_in = LIQUIDATOR_EOA,
+                account_out = LIQUIDATOR_EOA,
+                swapper_mode = "0",
+                slippage = config.SWAP_SLIPPAGE,
+                deadline = int(time.time()) + config.SWAP_DEADLINE,
+                is_repay = False,
+                current_debt = 0,
+                target_debt = 0
+            )
+            leftover_borrow_in_eth = int(borrow_to_eth_response['amountOut'])
         else:
-            leftover_collateral_in_eth = leftover_collateral
+            leftover_borrow_in_eth = leftover_borrow
 
-        logger.info("Liquidator: Seized collatearl assets: %s, swap amount: %s, "
-                    "leftover_collatearl: %s", seized_collateral_assets, swap_amount,
-                    leftover_collateral_in_eth)
+        time.sleep(config.API_REQUEST_DELAY)
 
-        if leftover_collateral_in_eth < 0:
-            logger.warning("Liquidator: Negative leftover collateral value, aborting liquidation")
-            return None
+        swap_data = []
+        for _, item in enumerate(swap_api_response['swap']['multicallItems']):
+            if item['functionName'] != 'swap':
+                continue
+            swap_data.append(item['data'])
+
+        logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
+                    "leftover_borrow: %s", seized_collateral_assets, amount_out,
+                    leftover_borrow_in_eth)
+
+        if leftover_borrow_in_eth < 0:
+            logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
+            return ({"profit": 0}, None)
 
 
         time.sleep(config.API_REQUEST_DELAY)
@@ -1345,12 +1357,9 @@ class Liquidator:
                 collateral_asset,
                 max_repay,
                 seized_collateral_shares,
-                swap_amount,
-                leftover_collateral,
-                swap_type,
-                swap_data,
                 config.PROFIT_RECEIVER
         )
+
 
         logger.info("Liquidator: Liquidation details: %s", params)
 
@@ -1400,7 +1409,7 @@ class Liquidator:
             update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
             update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-                params, update_data
+                params, swap_data, update_data
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "from": LIQUIDATOR_EOA,
@@ -1412,7 +1421,7 @@ class Liquidator:
             logger.info("Liquidator: executing with Redstone")
             addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
-                params, update_data, addresses
+                params, swap_data, update_data, addresses
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "gasPrice": suggested_gas_price,
@@ -1433,7 +1442,7 @@ class Liquidator:
             #     })
 
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-                params
+                params, swap_data
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "gasPrice": suggested_gas_price,
@@ -1441,7 +1450,7 @@ class Liquidator:
                     "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
                 })
 
-        net_profit = leftover_collateral_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
         logger.info("Net profit: %s", net_profit)
 
         return ({
@@ -1449,8 +1458,8 @@ class Liquidator:
             "profit": net_profit, 
             "collateral_address": collateral_vault.address,
             "collateral_asset": collateral_asset,
-            "leftover_collateral": leftover_collateral, 
-            "leftover_collateral_in_eth": leftover_collateral_in_eth
+            "leftover_collateral": leftover_borrow, 
+            "leftover_collateral_in_eth": leftover_borrow_in_eth
         }, params)
 
     @staticmethod
@@ -1481,7 +1490,7 @@ class Liquidator:
             liquidator_contract = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                                            config.LIQUIDATOR_ABI_PATH)
 
-            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt)
+            result = liquidator_contract.events.Liquidation().process_receipt(tx_receipt, errors=DISCARD)
 
             logger.info("Liquidator: Liquidation details: ")
             for event in result:
@@ -1501,6 +1510,56 @@ class Quoter:
     """
     def __init__(self):
         pass
+
+    def get_swap_api_quote(
+        chain_id: int,
+        token_in: str, 
+        token_out: str,
+        amount: int, # exact in - amount to sell, exact out - amount to buy, exact out repay - estimated amount to buy (from current debt)
+        min_amount_out: int,
+        receiver: str, # vault to swap or repay to
+        vault_in: str,
+        account_in: str,
+        account_out: str,
+        swapper_mode: str,
+        slippage: float, #in percent 1 = 1%
+        deadline: int,
+        is_repay: bool,
+        current_debt: int, # needed in exact input or output and with `isRepay` set
+        target_debt: int # ignored if not in target debt mode
+    ):
+
+        params = {
+            "chainId": str(chain_id),
+            "tokenIn": token_in,
+            "tokenOut": token_out, 
+            "amount": str(amount),
+            "receiver": receiver,
+            "vaultIn": vault_in,
+            "origin": LIQUIDATOR_EOA,
+            "accountIn": account_in,
+            "accountOut": account_out,
+            "swapperMode": swapper_mode,  # TARGET_DEBT mode
+            "slippage": str(slippage),
+            "deadline": str(deadline), 
+            "isRepay": str(is_repay),
+            "currentDebt": str(current_debt),
+            "targetDebt": str(target_debt)
+        }
+
+        response = make_api_request(SWAP_API_URL, headers={}, params=params)
+        
+        if not response or not response["success"]:
+            logger.error("Unable to get quote from swap api")
+            return None
+        
+        amount_out = int(response["data"]["amountOut"])
+
+        if amount_out < min_amount_out:
+            logger.error("Quote too low")
+            return None
+        
+        return response["data"]
 
     @staticmethod
     def get_quote(asset_in: str, asset_out: str,

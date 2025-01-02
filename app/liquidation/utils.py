@@ -283,8 +283,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
 
         # Unpack params
         violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, \
-        max_repay, seized_collateral_shares, swap_amount, \
-        leftover_collateral, _, swap_data_1inch, receiver = params
+        max_repay, seized_collateral_shares, receiver = params
 
         spy_link = get_spy_link(account_address)
 
@@ -297,9 +296,6 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
             "collateral_asset": collateral_asset,
             "max_repay": max_repay,
             "seized_collateral_shares": seized_collateral_shares,
-            "swap_amount": swap_amount,
-            "leftover_collateral": leftover_collateral,
-            "swap_data_1inch": swap_data_1inch,
             "receiver": receiver
         })
 
@@ -320,10 +316,10 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
             f"• Profit: {Web3.from_wei(liquidation_data["profit"], "ether")} ETH\n"
             f"• Collateral Vault Address: `{liquidation_data["collateral_address"]}`\n"
             f"• Collateral Asset: `{liquidation_data["collateral_asset"]}`\n"
-            f"• Leftover Collateral: {Web3.from_wei(liquidation_data["leftover_collateral"],
+            f"• Leftover Borrow Asset: {Web3.from_wei(liquidation_data["leftover_borrow"],
                                                     "ether")}\n"
-            f"• Leftover Collateral in ETH terms (excluding gas): {Web3.from_wei(
-                liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
+            f"• Leftover Borrow Asset in ETH terms (excluding gas): {Web3.from_wei(
+                liquidation_data["leftover_borrow_in_eth"], "ether")} ETH\n\n"
             f"<{execution_url}|Click here to execute this liquidation manually>\n\n"
             f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n\n"
             f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
@@ -368,8 +364,8 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         f"• Profit: {Web3.from_wei(liquidation_data["profit"], "ether")} ETH\n"
         f"• Collateral Vault Address: `{liquidation_data["collateral_address"]}`\n"
         f"• Collateral Asset: `{liquidation_data["collateral_asset"]}`\n"
-        f"• Leftover Collateral: {Web3.from_wei(liquidation_data["leftover_collateral"], "ether")} {liquidation_data["collateral_asset"]}\n"
-        f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data["leftover_collateral_in_eth"], "ether")} ETH\n\n"
+        f"• Leftover Collateral: {Web3.from_wei(liquidation_data["leftover_borrow"], "ether")} {liquidation_data["collateral_asset"]}\n"
+        f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data["leftover_borrow_in_eth"], "ether")} ETH\n\n"
         f"• Transaction: <{tx_url}|View Transaction on Explorer>\n\n"
         f"Time of liquidation: {time.strftime("%Y-%m-%d %H:%M:%S")}\n\n"
         f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
