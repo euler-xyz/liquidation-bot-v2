@@ -1458,8 +1458,8 @@ class Liquidator:
             "profit": net_profit, 
             "collateral_address": collateral_vault.address,
             "collateral_asset": collateral_asset,
-            "leftover_collateral": leftover_borrow, 
-            "leftover_collateral_in_eth": leftover_borrow_in_eth
+            "leftover_borrow": leftover_borrow,
+            "leftover_borrow_in_eth": leftover_borrow_in_eth
         }, params)
 
     @staticmethod
@@ -1510,7 +1510,8 @@ class Quoter:
     """
     def __init__(self):
         pass
-
+    
+    @staticmethod
     def get_swap_api_quote(
         chain_id: int,
         token_in: str, 
