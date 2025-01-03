@@ -185,7 +185,7 @@ def get_spy_link(account):
 
     subaccount_number = int(int(account, 16) ^ int(owner, 16))
 
-    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}&chainId={loaded_config.CHAIN_ID}"
     
     return spy_link
 
@@ -413,7 +413,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
             
             formatted_value = f"{formatted_value:,.2f}"
 
-            spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+            spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}&chainId={loaded_config.CHAIN_ID}"
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 
