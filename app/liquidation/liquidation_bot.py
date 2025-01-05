@@ -1563,7 +1563,7 @@ class Quoter:
         return response["data"]
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(False, True)
+    acct_monitor = AccountMonitor(True, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
