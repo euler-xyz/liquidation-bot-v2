@@ -882,11 +882,11 @@ class PullOracleHandler:
                                 vault.address, configured_oracle_address)
                     redstone_feed_ids.append((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
-                elif configured_oracle_name == "CrossOracle":
+                elif configured_oracle_name == "CrossAdapter":
                     pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle)
-                    pyth_feed_ids.append(pyth_ids)
-                    redstone_feed_ids.append(redstone_ids)
+                    pyth_feed_ids += pyth_ids
+                    redstone_feed_ids += redstone_ids
 
             return pyth_feed_ids, redstone_feed_ids
 
@@ -917,7 +917,7 @@ class PullOracleHandler:
         oracle_quote_name = oracle_quote.functions.name().call()
 
         if oracle_quote_name == "PythOracle":
-            pyth_feed_ids.append(oracle_quote.functions.feedId().call())
+            pyth_feed_ids.append(oracle_quote.functions.feedId().call().hex())
         elif oracle_quote_name == "RedstoneCoreOracle":
             redstone_feed_ids.append((oracle_quote_address,
                                       oracle_quote.functions.feedId().call().hex()))
@@ -925,7 +925,6 @@ class PullOracleHandler:
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote)
             pyth_feed_ids.append(pyth_ids)
             redstone_feed_ids.append(redstone_ids)
-
         return pyth_feed_ids, redstone_feed_ids
 
     @staticmethod
@@ -1553,231 +1552,19 @@ class Quoter:
         }
 
         response = make_api_request(SWAP_API_URL, headers={}, params=params)
-        
+
         if not response or not response["success"]:
             logger.error("Unable to get quote from swap api")
             return None
-        
+
         amount_out = int(response["data"]["amountOut"])
 
         if amount_out < min_amount_out:
             logger.error("Quote too low")
             return None
-        
+
         return response["data"]
 
-    @staticmethod
-    def get_quote(asset_in: str, asset_out: str,
-                  amount_asset_in: int, target_amount_out: int,
-                  swap_type: int = 1):
-        if swap_type == 1: #1inch swap
-            return Quoter.get_1inch_quote(asset_in, asset_out, amount_asset_in, target_amount_out)
-        elif swap_type == 2: #Uniswap
-            return Quoter.get_uniswap_quote(asset_in, asset_out, amount_asset_in, target_amount_out)
-
-    @staticmethod
-    def get_swap_data(asset_in: str,
-                            asset_out: str,
-                            amount_in: int,
-                            swap_from: str,
-                            tx_origin: str,
-                            swap_receiver: str,
-                            swap_type: int,
-                            slippage: int = 2) -> Optional[str]:
-        if swap_type == 1:
-            return Quoter.get_1inch_swap_data(asset_in, asset_out, amount_in,
-                                              swap_from, tx_origin, swap_receiver, slippage)
-        elif swap_type == 2:
-            return Quoter.get_uniswap_swap_data(asset_in, asset_out, amount_in,
-                                                swap_from, tx_origin, swap_receiver, slippage)
-
-    @staticmethod
-    def get_1inch_quote(asset_in: str,
-                        asset_out: str,
-                        amount_asset_in: int,
-                        target_amount_out: int) -> Tuple[int, int]:
-        """
-        Get a quote from 1inch for swapping assets.
-        If target_amount_out == 0, it is treated as an exact in swap.
-        Otherwise, runs a binary search to find minimum amount in 
-        that results in receiving target_amount_out.
-        Returned actual amount out should always be >= target_amount_out.
-
-        Args:
-            asset_in (str): The address of the input asset.
-            asset_out (str): The address of the output asset.
-            amount_asset_in (int): The amount of input asset.
-            target_amount_out (int): The target amount of output asset.
-
-        Returns:
-            Tuple[int, int]: A tuple containing (actual_amount_in, actual_amount_out).
-        """
-        def get_api_quote(params):
-            """
-            Simple wrapper to get a quote from 1inch.
-            """
-            api_url = f"https://api.1inch.dev/swap/v6.0/{config.CHAIN_ID}/quote"
-            headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
-            response = make_api_request(api_url, headers, params)
-            return int(response["dstAmount"]) if response  else None
-
-        params = {
-            "src": asset_in,
-            "dst": asset_out,
-            "amount": amount_asset_in
-        }
-
-        try:
-            # Special case exact in swap, don't need to do binary search
-            if target_amount_out == 0:
-                amount_out = get_api_quote(params)
-                if amount_out is None:
-                    return (-1, -1)
-                return (amount_asset_in, amount_out)
-
-            # Binary search to find the amount in that will result in the target amount out
-            # Overswaps slightly to make sure we can always repay max_repay
-            min_amount_in, max_amount_in = 0, amount_asset_in
-
-            # Allow for overswap of SWAP_DELTA percent of target amount
-            delta = config.SWAP_DELTA * target_amount_out
-
-            iteration_count = 0
-
-            last_valid_amount_in, last_valid_amount_out = 0, 0
-
-            logger.info("Quoter: Initial request for src %s to dst %s and amount %s",
-                        params["dst"], params["src"], target_amount_out)
-            swap_amount = get_api_quote({"src": params["dst"], "dst": params["src"],
-                                     "amount": target_amount_out})
-
-            logger.info("Quoter: Initial guess for 1inch quote to get %s %s out from %s in: %s",
-                        target_amount_out, asset_out, asset_in, swap_amount)
-            time.sleep(config.API_REQUEST_DELAY)
-
-            min_amount_in = swap_amount * .95
-            max_amount_in = swap_amount * 1.05
-
-            amount_out = 0
-            while iteration_count < config.MAX_SEARCH_ITERATIONS:
-                swap_amount = int((min_amount_in + max_amount_in) / 2)
-                params["amount"] = swap_amount
-                amount_out = get_api_quote(params)
-
-                if amount_out is None:
-                    if last_valid_amount_out > target_amount_out:
-                        logger.warning("Quoter: 1inch quote failed, using last valid "
-                                       "quote: %s %s to %s %s",
-                                       last_valid_amount_in, asset_in,
-                                       last_valid_amount_out, asset_out)
-                        return (last_valid_amount_in, last_valid_amount_out)
-                    logger.warning("Quoter: Failed to get valid 1inch quote "
-                                   "for %s %s to %s", swap_amount, asset_in, asset_out)
-                    return (-1, -1)
-
-                logger.info("Quoter: 1inch quote for %s %s to %s: %s",
-                            swap_amount, asset_in, asset_out, amount_out)
-
-                if amount_out > target_amount_out:
-                    last_valid_amount_in = swap_amount
-                    last_valid_amount_out = amount_out
-
-                if abs(amount_out - target_amount_out) < delta and amount_out > target_amount_out:
-                    break
-                elif amount_out < target_amount_out:
-                    min_amount_in = swap_amount
-
-                    # TODO: could probably be smarter, check this when we figure out smarter bounds
-                    if max_amount_in - swap_amount < max_amount_in * 0.01:
-                        max_amount_in = min(max_amount_in * 1.5, amount_asset_in)
-                        logger.info("Quoter: Increasing max_amount_in to %s", max_amount_in)
-                elif amount_out > target_amount_out:
-                    max_amount_in = swap_amount
-
-                iteration_count +=1
-
-                # need to rate limit until getting enterprise account key
-                time.sleep(config.API_REQUEST_DELAY)
-
-            if iteration_count == config.MAX_SEARCH_ITERATIONS:
-                logger.warning("Quoter: 1inch quote search for %s to %s "
-                               "did not converge after %s iterations.",
-                               asset_in, asset_out, config.MAX_SEARCH_ITERATIONS)
-                if last_valid_amount_out > target_amount_out:
-                    logger.info("Quoter: Using last valid quote: %s %s to %s %s",
-                                last_valid_amount_in, asset_in, last_valid_amount_out, asset_out)
-                    return (last_valid_amount_in, last_valid_amount_out)
-                return (-1, -1)
-
-            return (params["amount"], amount_out)
-        except Exception as ex: # pylint: disable=broad-except
-            logger.error("Quoter: Unexpected error in get_1inch_quote %s", ex, exc_info=True)
-            return (-1, -1)
-
-    @staticmethod
-    def get_1inch_swap_data(asset_in: str,
-                            asset_out: str,
-                            amount_in: int,
-                            swap_from: str,
-                            tx_origin: str,
-                            swap_receiver: str,
-                            slippage: int = 2) -> Optional[str]:
-        """
-        Get swap data from 1inch for executing a swap.
-
-        Args:
-            asset_in (str): The address of the input asset.
-            asset_out (str): The address of the output asset.
-            amount_in (int): The amount of input asset.
-            swap_from (str): The address to swap from.
-            tx_origin (str): The origin of the transaction.
-            slippage (int, optional): The allowed slippage percentage. Defaults to 2.
-
-        Returns:
-            Optional[str]: The swap data if successful, None otherwise.
-        """
-
-        params = {
-            "src": asset_in,
-            "dst": asset_out,
-            "amount": amount_in,
-            "from": swap_from,
-            "origin": tx_origin,
-            "slippage": slippage,
-            "receiver": swap_receiver,
-            "disableEstimate": "true"
-        }
-
-        logger.info("Getting 1inch swap data for %s %s %s %s %s %s %s",
-                    amount_in, asset_in, asset_out, swap_from, tx_origin,
-                    swap_receiver, slippage)
-        logger.info("Params: %s", params)
-
-        api_url = f"https://api.1inch.dev/swap/v6.0/{config.CHAIN_ID}/swap"
-        headers = { "Authorization": f"Bearer {API_KEY_1INCH}" }
-        response = make_api_request(api_url, headers, params)
-
-        return response["tx"]["data"] if response else None
-
-    @staticmethod
-    def get_uniswap_quote(asset_in: str, asset_out: str,
-                  amount_asset_in: int, target_amount_out: int):
-        logger.info("Quoter: Requesting Uniswap quote for %s %s to %s (target out: %s)",
-                    amount_asset_in, asset_in, asset_out, target_amount_out)
-        return (0, 0)
-
-    @staticmethod
-    def get_uniswap_swap_data(asset_in: str,
-                            asset_out: str,
-                            amount_in: int,
-                            swap_from: str,
-                            tx_origin: str,
-                            swap_receiver: str,
-                            slippage: int = 2) -> Optional[str]:
-        logger.info("Quoter: Requesting Uniswap swap data for"
-                    " %s %s to %s, from %s, origin %s, receiver %s, slippage %s%%",
-                    amount_in, asset_in, asset_out, swap_from, tx_origin, swap_receiver, slippage)
-        return None
 
 def get_account_monitor_and_evc_listener():
     acct_monitor = AccountMonitor(True, True)
