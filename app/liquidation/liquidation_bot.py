@@ -1509,6 +1509,7 @@ class Quoter:
     def __init__(self):
         pass
 
+    @staticmethod
     def get_swap_api_quote(
         chain_id: int,
         token_in: str, 
