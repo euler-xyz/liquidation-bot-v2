@@ -36,9 +36,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ### SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x831429A969928a2780b5C447118f5531c4dF06F5"
-COLLATERAL_VAULT_ADDRESS = "0x27052EA5E307B6e8566D9eE560231C6742a6c03c"
-CONTROLLER_VAULT_ADDRESS = "0x67e4e4e73947257Ca62D118E0FBC56D06f11d96F"
+UNDERWATER_ACCOUNT = "0x4625D1e3b392A9C28A1e6c6D0938FdbA57F53A96"
+COLLATERAL_VAULT_ADDRESS = "0xcf47fBe97aaE77B8ABEa5e1F59c9bcb808A8d47d"
+CONTROLLER_VAULT_ADDRESS = "0x8dDE384022D4dE1D6C67891a8865f551c444dc4C"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -897,6 +897,8 @@ class PullOracleHandler:
                     logger.info("PullOracleHandler: Error calling contract for oracle"
                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
                     continue
+
+                logger.info("Asset: %s, Configured oracle name: %s, address: %s", asset, configured_oracle_name, configured_oracle_address)
                 if configured_oracle_name == "PythOracle":
                     logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
                                 "Address - %s", vault.address, configured_oracle_address)
@@ -907,11 +909,11 @@ class PullOracleHandler:
                                 vault.address, configured_oracle_address)
                     redstone_feed_ids.append((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
-                elif configured_oracle_name == "CrossOracle":
+                elif configured_oracle_name == "CrossAdapter":
                     pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle)
-                    pyth_feed_ids.append(pyth_ids)
-                    redstone_feed_ids.append(redstone_ids)
+                    pyth_feed_ids += pyth_ids
+                    redstone_feed_ids += redstone_ids
 
             return pyth_feed_ids, redstone_feed_ids
 
@@ -942,7 +944,7 @@ class PullOracleHandler:
         oracle_quote_name = oracle_quote.functions.name().call()
 
         if oracle_quote_name == "PythOracle":
-            pyth_feed_ids.append(oracle_quote.functions.feedId().call())
+            pyth_feed_ids.append(oracle_quote.functions.feedId().call().hex())
         elif oracle_quote_name == "RedstoneCoreOracle":
             redstone_feed_ids.append((oracle_quote_address,
                                       oracle_quote.functions.feedId().call().hex()))
@@ -951,6 +953,10 @@ class PullOracleHandler:
             pyth_feed_ids.append(pyth_ids)
             redstone_feed_ids.append(redstone_ids)
 
+        logger.info("CROSS: Base asset")
+        logger.info("Configured oracle name: %s, address: %s", oracle_base_name, oracle_base_address)
+        logger.info("CROSS: Quote asset")
+        logger.info("Configured oracle name: %s, address: %s", oracle_quote_name, oracle_quote_address)
         return pyth_feed_ids, redstone_feed_ids
 
     @staticmethod
