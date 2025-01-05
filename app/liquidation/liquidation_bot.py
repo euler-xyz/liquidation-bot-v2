@@ -882,11 +882,11 @@ class PullOracleHandler:
                                 vault.address, configured_oracle_address)
                     redstone_feed_ids.append((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
-                elif configured_oracle_name == "CrossOracle":
+                elif configured_oracle_name == "CrossAdapter":
                     pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle)
-                    pyth_feed_ids.append(pyth_ids)
-                    redstone_feed_ids.append(redstone_ids)
+                    pyth_feed_ids += pyth_ids
+                    redstone_feed_ids += redstone_ids
 
             return pyth_feed_ids, redstone_feed_ids
 
@@ -917,7 +917,7 @@ class PullOracleHandler:
         oracle_quote_name = oracle_quote.functions.name().call()
 
         if oracle_quote_name == "PythOracle":
-            pyth_feed_ids.append(oracle_quote.functions.feedId().call())
+            pyth_feed_ids.append(oracle_quote.functions.feedId().call().hex())
         elif oracle_quote_name == "RedstoneCoreOracle":
             redstone_feed_ids.append((oracle_quote_address,
                                       oracle_quote.functions.feedId().call().hex()))
@@ -925,7 +925,6 @@ class PullOracleHandler:
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote)
             pyth_feed_ids.append(pyth_ids)
             redstone_feed_ids.append(redstone_ids)
-
         return pyth_feed_ids, redstone_feed_ids
 
     @staticmethod
