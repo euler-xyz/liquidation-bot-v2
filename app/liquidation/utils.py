@@ -391,7 +391,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
     # Filter accounts below the threshold
     low_health_accounts = [
         (address, owner, subaccount, score, value, _, _) for address, owner, subaccount, score, value, _, _ in sorted_accounts
-        if score < config.SLACK_REPORT_HEALTH_SCORE and value > (config.BORROW_VALUE_THRESHOLD * 10**18)
+        if (score < config.SLACK_REPORT_HEALTH_SCORE and value > (config.BORROW_VALUE_THRESHOLD * 10**18)) or score < 1.0
     ]
 
     total_value = sum(value / 10**18 for _, _, _, _, value, _, _ in sorted_accounts)
