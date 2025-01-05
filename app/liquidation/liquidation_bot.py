@@ -36,9 +36,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ### SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x75Cfe4eF963232Ae8313aC33e21fC3924133860b"
-COLLATERAL_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
-CONTROLLER_VAULT_ADDRESS = "0x056f3a2E41d2778D3a0c0714439c53af2987718E"
+UNDERWATER_ACCOUNT = "0x831429A969928a2780b5C447118f5531c4dF06F5"
+COLLATERAL_VAULT_ADDRESS = "0x27052EA5E307B6e8566D9eE560231C6742a6c03c"
+CONTROLLER_VAULT_ADDRESS = "0x67e4e4e73947257Ca62D118E0FBC56D06f11d96F"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -1765,7 +1765,7 @@ class Quoter:
         return None
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(True, True)
+    acct_monitor = AccountMonitor(False, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
