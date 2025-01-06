@@ -14,7 +14,6 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
 
-from dotenv import load_dotenv
 from web3 import Web3
 from web3.logs import DISCARD
 
@@ -24,7 +23,6 @@ from app.liquidation.utils import (setup_logger,
                    make_api_request,
                    global_exception_handler,
                    post_liquidation_opportunity_on_slack,
-                   load_config,
                    post_liquidation_result_on_slack,
                    post_low_health_account_report,
                    post_unhealthy_account_on_slack,
@@ -32,14 +30,11 @@ from app.liquidation.utils import (setup_logger,
                    get_eth_usd_quote,
                    get_btc_usd_quote)
 
-### ENVIRONMENT & CONFIG SETUP ###
-load_dotenv()
-API_KEY_1INCH = os.getenv("API_KEY_1INCH")
-LIQUIDATOR_EOA = os.getenv("LIQUIDATOR_EOA")
-LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv("LIQUIDATOR_PRIVATE_KEY")
-SWAP_API_URL = os.getenv("SWAP_API_URL")
+from app.liquidation.config_loader import load_chain_config
 
-config = load_config()
+### ENVIRONMENT & CONFIG SETUP ###
+chain_id = 8453
+config = load_chain_config(chain_id)
 
 logger = setup_logger(config.LOGS_PATH)
 w3 = setup_w3()
@@ -1274,7 +1269,7 @@ class Liquidator:
 
         (max_repay, seized_collateral_shares) = vault.check_liquidation(violator_address,
                                                                  collateral_vault_address,
-                                                                 LIQUIDATOR_EOA)
+                                                                 config.LIQUIDATOR_EOA)
 
         seized_collateral_assets = collateral_vault.convert_to_assets(seized_collateral_shares)
 
@@ -1314,10 +1309,10 @@ class Liquidator:
                 token_out = config.WETH,
                 amount = leftover_borrow,
                 min_amount_out = 0,
-                receiver = LIQUIDATOR_EOA,
+                receiver = config.LIQUIDATOR_EOA,
                 vault_in = vault.address,
-                account_in = LIQUIDATOR_EOA,
-                account_out = LIQUIDATOR_EOA,
+                account_in = config.LIQUIDATOR_EOA,
+                account_out = config.LIQUIDATOR_EOA,
                 swapper_mode = "0",
                 slippage = config.SWAP_SLIPPAGE,
                 deadline = int(time.time()) + config.SWAP_DEADLINE,
@@ -1376,8 +1371,8 @@ class Liquidator:
         #         ).build_transaction({
         #             "chainId": config.CHAIN_ID,
         #             "gasPrice": suggested_gas_price,
-        #             "from": LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+        #             "from": config.LIQUIDATOR_EOA,
+        #             "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA),
         #             "value": update_fee
         #         })
         # else:
@@ -1387,8 +1382,8 @@ class Liquidator:
         #         ).build_transaction({
         #             "chainId": config.CHAIN_ID,
         #             "gasPrice": suggested_gas_price,
-        #             "from": LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+        #             "from": config.LIQUIDATOR_EOA,
+        #             "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
         #         })
 
         #From flashbots example code
@@ -1410,8 +1405,8 @@ class Liquidator:
                 params, swap_data, update_data
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
-                    "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+                    "from": config.LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA),
                     "value": update_fee,
                     "gasPrice": suggested_gas_price
                 })
@@ -1423,8 +1418,8 @@ class Liquidator:
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "gasPrice": suggested_gas_price,
-                    "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                    "from": config.LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
         else:
             logger.info("Liquidator: executing normally")
@@ -1432,8 +1427,8 @@ class Liquidator:
             #     params
             #     ).build_transaction({
             #         "chainId": config.CHAIN_ID,
-            #         "from": LIQUIDATOR_EOA,
-            #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+            #         "from": config.LIQUIDATOR_EOA,
+            #         "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA),
             #         "gas": 21000,
             #         "maxFeePerGas": max_fee,
             #         "maxPriorityFeePerGas": max_priority_fee
@@ -1444,8 +1439,8 @@ class Liquidator:
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "gasPrice": suggested_gas_price,
-                    "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                    "from": config.LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
 
         net_profit = leftover_borrow_in_eth - (
@@ -1477,12 +1472,12 @@ class Liquidator:
             # flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
 
             # signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
-            #                                             LIQUIDATOR_EOA_PRIVATE_KEY)
+            #                                             config.LIQUIDATOR_EOA_PRIVATE_KEY)
             # tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             # tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
             signed_tx = w3.eth.account.sign_transaction(liquidation_transaction,
-                                                        LIQUIDATOR_EOA_PRIVATE_KEY)
+                                                        config.LIQUIDATOR_EOA_PRIVATE_KEY)
             tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
@@ -1514,7 +1509,7 @@ class Quoter:
     @staticmethod
     def get_swap_api_quote(
         chain_id: int,
-        token_in: str, 
+        token_in: str,
         token_out: str,
         amount: int, # exact in - amount to sell, exact out - amount to buy, exact out repay - estimated amount to buy (from current debt)
         min_amount_out: int,
@@ -1537,7 +1532,7 @@ class Quoter:
             "amount": str(amount),
             "receiver": receiver,
             "vaultIn": vault_in,
-            "origin": LIQUIDATOR_EOA,
+            "origin": config.LIQUIDATOR_EOA,
             "accountIn": account_in,
             "accountOut": account_out,
             "swapperMode": swapper_mode,  # TARGET_DEBT mode
@@ -1548,7 +1543,7 @@ class Quoter:
             "targetDebt": str(target_debt)
         }
 
-        response = make_api_request(SWAP_API_URL, headers={}, params=params)
+        response = make_api_request(config.SWAP_API_URL, headers={}, params=params)
 
         if not response or not response["success"]:
             logger.error("Unable to get quote from swap api")
@@ -1563,7 +1558,7 @@ class Quoter:
         return response["data"]
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(False, True)
+    acct_monitor = AccountMonitor(True, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
