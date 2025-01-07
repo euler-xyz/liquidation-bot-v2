@@ -36,9 +36,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ### SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x4625D1e3b392A9C28A1e6c6D0938FdbA57F53A96"
-COLLATERAL_VAULT_ADDRESS = "0xcf47fBe97aaE77B8ABEa5e1F59c9bcb808A8d47d"
-CONTROLLER_VAULT_ADDRESS = "0x8dDE384022D4dE1D6C67891a8865f551c444dc4C"
+UNDERWATER_ACCOUNT = "0xA2C3e2C6F55c3Dd8d5Fe66606Acf1b308a977a17"
+COLLATERAL_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
+CONTROLLER_VAULT_ADDRESS = "0x056f3a2E41d2778D3a0c0714439c53af2987718E"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -1403,7 +1403,7 @@ class Liquidator:
             update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
             update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-                params, swap_data, update_data
+                params, swap_data, [update_data]
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "from": LIQUIDATOR_EOA,
