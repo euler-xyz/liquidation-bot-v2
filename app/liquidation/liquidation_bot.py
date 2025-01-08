@@ -36,9 +36,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ### SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0xA2C3e2C6F55c3Dd8d5Fe66606Acf1b308a977a17"
-COLLATERAL_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
-CONTROLLER_VAULT_ADDRESS = "0x056f3a2E41d2778D3a0c0714439c53af2987718E"
+UNDERWATER_ACCOUNT = "0xe75358526Ef4441Db03cCaEB9a87F180fAe80eb9"
+COLLATERAL_VAULT_ADDRESS = "0xb3b36220fA7d12f7055dab5c9FD18E860e9a6bF8"
+CONTROLLER_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -898,7 +898,7 @@ class PullOracleHandler:
                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
                     continue
 
-                logger.info("Asset: %s, Configured oracle name: %s, address: %s", asset, configured_oracle_name, configured_oracle_address)
+                # logger.info("Asset: %s, Configured oracle name: %s, address: %s", asset, configured_oracle_name, configured_oracle_address)
                 if configured_oracle_name == "PythOracle":
                     logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
                                 "Address - %s", vault.address, configured_oracle_address)
@@ -953,10 +953,6 @@ class PullOracleHandler:
             pyth_feed_ids.append(pyth_ids)
             redstone_feed_ids.append(redstone_ids)
 
-        logger.info("CROSS: Base asset")
-        logger.info("Configured oracle name: %s, address: %s", oracle_base_name, oracle_base_address)
-        logger.info("CROSS: Quote asset")
-        logger.info("Configured oracle name: %s, address: %s", oracle_quote_name, oracle_quote_address)
         return pyth_feed_ids, redstone_feed_ids
 
     @staticmethod
@@ -1771,7 +1767,7 @@ class Quoter:
         return None
 
 def get_account_monitor_and_evc_listener():
-    acct_monitor = AccountMonitor(False, True)
+    acct_monitor = AccountMonitor(True, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
 
     evc_listener = EVCListener(acct_monitor)
