@@ -36,9 +36,12 @@ from app.liquidation.utils import (setup_logger,
 
 
 ### SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0xe75358526Ef4441Db03cCaEB9a87F180fAe80eb9"
-COLLATERAL_VAULT_ADDRESS = "0xb3b36220fA7d12f7055dab5c9FD18E860e9a6bF8"
-CONTROLLER_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
+UNDERWATER_ACCOUNT = "0x75cfE4ef963232aE8313Ac33E21Fc3924133860A"
+COLLATERAL_VAULT_ADDRESS = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
+CONTROLLER_VAULT_ADDRESS = "0x998D761eC1BAdaCeb064624cc3A1d37A46C88bA4"
+# UNDERWATER_ACCOUNT = "0xdD4613c714927a65fA37aE34650cc3EaD740A000"
+# COLLATERAL_VAULT_ADDRESS = "0x29A9E5A004002Ff9E960bb8BB536E076F53cbDF1"
+# CONTROLLER_VAULT_ADDRESS = "0xE0c1bdab9A7d487c4fEcd402cb9b4f8B347e73c3"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -864,6 +867,9 @@ class PullOracleHandler:
 
     @staticmethod
     def get_feed_ids(vault):
+        # pyth_feed_ids = ['e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43']
+        # redstone_feed_ids = []
+        # return pyth_feed_ids, redstone_feed_ids
         try:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
@@ -1190,6 +1196,8 @@ class Liquidator:
         max_profit_params = None
 
         collateral_vaults = {collateral: Vault(collateral) for collateral in collateral_list}
+
+        logger.info("Collateral vaults: %s", collateral_vaults)
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
