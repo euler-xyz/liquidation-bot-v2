@@ -842,8 +842,6 @@ class PullOracleHandler:
         try:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
-
-
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
@@ -857,10 +855,6 @@ class PullOracleHandler:
             # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
 
             for asset in asset_list:
-                # configured_oracle_address = oracle.functions.getConfiguredOracle(asset,
-                #                                                                  unit_of_account
-                #                                                                  ).call()
-
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
 
                 configured_oracle = create_contract_instance(configured_oracle_address,
@@ -1565,6 +1559,7 @@ class Quoter:
 def get_account_monitor_and_evc_listener():
     acct_monitor = AccountMonitor(True, True)
     acct_monitor.load_state(config.SAVE_STATE_PATH)
+    logger.info("State loaded")
 
     evc_listener = EVCListener(acct_monitor)
 
