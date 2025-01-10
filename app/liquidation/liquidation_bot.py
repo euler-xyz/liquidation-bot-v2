@@ -17,6 +17,7 @@ from typing import Tuple, Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 from web3.logs import DISCARD
+from eth_abi.abi import encode, decode
 # from eth_abi.abi import encode, decode
 # from eth_utils import to_hex, keccak
 
@@ -131,7 +132,7 @@ class Vault:
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
                             account_address, ex)
-            return (balance, 0, 0)
+            return (balance, 100, 100)
 
         return (balance, collateral_value, liability_value)
 
@@ -871,9 +872,9 @@ class PullOracleHandler:
 
     @staticmethod
     def get_feed_ids(vault):
-        # pyth_feed_ids = ['eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', 'f9c96a45784d0ce4390825a43a313149da787e6a6c66076f3a3f83e92501baeb']
-        # redstone_feed_ids = []
-        # return pyth_feed_ids, redstone_feed_ids
+        pyth_feed_ids = ['eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', 'f9c96a45784d0ce4390825a43a313149da787e6a6c66076f3a3f83e92501baeb']
+        redstone_feed_ids = []
+        return pyth_feed_ids, redstone_feed_ids
         try:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
@@ -1307,36 +1308,37 @@ class Liquidator:
 
         amount_out = int(swap_api_response['amountOut'])
         leftover_borrow = amount_out - max_repay
+        leftover_borrow_in_eth = leftover_borrow
 
-        if borrowed_asset != config.WETH:
-            borrow_to_eth_response = Quoter.get_swap_api_quote(
-                chain_id = config.CHAIN_ID,
-                token_in = borrowed_asset,
-                token_out = config.WETH,
-                amount = leftover_borrow,
-                min_amount_out = 0,
-                receiver = LIQUIDATOR_EOA,
-                vault_in = vault.address,
-                account_in = LIQUIDATOR_EOA,
-                account_out = LIQUIDATOR_EOA,
-                swapper_mode = "0",
-                slippage = config.SWAP_SLIPPAGE,
-                deadline = int(time.time()) + config.SWAP_DEADLINE,
-                is_repay = False,
-                current_debt = 0,
-                target_debt = 0
-            )
-            leftover_borrow_in_eth = int(borrow_to_eth_response['amountOut'])
-        else:
-            leftover_borrow_in_eth = leftover_borrow
+        # if borrowed_asset != config.WETH:
+        #     borrow_to_eth_response = Quoter.get_swap_api_quote(
+        #         chain_id = config.CHAIN_ID,
+        #         token_in = borrowed_asset,
+        #         token_out = config.WETH,
+        #         amount = leftover_borrow,
+        #         min_amount_out = 0,
+        #         receiver = LIQUIDATOR_EOA,
+        #         vault_in = vault.address,
+        #         account_in = LIQUIDATOR_EOA,
+        #         account_out = LIQUIDATOR_EOA,
+        #         swapper_mode = "0",
+        #         slippage = config.SWAP_SLIPPAGE,
+        #         deadline = int(time.time()) + config.SWAP_DEADLINE,
+        #         is_repay = False,
+        #         current_debt = 0,
+        #         target_debt = 0
+        #     )
+        #     leftover_borrow_in_eth = int(borrow_to_eth_response['amountOut'])
+        # else:
+        #     leftover_borrow_in_eth = leftover_borrow
 
         time.sleep(config.API_REQUEST_DELAY)
 
         swap_data = []
         for _, item in enumerate(swap_api_response['swap']['multicallItems']):
-            logger.info("Item: %s", item)
+            # logger.info("Item: %s", item)
             if item['functionName'] != 'swap':
-                logger.info("Item skipped")
+                # logger.info("Item skipped")
                 continue
             swap_data.append(item['data'])
 
@@ -1406,54 +1408,79 @@ class Liquidator:
 
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
-        if len(pyth_feed_ids)> 0:
-            logger.info("Liquidator: executing with pyth")
-            update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
-            update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
-            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-                params, swap_data, [update_data]
-                ).build_transaction({
-                    "chainId": config.CHAIN_ID,
-                    "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
-                    "value": update_fee,
-                    "gasPrice": suggested_gas_price
-                })
-        elif len(redstone_feed_ids) > 0:
-            logger.info("Liquidator: executing with Redstone")
-            addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
-            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
-                params, swap_data, update_data, addresses
-                ).build_transaction({
-                    "chainId": config.CHAIN_ID,
-                    "gasPrice": suggested_gas_price,
-                    "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
-                })
-        else:
-            logger.info("Liquidator: executing normally")
-            # liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-            #     params
-            #     ).build_transaction({
-            #         "chainId": config.CHAIN_ID,
-            #         "from": LIQUIDATOR_EOA,
-            #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
-            #         "gas": 21000,
-            #         "maxFeePerGas": max_fee,
-            #         "maxPriorityFeePerGas": max_priority_fee
-            #     })
+        # if len(pyth_feed_ids)> 0:
+        #     logger.info("Liquidator: executing with pyth")
+        #     update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+        #     update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
+        #     function_signature = "liquidateSingleCollateralWithPythOracle((address,address,address,address,address,uint256,uint256,address),bytes[],bytes[])"
 
-            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-                params, swap_data
-                ).build_transaction({
-                    "chainId": config.CHAIN_ID,
-                    "gasPrice": suggested_gas_price,
-                    "from": LIQUIDATOR_EOA,
-                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
-                })
+        #     # Convert hex strings to bytes for swap_data and update_data
+        #     swap_data_bytes = [bytes.fromhex(data[2:]) if data.startswith('0x') else bytes.fromhex(data) for data in swap_data]
+        #     update_data_bytes = bytes.fromhex(update_data[2:]) if update_data.startswith('0x') else bytes.fromhex(update_data)
 
-        net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
-        # net_profit = 1
+        #     # Encode with the converted bytes
+        #     encoded_params = encode(
+        #         ["(address,address,address,address,address,uint256,uint256,address)", "bytes[]", "bytes[]"],
+        #         [params, swap_data_bytes, [update_data_bytes]]
+        #     )
+
+        #     # Get the function selector
+        #     function_selector = w3.keccak(text=function_signature)[:4]
+
+        #     # Combine selector and encoded params
+        #     calldata = function_selector + encoded_params
+
+        #     # Print the calldata
+        #     print("Call Data:")
+        #     print(f"0x{calldata.hex()}")
+
+        #     print(w3.eth.block_number)
+        #     print("Update data")
+        #     print(update_data)
+        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
+        #         params, swap_data, [update_data]
+        #         ).build_transaction({
+        #             "chainId": config.CHAIN_ID,
+        #             "from": LIQUIDATOR_EOA,
+        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+        #             "value": update_fee,
+        #             "gasPrice": suggested_gas_price
+        #         })
+        # elif len(redstone_feed_ids) > 0:
+        #     logger.info("Liquidator: executing with Redstone")
+        #     addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
+        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
+        #         params, swap_data, update_data, addresses
+        #         ).build_transaction({
+        #             "chainId": config.CHAIN_ID,
+        #             "gasPrice": suggested_gas_price,
+        #             "from": LIQUIDATOR_EOA,
+        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+        #         })
+        
+        logger.info("Liquidator: executing normally")
+        # liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
+        #     params
+        #     ).build_transaction({
+        #         "chainId": config.CHAIN_ID,
+        #         "from": LIQUIDATOR_EOA,
+        #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+        #         "gas": 21000,
+        #         "maxFeePerGas": max_fee,
+        #         "maxPriorityFeePerGas": max_priority_fee
+        #     })
+
+        liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
+            params, swap_data
+            ).build_transaction({
+                "chainId": config.CHAIN_ID,
+                "gasPrice": suggested_gas_price,
+                "from": LIQUIDATOR_EOA,
+                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+            })
+
+        # net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        net_profit = 1
         logger.info("Net profit: %s", net_profit)
 
         return ({
