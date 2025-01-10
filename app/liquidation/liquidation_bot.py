@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from web3 import Web3
 from web3.logs import DISCARD
 
+
 from app.liquidation.utils import (setup_logger,
                    setup_w3,
                    create_contract_instance,
@@ -482,7 +483,7 @@ class AccountMonitor:
                                 post_unhealthy_account_on_slack(address, account.controller.address,
                                                                 health_score,
                                                                 account.value_borrowed)
-                                logger.info("Valut borrowed: %s", account.value_borrowed)
+                                logger.info("Value borrowed: %s", account.value_borrowed)
                                 if account.value_borrowed < config.SMALL_POSITION_THRESHOLD:
                                     self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
@@ -1467,14 +1468,17 @@ class Liquidator:
         try:
             logger.info("Liquidator: Executing liquidation transaction %s...",
                         liquidation_transaction)
-            # flashbots_provider = "https://rpc.flashbots.net"
-            # flashbots_relay = "https://relay.flashbots.net"
-            # flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
-
-            # signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
-            #                                             LIQUIDATOR_EOA_PRIVATE_KEY)
-            # tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            # tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+    #         network = "mainnet"
+    #         provider_url = os.environ.get(
+    #             "PROVIDER_URL", FLASHBOTS_NETWORKS[network]["provider_url"]
+    #         )
+    #         logger.info(f"Using RPC: {provider_url}")
+    #         relay_url = FLASHBOTS_NETWORKS[network]["relay_url"]
+    #         w3 = flashbot(
+    #             Web3(HTTPProvider(provider_url)),
+    #             get_account_from_env("ETH_SIGNER_KEY"),
+    #             relay_url,
+    # )
 
             signed_tx = w3.eth.account.sign_transaction(liquidation_transaction,
                                                         LIQUIDATOR_EOA_PRIVATE_KEY)
