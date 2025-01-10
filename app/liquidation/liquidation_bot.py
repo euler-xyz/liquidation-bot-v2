@@ -36,12 +36,15 @@ from app.liquidation.utils import (setup_logger,
 
 
 ### SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x75cfE4ef963232aE8313Ac33E21Fc3924133860A"
-COLLATERAL_VAULT_ADDRESS = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
-CONTROLLER_VAULT_ADDRESS = "0x998D761eC1BAdaCeb064624cc3A1d37A46C88bA4"
 # UNDERWATER_ACCOUNT = "0xdD4613c714927a65fA37aE34650cc3EaD740A000"
 # COLLATERAL_VAULT_ADDRESS = "0x29A9E5A004002Ff9E960bb8BB536E076F53cbDF1"
 # CONTROLLER_VAULT_ADDRESS = "0xE0c1bdab9A7d487c4fEcd402cb9b4f8B347e73c3"
+UNDERWATER_ACCOUNT = "0x72518B73E4AE5e155F47891c84faBC385303AaD6"
+COLLATERAL_VAULT_ADDRESS = "0x6D671B9c618D5486814FEb777552BA723F1A235C"
+CONTROLLER_VAULT_ADDRESS = "0xe0a80d35bB6618CBA260120b279d357978c42BCE"
+# UNDERWATER_ACCOUNT = "0x75cfE4ef963232aE8313Ac33E21Fc3924133860A"
+# COLLATERAL_VAULT_ADDRESS = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
+# CONTROLLER_VAULT_ADDRESS = "0x998D761eC1BAdaCeb064624cc3A1d37A46C88bA4"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -811,12 +814,13 @@ class PullOracleHandler:
 
         liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                               config.LIQUIDATOR_ABI_PATH)
-
+        logger.info("here1")
         result = liquidator.functions.simulatePythUpdateAndGetAccountStatus(
             [update_data], update_fee, vault.address, account_address
             ).call({
                 "value": update_fee
             })
+        logger.info("here2")
         return result[0], result[1]
 
     @staticmethod
@@ -867,7 +871,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_feed_ids(vault):
-        # pyth_feed_ids = ['e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43']
+        # pyth_feed_ids = ['eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', 'f9c96a45784d0ce4390825a43a313149da787e6a6c66076f3a3f83e92501baeb']
         # redstone_feed_ids = []
         # return pyth_feed_ids, redstone_feed_ids
         try:
@@ -1448,8 +1452,8 @@ class Liquidator:
                     "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
                 })
 
-        # net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
-        net_profit = 1
+        net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        # net_profit = 1
         logger.info("Net profit: %s", net_profit)
 
         return ({
