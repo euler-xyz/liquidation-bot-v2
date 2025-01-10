@@ -117,7 +117,8 @@ class Vault:
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
                             account_address, ex)
-            return (balance, 100, 100)
+                return (balance, 100, 100)
+            return (balance, 0, 0)
 
         return (balance, collateral_value, liability_value)
 
