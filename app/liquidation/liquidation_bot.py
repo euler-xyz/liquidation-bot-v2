@@ -40,7 +40,7 @@ from app.liquidation.utils import (setup_logger,
 # UNDERWATER_ACCOUNT = "0xdD4613c714927a65fA37aE34650cc3EaD740A000"
 # COLLATERAL_VAULT_ADDRESS = "0x29A9E5A004002Ff9E960bb8BB536E076F53cbDF1"
 # CONTROLLER_VAULT_ADDRESS = "0xE0c1bdab9A7d487c4fEcd402cb9b4f8B347e73c3"
-UNDERWATER_ACCOUNT = "0x72518B73E4AE5e155F47891c84faBC385303AaD6"
+UNDERWATER_ACCOUNT = "0xc7200595b2d02771B11838F8DfFFB183b05bd706"
 COLLATERAL_VAULT_ADDRESS = "0x6D671B9c618D5486814FEb777552BA723F1A235C"
 CONTROLLER_VAULT_ADDRESS = "0xe0a80d35bB6618CBA260120b279d357978c42BCE"
 # UNDERWATER_ACCOUNT = "0x75cfE4ef963232aE8313Ac33E21Fc3924133860A"
@@ -1408,76 +1408,78 @@ class Liquidator:
 
         suggested_gas_price = int(w3.eth.gas_price * 1.2)
 
-        # if len(pyth_feed_ids)> 0:
-        #     logger.info("Liquidator: executing with pyth")
-        #     update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
-        #     update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
-        #     function_signature = "liquidateSingleCollateralWithPythOracle((address,address,address,address,address,uint256,uint256,address),bytes[],bytes[])"
+        if len(pyth_feed_ids)> 0:
+            logger.info("Liquidator: executing with pyth")
+            update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+            update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
+            function_signature = "liquidateSingleCollateralWithPythOracle((address,address,address,address,address,uint256,uint256,address),bytes[],bytes[])"
 
-        #     # Convert hex strings to bytes for swap_data and update_data
-        #     swap_data_bytes = [bytes.fromhex(data[2:]) if data.startswith('0x') else bytes.fromhex(data) for data in swap_data]
-        #     update_data_bytes = bytes.fromhex(update_data[2:]) if update_data.startswith('0x') else bytes.fromhex(update_data)
+            # Convert hex strings to bytes for swap_data and update_data
+            swap_data_bytes = [bytes.fromhex(data[2:]) if data.startswith('0x') else bytes.fromhex(data) for data in swap_data]
+            update_data_bytes = bytes.fromhex(update_data[2:]) if update_data.startswith('0x') else bytes.fromhex(update_data)
 
-        #     # Encode with the converted bytes
-        #     encoded_params = encode(
-        #         ["(address,address,address,address,address,uint256,uint256,address)", "bytes[]", "bytes[]"],
-        #         [params, swap_data_bytes, [update_data_bytes]]
-        #     )
+            # Encode with the converted bytes
+            encoded_params = encode(
+                ["(address,address,address,address,address,uint256,uint256,address)", "bytes[]", "bytes[]"],
+                [params, swap_data_bytes, [update_data_bytes]]
+            )
 
-        #     # Get the function selector
-        #     function_selector = w3.keccak(text=function_signature)[:4]
+            # Get the function selector
+            function_selector = w3.keccak(text=function_signature)[:4]
 
-        #     # Combine selector and encoded params
-        #     calldata = function_selector + encoded_params
+            # Combine selector and encoded params
+            calldata = function_selector + encoded_params
 
-        #     # Print the calldata
-        #     print("Call Data:")
-        #     print(f"0x{calldata.hex()}")
+            # Print the calldata
+            print("Call Data:")
+            print(f"0x{calldata.hex()}")
 
-        #     print(w3.eth.block_number)
-        #     print("Update data")
-        #     print(update_data)
-        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-        #         params, swap_data, [update_data]
-        #         ).build_transaction({
-        #             "chainId": config.CHAIN_ID,
-        #             "from": LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
-        #             "value": update_fee,
-        #             "gasPrice": suggested_gas_price
-        #         })
-        # elif len(redstone_feed_ids) > 0:
-        #     logger.info("Liquidator: executing with Redstone")
-        #     addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
-        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
-        #         params, swap_data, update_data, addresses
-        #         ).build_transaction({
-        #             "chainId": config.CHAIN_ID,
-        #             "gasPrice": suggested_gas_price,
-        #             "from": LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
-        #         })
-        
-        logger.info("Liquidator: executing normally")
-        # liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-        #     params
-        #     ).build_transaction({
-        #         "chainId": config.CHAIN_ID,
-        #         "from": LIQUIDATOR_EOA,
-        #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
-        #         "gas": 21000,
-        #         "maxFeePerGas": max_fee,
-        #         "maxPriorityFeePerGas": max_priority_fee
-        #     })
+            print(w3.eth.block_number)
+            print("Update data")
+            print(update_data)
+            print("update fee: ", update_fee)
 
-        liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-            params, swap_data
-            ).build_transaction({
-                "chainId": config.CHAIN_ID,
-                "gasPrice": suggested_gas_price,
-                "from": LIQUIDATOR_EOA,
-                "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
-            })
+            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
+                params, swap_data, [update_data]
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+                    "value": update_fee,
+                    "gasPrice": suggested_gas_price
+                })
+        elif len(redstone_feed_ids) > 0:
+            logger.info("Liquidator: executing with Redstone")
+            addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
+            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
+                params, swap_data, update_data, addresses
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                })
+        else:
+            logger.info("Liquidator: executing normally")
+            # liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
+            #     params
+            #     ).build_transaction({
+            #         "chainId": config.CHAIN_ID,
+            #         "from": LIQUIDATOR_EOA,
+            #         "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA),
+            #         "gas": 21000,
+            #         "maxFeePerGas": max_fee,
+            #         "maxPriorityFeePerGas": max_priority_fee
+            #     })
+
+            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
+                params, swap_data
+                ).build_transaction({
+                    "chainId": config.CHAIN_ID,
+                    "gasPrice": suggested_gas_price,
+                    "from": LIQUIDATOR_EOA,
+                    "nonce": w3.eth.get_transaction_count(LIQUIDATOR_EOA)
+                })
 
         # net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
         net_profit = 1
