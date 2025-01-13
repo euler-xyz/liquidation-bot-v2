@@ -74,15 +74,15 @@ def get_swap_quote(
 
 # Example usage
 if __name__ == "__main__":
-    IN_VAULT = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
+    IN_VAULT = "0x57995a00bA1e3E17BCF08BA775BF225cA1f5F25e"
     LIQUIDATOR_EOA = "0x8cbB534874bab83e44a7325973D2F04493359dF8" 
-    BORROW_VAULT = "0x298966b32C968884F716F762f6759e8e5811aE14"
+    BORROW_VAULT = "0x716bF454066a84F39A2F78b5707e79a9d64f1225"
     
     try:
         swap_response = get_swap_quote(
             chain_id=1,
-            token_in="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            token_out="0xDD629E5241CbC5919847783e6C96B2De4754e438",  
+            token_in="0x315a892a4d02c5c1169d5F0e4f7Cb4130Cc0d138",
+            token_out="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  
             amount=172840208846,
             # amount=int(.04061*10**18),
             min_amount_out=0,
