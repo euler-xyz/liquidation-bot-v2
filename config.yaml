@@ -19,8 +19,8 @@ MAX_UPDATE_INTERVAL: 21600 # 60 minutes
 
 # Interval for reporting low health accounts
 LOW_HEALTH_REPORT_INTERVAL: 21600 # 30 minutes
-SLACK_REPORT_HEALTH_SCORE: 1.05
-BORROW_VALUE_THRESHOLD: 10000 # $1000 minimum for reporting
+SLACK_REPORT_HEALTH_SCORE: 1.03
+BORROW_VALUE_THRESHOLD: 25000 # $25000 minimum for reporting
 
 # Threshold for excluding small positions from frequent notifications, in USD terms
 SMALL_POSITION_THRESHOLD: 500000000000000000000 # 500 USD
