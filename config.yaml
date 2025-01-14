@@ -10,12 +10,12 @@ SAVE_INTERVAL: 1800 # 30 minutes
 # Health score bounds for min/max update interval frequency
 HS_LIQUIDATION: 1.0
 HS_HIGH_RISK: 1.05
-HS_SAFE: 1.2
+HS_SAFE: 1.5
 
 # Update interval frequency (in seconds)
 MIN_UPDATE_INTERVAL: 60
 HIGH_RISK_UPDATE_INTERVAL: 600
-MAX_UPDATE_INTERVAL: 3600 # 60 minutes
+MAX_UPDATE_INTERVAL: 21600 # 60 minutes
 
 # Interval for reporting low health accounts
 LOW_HEALTH_REPORT_INTERVAL: 21600 # 30 minutes
