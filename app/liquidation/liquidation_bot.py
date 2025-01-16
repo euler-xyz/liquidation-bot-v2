@@ -1453,7 +1453,7 @@ class Liquidator:
         logger.info("Suggested gas price: %s", suggested_gas_price)
 
         net_profit = leftover_borrow_in_eth - (w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
-        net_profit = 1
+        # net_profit = 1
         logger.info("Net profit: %s", net_profit)
 
         return ({
