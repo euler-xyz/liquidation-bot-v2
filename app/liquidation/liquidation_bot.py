@@ -108,7 +108,7 @@ class Vault:
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_redstone_batch_simulation(
                     self, account_address, self.redstone_feed_ids)
             else:
-                logger.info("Vault: Getting account liquidity normally for vault %s", self.address)
+                logger.info("Vault:  %s", self.address)
                 (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
                     Web3.to_checksum_address(account_address),
                     True
@@ -1096,6 +1096,19 @@ class EVCListener:
                               self.account_monitor.last_saved_block)
 
             current_block = w3.eth.block_number
+
+            logger.info("EVCListener: Starting scan from block %s to %s (total blocks: %s)",
+                    start_block, current_block, current_block - start_block)
+            
+            # Get total events first
+            all_logs = self.evc_instance.events.AccountStatusCheck().get_logs(
+                fromBlock=start_block,
+                toBlock=current_block
+            )
+            unique_accounts = set(log["args"]["account"] for log in all_logs)
+            
+            logger.info("EVCListener: Found %s total events and %s unique accounts",
+                        len(all_logs), len(unique_accounts))
 
             batch_block_size = config.BATCH_SIZE
 
