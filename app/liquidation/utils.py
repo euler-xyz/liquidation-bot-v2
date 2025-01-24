@@ -337,7 +337,8 @@ def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None
                 break
 
         message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` larger than `{config.BORROW_VALUE_THRESHOLD}`: `{len(low_health_accounts)}`"
-        message += f"\nTotal borrow amount in USD: `${total_value:,.2f}`"
+    message += f"\nTotal borrow amount in USD: `${total_value:,.2f}`"
+
     RISK_DASHBOARD_URL = config.RISK_DASHBOARD_URL
     message += f"\n<{RISK_DASHBOARD_URL}|Risk Dashboard>"
     message += f"\nTime of report: `{time.strftime("%Y-%m-%d %H:%M:%S")}`"
