@@ -13,10 +13,10 @@ contract DeployLiquidator is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("LIQUIDATOR_PRIVATE_KEY");
 
-        address swapperAddress = 0x0D3d0F97eD816Ca3350D627AD8e57B6AD41774df;
-        address swapVerifierAddress = 0x30660764A7a05B84608812C8AFC0Cb4845439EEe;
-        address evcAddress = 0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989;
-        address pyth = 0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a;
+        address swapperAddress = 0x05Eb1A647265D974a1B0A57206048312604Ac6C3;
+        address swapVerifierAddress = 0x392C1570b3Bf29B113944b759cAa9a9282DA12Fe;
+        address evcAddress = 0x08739CBede6E28E387685ba20e6409bD16969Cde;
+        address pyth = 0x4305FB66699C3B2702D4d05CF36551390A4c69C6;
 
         address deployer = vm.addr(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);

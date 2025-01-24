@@ -24,7 +24,6 @@ venv/
 
 # Logs and save state
 logs/
-state/
 
 # Python cache files
 __pycache__/
