@@ -15,7 +15,7 @@ def start_monitor(chain_ids=None):
     if chain_ids is None:
         chain_ids = [1] # Default to Ethereum mainnet
 
-    chain_manager = ChainManager(chain_ids, notify=False)
+    chain_manager = ChainManager(chain_ids, notify=True)
 
     chain_manager.start()
 
