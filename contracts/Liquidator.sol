@@ -231,9 +231,7 @@ contract Liquidator {
         batchItems[5] = IEVC.BatchItem({
             onBehalfOfAccount: address(this),
             targetContract: params.vault,
-            targetContract: params.vault,
             value: 0,
-            data: abi.encodeCall(IRiskManager.disableController, ())
             data: abi.encodeCall(IRiskManager.disableController, ())
         });
 
@@ -275,17 +273,17 @@ contract Liquidator {
 
         uint256 numberOfOracleUpdates = redstoneUpdateData.length;
 
-    //     IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](numberOfOracleUpdates + 5);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](numberOfOracleUpdates + 5);
 
-    //     // Step 0: update Redstone oracles
-    //     for (uint256 i = 0; i < redstoneUpdateData.length; i++){
-    //         batchItems[i] = IEVC.BatchItem({
-    //             onBehalfOfAccount: address(this),
-    //             targetContract: adapterAddresses[i],
-    //             value: 0,
-    //             data: redstoneUpdateData[i]
-    //         });
-    //     }
+        // Step 0: update Redstone oracles
+        for (uint256 i = 0; i < redstoneUpdateData.length; i++){
+            batchItems[i] = IEVC.BatchItem({
+                onBehalfOfAccount: address(this),
+                targetContract: adapterAddresses[i],
+                value: 0,
+                data: redstoneUpdateData[i]
+            });
+        }
 
         // Step 1: enable controller
         batchItems[numberOfOracleUpdates] = IEVC.BatchItem({
@@ -352,12 +350,12 @@ contract Liquidator {
         //     params.seizedCollateralAmount
         // );
 
-    //     if (IERC20(params.collateralVault).balanceOf(address(this)) > 0) {
-    //         IERC20(params.collateralVault).transfer(params.receiver, IERC20(params.collateralVault).balanceOf(address(this)));
-    //     }
+        if (IERC20(params.collateralVault).balanceOf(address(this)) > 0) {
+            IERC20(params.collateralVault).transfer(params.receiver, IERC20(params.collateralVault).balanceOf(address(this)));
+        }
 
-    //     return true;
-    // }
+        return true;
+    }
 
     // 2nd liquidation option: seize liquidated position without swapping/repaying, can only be done with existing collateral position
     // TODO: implement this as an operator so debt can be seized directly by whitelisted liquidators
