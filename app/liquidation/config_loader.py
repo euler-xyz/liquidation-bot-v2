@@ -83,8 +83,8 @@ class ChainConfig:
             interface = json.load(file)
         abi = interface["abi"]
 
-        self.eth_oracle = self.w3.eth.contract(address=self._global["MAINNET_ETH_ADAPTER"], abi=abi)
-        self.btc_oracle = self.w3.eth.contract(address=self._global["MAINNET_BTC_ADAPTER"], abi=abi)
+        self.eth_oracle = self.mainnet_w3.eth.contract(address=self._global["MAINNET_ETH_ADAPTER"], abi=abi)
+        self.btc_oracle = self.mainnet_w3.eth.contract(address=self._global["MAINNET_BTC_ADAPTER"], abi=abi)
 
         with open(global_config["LIQUIDATOR_ABI_PATH"], "r", encoding="utf-8") as file:
             interface = json.load(file)

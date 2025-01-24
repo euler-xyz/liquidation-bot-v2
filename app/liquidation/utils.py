@@ -144,11 +144,9 @@ def make_api_request(url: str,
     return response.json()
 
 def get_eth_usd_quote(amount: int = 10**18, config: ChainConfig = None):
-    print("ETH ORACLE")
     return config.eth_oracle.functions.getQuote(amount, config.MAINNET_ETH_ADDRESS, config.USD).call()
 
 def get_btc_usd_quote(amount: int = 10**18, config: ChainConfig = None):
-    print("BTC ORACLE")
     return config.btc_oracle.functions.getQuote(amount, config.BTC, config.USD).call()
 
 
