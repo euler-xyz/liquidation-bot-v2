@@ -1,48 +1,49 @@
 """Module for handling API routes"""
-import threading
-from flask import Blueprint, make_response, jsonify
+from flask import Blueprint, make_response, jsonify, request
 import math
 
-from .liquidation_bot import logger, get_account_monitor_and_evc_listener
+from .liquidation_bot import logger
+from .bot_manager import ChainManager
 
 liquidation = Blueprint("liquidation", __name__)
 
-monitor = None
-evc_listener = None
+chain_manager = None
 
-def start_monitor():
-    global monitor, evc_listener
-    monitor, evc_listener = get_account_monitor_and_evc_listener()
+def start_monitor(chain_ids=None):
+    """Start monitoring for specified chains, defaults to mainnet if none specified"""
+    global chain_manager
+    if chain_ids is None:
+        chain_ids = [1] # Default to Ethereum mainnet
 
-    evc_listener.batch_account_logs_on_startup()
+    chain_manager = ChainManager(chain_ids, notify=False)
 
-    threading.Thread(target=monitor.start_queue_monitoring).start()
-    threading.Thread(target=evc_listener.start_event_monitoring).start()
+    chain_manager.start()
 
-    return monitor, evc_listener
+    return chain_manager
 
 @liquidation.route("/allPositions", methods=["GET"])
 def get_all_positions():
-    if not monitor:
-        return jsonify({"error": "Monitor not initialized"}), 500
+    chain_id = int(request.args.get("chainId", 1))  # Default to mainnet if not specified
+    
+    if not chain_manager or chain_id not in chain_manager.monitors:
+        return jsonify({"error": f"Monitor not initialized for chain {chain_id}"}), 500
 
-    logger.info("API: Getting all positions")
+    logger.info("API: Getting all positions for chain %s", chain_id)
+    monitor = chain_manager.monitors[chain_id]
     sorted_accounts = monitor.get_accounts_by_health_score()
 
     response = []
     for (address, owner, sub_account, health_score, value_borrowed, vault_name, vault_symbol) in sorted_accounts:
         if math.isinf(health_score):
             continue
-        response.append({"address": owner, "account_address": address, "sub_account": sub_account,
-                         "health_score": health_score, "value_borrowed": value_borrowed,
-                         "vault_name": vault_name, "vault_symbol": vault_symbol})
+        response.append({
+            "address": owner,
+            "account_address": address,
+            "sub_account": sub_account,
+            "health_score": health_score,
+            "value_borrowed": value_borrowed,
+            "vault_name": vault_name,
+            "vault_symbol": vault_symbol
+        })
 
     return make_response(jsonify(response))
-
-def get_subaccount_number(account):
-    owner = evc_listener.evc_instance.functions.getAccountOwner(account).call()
-    if owner == "0x0000000000000000000000000000000000000000":
-        owner = account
-
-    subaccount_number = int(int(account, 16) ^ int(owner, 16))
-    return owner, subaccount_number
