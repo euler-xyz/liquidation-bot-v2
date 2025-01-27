@@ -1345,7 +1345,7 @@ class Liquidator:
                     "leftover_borrow: %s", seized_collateral_assets, amount_out,
                     leftover_borrow_in_eth)
 
-        leftover_borrow_in_eth = 1
+        # leftover_borrow_in_eth = 1
         if leftover_borrow_in_eth < 0:
             logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
             return ({"profit": 0}, None)
