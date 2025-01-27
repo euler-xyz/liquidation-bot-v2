@@ -363,7 +363,7 @@ class AccountMonitor:
     updates, triggering liquidations, and managing the overall state of the
     monitored accounts. It also handles saving and loading the monitor's state.
     """
-    def __init__(self, notify = False, execute_liquidation = False):
+    def __init__(self, notify = True, execute_liquidation = True):
         self.accounts = {}
         self.vaults = {}
         self.update_queue = queue.PriorityQueue()
