@@ -1456,7 +1456,7 @@ class Liquidator:
                     "nonce": config.w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
         logger.info("Leftover borrow in eth: %s", leftover_borrow_in_eth)
-        logger.info("Estimated gas: %s", w3.eth.estimate_gas(liquidation_tx))
+        logger.info("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
         logger.info("Suggested gas price: %s", suggested_gas_price)
 
         net_profit = leftover_borrow_in_eth - (
