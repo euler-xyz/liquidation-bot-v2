@@ -2,50 +2,23 @@
 Utility functions for the liquidation bot.
 """
 import logging
-import os
 import json
 import functools
 import time
 import traceback
-
-from types import SimpleNamespace
-from typing import Any, Callable, Dict, Optional
-
 import requests
-import yaml
 
+from typing import Any, Callable, Dict, Optional
 
 from web3 import Web3
 from web3.contract import Contract
-from dotenv import load_dotenv
 from urllib.parse import urlencode
 
-network_variables = {
-    1: {
-        "name": "Ethereum",
-        "explorer_url": "https://etherscan.io"
-    },
-    42161: {
-        "name": "Arbitrum",
-        "explorer_url": "https://arbiscan.io"
-    },
-}
+from .config_loader import ChainConfig
 
-def load_config() -> SimpleNamespace:
-    """
-    Load configuration from a YAML file and return it as a SimpleNamespace object.
+LOGS_PATH = "logs/account_monitor_logs.log"
 
-    Returns:
-        SimpleNamespace: Configuration object with relevant settings
-    """
-    with open("config.yaml", encoding="utf-8") as config_file:
-        config_dict = yaml.safe_load(config_file)
-
-    config = SimpleNamespace(**config_dict)
-
-    return config
-
-def setup_logger(logs_path: str) -> logging.Logger:
+def setup_logger() -> logging.Logger:
     """
     Set up and configure a logger for the liquidation bot.
 
@@ -59,7 +32,7 @@ def setup_logger(logs_path: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
 
     console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(logs_path, mode="a")
+    file_handler = logging.FileHandler(LOGS_PATH, mode="a")
 
     detailed_formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s\n%(exc_info)s")
@@ -85,36 +58,7 @@ def setup_logger(logs_path: str) -> logging.Logger:
 
     return logger
 
-class Web3Singleton:
-    """
-    Singleton class to manage w3 object creation
-    """
-    _instance = None
-
-    @staticmethod
-    def get_instance():
-        """
-        Set up a Web3 instance using the RPC URL from environment variables.
-        """
-        if Web3Singleton._instance is None:
-            load_dotenv(override=True)
-            rpc_url = os.getenv("RPC_URL")
-            logger = logging.getLogger("liquidation_bot")
-            logger.info("Trying to connect to RPC URL: %s", rpc_url)
-
-            Web3Singleton._instance = Web3(Web3.HTTPProvider(rpc_url))
-        return Web3Singleton._instance
-
-def setup_w3() -> Web3:
-    """
-    Get the Web3 instance from the singleton class
-
-    Returns:
-        Web3: Web3 instance.
-    """
-    return Web3Singleton.get_instance()
-
-def create_contract_instance(address: str, abi_path: str) -> Contract:
+def create_contract_instance(address: str, abi_path: str, config: ChainConfig) -> Contract:
     """
     Create and return a contract instance.
 
@@ -129,15 +73,11 @@ def create_contract_instance(address: str, abi_path: str) -> Contract:
         interface = json.load(file)
     abi = interface["abi"]
 
-    w3 = setup_w3()
+    return config.w3.eth.contract(address=address, abi=abi)
 
-    return w3.eth.contract(address=address, abi=abi)
-
-
-loaded_config = load_config()
 def retry_request(logger: logging.Logger,
-                  max_retries: int = loaded_config.NUM_RETRIES,
-                  delay: int = loaded_config.RETRY_DELAY) -> Callable:
+                  max_retries: int = 3,
+                  delay: int = 10) -> Callable:
     """
     Decorator to retry a function in case of RequestException.
 
@@ -170,18 +110,17 @@ def retry_request(logger: logging.Logger,
         return wrapper
     return decorator
 
-def get_spy_link(account):
+def get_spy_link(account, config: ChainConfig):
     """
     Get account owner from EVC
     """
-    evc = create_contract_instance(loaded_config.EVC, loaded_config.EVC_ABI_PATH)
-    owner = evc.functions.getAccountOwner(account).call()
+    owner = config.evc.functions.getAccountOwner(account).call()
     if owner == "0x0000000000000000000000000000000000000000":
         owner = account
 
     subaccount_number = int(int(account, 16) ^ int(owner, 16))
 
-    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}&chainId={config.CHAIN_ID}"
     
     return spy_link
 
@@ -204,15 +143,11 @@ def make_api_request(url: str,
     response.raise_for_status()
     return response.json()
 
-def get_eth_usd_quote(amount: int = 10**18):
-    config = load_config()
-    oracle = create_contract_instance(config.ETH_ADAPTER, config.ROUTER_ABI_PATH)
-    return oracle.functions.getQuote(amount, config.WETH, config.USD).call()
+def get_eth_usd_quote(amount: int = 10**18, config: ChainConfig = None):
+    return config.eth_oracle.functions.getQuote(amount, config.MAINNET_ETH_ADDRESS, config.USD).call()
 
-def get_btc_usd_quote(amount: int = 10**18):
-    config = load_config()
-    oracle = create_contract_instance(config.BTC_ADAPTER, config.ROUTER_ABI_PATH)
-    return oracle.functions.getQuote(amount, config.BTC, config.USD).call()
+def get_btc_usd_quote(amount: int = 10**18, config: ChainConfig = None):
+    return config.btc_oracle.functions.getQuote(amount, config.BTC, config.USD).call()
 
 
 def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> None:
@@ -234,14 +169,11 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
     logger.critical("Uncaught exception:\n %s", trace_str)
 
 def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
-                    health_score: float, value_borrowed: int) -> None:
+                    health_score: float, value_borrowed: int, config: ChainConfig) -> None:
     """
     Post a message on Slack about an unhealthy account.
     """
-    load_dotenv()
-    slack_url = os.getenv("SLACK_WEBHOOK_URL")
-
-    spy_link = get_spy_link(account_address)
+    spy_link = get_spy_link(account_address, config)
 
     message = (
         ":warning: *Unhealthy Account Detected* :warning:\n\n"
@@ -250,7 +182,7 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
         f"*Health Score*: `{health_score:.4f}`\n"
         f"*Value Borrowed*: `${value_borrowed / 10 ** 18:.2f}`\n"
         f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n"
-        f"Network: `{network_variables[loaded_config.CHAIN_ID]["name"]}`\n\n"
+        f"Network: `{config.CHAIN_NAME}`\n\n"
     )
 
     slack_payload = {
@@ -258,12 +190,12 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
         "username": "Liquidation Bot",
         "icon_emoji": ":robot_face:"
     }
-    requests.post(slack_url, json=slack_payload, timeout=10)
+    requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
 
 
 def post_liquidation_opportunity_on_slack(account_address: str, vault_address: str,
-                  liquidation_data: Optional[Dict[str, Any]] = None,
-                  params: Optional[Dict[str, Any]] = None) -> None:
+                  liquidation_data: Optional[Dict[str, Any]],
+                  params: Optional[Dict[str, Any]], config: ChainConfig) -> None:
     """
     Post a message on Slack.
     
@@ -271,9 +203,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         message (str): The main message to post.
         liquidation_data (Optional[Dict[str, Any]]): Additional liquidation data to format.
     """
-    load_dotenv()
-    slack_url = os.getenv("SLACK_WEBHOOK_URL")
-    RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
+    RISK_DASHBOARD_URL = config.RISK_DASHBOARD_URL
 
     if liquidation_data and params:
 
@@ -281,7 +211,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         violator_address, vault, borrowed_asset, collateral_vault, collateral_asset, \
         max_repay, seized_collateral_shares, receiver = params
 
-        spy_link = get_spy_link(account_address)
+        spy_link = get_spy_link(account_address, config)
 
         # Build URL parameters
         url_params = urlencode({
@@ -305,8 +235,6 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
             f"*Vault*: `{vault_address}`"
         )
 
-        config = load_config()
-
         formatted_data = (
             f"*Liquidation Opportunity Details:*\n"
             f"• Profit: {Web3.from_wei(liquidation_data["profit"], "ether")} ETH\n"
@@ -318,7 +246,7 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
                 liquidation_data["leftover_borrow_in_eth"], "ether")} ETH\n\n"
             f"<{execution_url}|Click here to execute this liquidation manually>\n\n"
             f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n\n"
-            f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
+            f"Network: `{config.CHAIN_NAME}`"
         )
         message += f"\n\n{formatted_data}"
 
@@ -327,12 +255,12 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         "username": "Liquidation Bot",
         "icon_emoji": ":robot_face:"
     }
-    requests.post(slack_url, json=slack_payload, timeout=10)
+    requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
 
 
 def post_liquidation_result_on_slack(account_address: str, vault_address: str,
-                  liquidation_data: Optional[Dict[str, Any]] = None,
-                  tx_hash: Optional[str] = None) -> None:
+                  liquidation_data: Optional[Dict[str, Any]],
+                  tx_hash: Optional[str], config: ChainConfig) -> None:
     """
     Post a message on Slack.
     
@@ -340,10 +268,8 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         message (str): The main message to post.
         liquidation_data (Optional[Dict[str, Any]]): Additional liquidation data to format.
     """
-    load_dotenv()
-    slack_url = os.getenv("SLACK_WEBHOOK_URL")
     
-    spy_link = get_spy_link(account_address)
+    spy_link = get_spy_link(account_address, config)
 
     message = (
         ":moneybag: *Liquidation Completed* :moneybag:\n\n"
@@ -351,9 +277,7 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         f"*Vault*: `{vault_address}`"
     )
 
-    config = load_config()
-
-    tx_url = f"{network_variables[config.CHAIN_ID]["explorer_url"]}/tx/{tx_hash}"
+    tx_url = f"{config.EXPLORER_URL}/tx/{tx_hash}"
     
     formatted_data = (
         f"*Liquidation Details:*\n"
@@ -364,7 +288,7 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         f"• Leftover Collateral in ETH terms: {Web3.from_wei(liquidation_data["leftover_borrow_in_eth"], "ether")} ETH\n\n"
         f"• Transaction: <{tx_url}|View Transaction on Explorer>\n\n"
         f"Time of liquidation: {time.strftime("%Y-%m-%d %H:%M:%S")}\n\n"
-        f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
+        f"Network: `{config.CHAIN_NAME}`"
     )
     message += f"\n\n{formatted_data}"
 
@@ -373,9 +297,9 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         "username": "Liquidation Bot",
         "icon_emoji": ":robot_face:"
     }
-    requests.post(slack_url, json=slack_payload, timeout=10)
+    requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
 
-def post_low_health_account_report(sorted_accounts) -> None:
+def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None:
     """
     Post a report of accounts with low health scores to Slack.
 
@@ -384,10 +308,6 @@ def post_low_health_account_report(sorted_accounts) -> None:
         containing account addresses and their health scores,
         sorted by health score in ascending order.
     """
-    load_dotenv()
-    config = load_config()
-    slack_url = os.getenv("SLACK_WEBHOOK_URL")
-
     # Filter accounts below the threshold
     low_health_accounts = [
         (address, owner, subaccount, score, value, _, _) for address, owner, subaccount, score, value, _, _ in sorted_accounts
@@ -401,24 +321,28 @@ def post_low_health_account_report(sorted_accounts) -> None:
     if not low_health_accounts:
         message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
     else:
-        for i, (address, owner, subaccount_number, score, value, _, _) in enumerate(low_health_accounts, start=1):
+        for i, (address, _, _, score, value, _, _) in enumerate(low_health_accounts, start=1):
 
             # Format score to 4 decimal places
             formatted_score = f"{score:.4f}"
             formatted_value = value / 10 ** 18
-            
+
             formatted_value = f"{formatted_value:,.2f}"
 
-            spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+            spy_link = get_spy_link(address, config)
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
+            
+            if i >= 50:
+                break
 
-        message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}`: `{len(low_health_accounts)}`"
-        message += f"\nTotal borrow amount in USD: `${total_value:,.2f}`"
-    RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
+        message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` larger than `{config.BORROW_VALUE_THRESHOLD}`: `{len(low_health_accounts)}`"
+    message += f"\nTotal borrow amount in USD: `${total_value:,.2f}`"
+
+    RISK_DASHBOARD_URL = config.RISK_DASHBOARD_URL
     message += f"\n<{RISK_DASHBOARD_URL}|Risk Dashboard>"
     message += f"\nTime of report: `{time.strftime("%Y-%m-%d %H:%M:%S")}`"
-    message += f"\nNetwork: `{network_variables[config.CHAIN_ID]["name"]}`"
+    message += f"\nNetwork: `{config.CHAIN_NAME}`"
 
     slack_payload = {
         "text": message,
@@ -427,13 +351,13 @@ def post_low_health_account_report(sorted_accounts) -> None:
     }
 
     try:
-        response = requests.post(slack_url, json=slack_payload, timeout=10)
+        response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
         response.raise_for_status()
         print("Low health account report posted to Slack successfully.")
     except requests.RequestException as e:
         print(f"Failed to post low health account report to Slack: {e}")
 
-def post_error_notification(message) -> None:
+def post_error_notification(message, config: ChainConfig = None) -> None:
     """
     Post an error notification to Slack.
 
@@ -441,13 +365,10 @@ def post_error_notification(message) -> None:
         message (str): The error message to be posted.
     """
 
-    load_dotenv()
-    config = load_config()
-    slack_url = os.getenv("SLACK_WEBHOOK_URL")
-
     error_message = f":rotating_light: *Error Notification* :rotating_light:\n\n{message}\n\n"
     error_message += f"Time: {time.strftime("%Y-%m-%d %H:%M:%S")}\n"
-    error_message += f"Network: `{network_variables[config.CHAIN_ID]["name"]}`"
+    if config:
+        error_message += f"Network: `{config.CHAIN_NAME}`"
 
     slack_payload = {
         "text": error_message,
@@ -456,7 +377,7 @@ def post_error_notification(message) -> None:
     }
 
     try:
-        response = requests.post(slack_url, json=slack_payload, timeout=10)
+        response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
         response.raise_for_status()
         print("Error notification posted to Slack successfully.")
     except requests.RequestException as e:

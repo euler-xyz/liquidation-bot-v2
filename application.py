@@ -3,6 +3,8 @@ Start point for running flask app
 """
 from app import create_app
 
+# List of chain IDs to monitor
+
 application = create_app()
 
 if __name__ == "__main__":
