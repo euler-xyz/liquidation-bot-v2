@@ -1,0 +1,167 @@
+global:
+  ## RISK PARAMETERS ##
+  # Health score bounds for update interval frequency
+  HS_LIQUIDATION: 1.0
+  HS_HIGH_RISK: 1.02
+  HS_SAFE: 1.25
+
+  # Position size bounds for update interval frequency
+  TEENY: 10000000000000000000 # $10
+  MINI: 100000000000000000000 # $100
+  SMALL: 1000000000000000000000 # $1000
+  MEDIUM: 10000000000000000000000 # $10000
+  
+  
+  # Interval Update Frequency Matrix
+  TEENY_LIQ: 86400
+  TEENY_HIGH: 86400
+  TEENY_LOW: 86400
+  TEENY_SAFE: 86400
+
+  MINI_LIQ: 900
+  MINI_HIGH: 14400
+  MINI_LOW: 43200
+  MINI_SAFE: 86400
+
+  SMALL_LIQ: 300
+  SMALL_HIGH: 3600
+  SMALL_LOW: 21600
+  SMALL_SAFE: 43200
+
+  MEDIUM_LIQ: 120
+  MEDIUM_HIGH: 900
+  MEDIUM_LOW: 14400
+  MEDIUM_SAFE: 21600
+
+  LARGE_LIQ: 30
+  LARGE_HIGH: 900
+  LARGE_LOW: 3600
+  LARGE_SAFE: 21600
+  
+  # Update interval frequency (in seconds)
+  MIN_UPDATE_INTERVAL_SMALL: 300
+  HIGH_RISK_UPDATE_INTERVAL: 600
+  MAX_UPDATE_INTERVAL: 3600 # 60 minutes
+
+  ## REPORTING PARAMETERS ##
+  # Interval for reporting low health accounts
+  LOW_HEALTH_REPORT_INTERVAL: 43200 # 12 hours
+  SLACK_REPORT_HEALTH_SCORE: 1.05
+  BORROW_VALUE_THRESHOLD: 10000 # $1000 minimum for reporting
+  # Threshold for excluding small positions from frequent notifications, in USD terms
+  SMALL_POSITION_THRESHOLD: 1000000000000000000000 # 1000 USD
+  SMALL_POSITION_REPORT_INTERVAL: 43200 # 2 hours
+  # Cooldown for reporting errors
+  ERROR_COOLDOWN: 900
+
+  ## MONITORING PARAMETERS ##
+  # Batch size for scanning blocks on startup
+  BATCH_SIZE: 10000
+  BATCH_INTERVAL: 0.1
+  # Time to wait between scanning on regular intervals
+  SCAN_INTERVAL: 600 # 2 minutes
+
+  ## PATHS ##
+  EVAULT_ABI_PATH: "contracts/EVault.json"
+  EVC_ABI_PATH: "contracts/EthereumVaultConnector.json"
+  LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
+  ORACLE_ABI_PATH: "contracts/IOracle.json"
+  PYTH_ABI_PATH: "contracts/IPyth.json"
+  ERC20_ABI_PATH: "out/IERC20.sol/IERC20.json"
+  ROUTER_ABI_PATH: "contracts/EulerRouter.json"
+  LOGS_PATH: "logs/account_monitor_logs.log"
+  SAVE_STATE_PATH: "state"
+  SAVE_INTERVAL: 1800 # 30 minutes
+
+  ## API CALL PARAMETERS ##
+  # API Retry
+  NUM_RETRIES: 3
+  RETRY_DELAY: 10
+  # Acceptable amound of overswapping of collateral for 1INCH binary search
+  API_REQUEST_DELAY: .25
+  SWAP_SLIPPAGE: 1.0 # 1%
+  SWAP_DEADLINE: 300 # 5 minutes
+  
+  ## EOA TO RECEIVE LIQUIDATION PROCEEDS ##
+  PROFIT_RECEIVER: "0x8cbB534874bab83e44a7325973D2F04493359dF8"
+
+  MAINNET_ETH_ADAPTER: "0x10674C8C1aE2072d4a75FE83f1E159425fd84E1D"
+  MAINNET_ETH_ADDRESS: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+  MAINNET_BTC_ADAPTER: "0x0484Df76f561443d93548D86740b5C4A826e5A33"
+
+chains:
+  # ETH Mainnet
+  1:
+    # Config
+    name: "Ethereum"
+    EVC_DEPLOYMENT_BLOCK: 20529207
+    EXPLORER_URL: "https://etherscan.io"
+    RPC_NAME: "MAINNET_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+
+      #EVK Addresses
+      EVC: "0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383"
+      SWAPPER: "0x2Bba09866b6F1025258542478C39720A09B728bF"
+      SWAP_VERIFIER: "0xae26485ACDDeFd486Fe9ad7C2b34169d360737c7"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x4305FB66699C3B2702D4d05CF36551390A4c69C6"
+  
+  # Base
+  8453:
+    # Config
+    name: "Base"
+    EVC_DEPLOYMENT_BLOCK: 22282342
+    EXPLORER_URL: "https://basescan.org"
+    RPC_NAME: "BASE_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+
+      #EVK Addresses
+      EVC: "0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989"
+      SWAPPER: "0x0D3d0F97eD816Ca3350D627AD8e57B6AD41774df"
+      SWAP_VERIFIER: "0x30660764A7a05B84608812C8AFC0Cb4845439EEe"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a"
+
+  # Swell
+  1923:
+    # Config
+    name: "Swell"
+    EVC_DEPLOYMENT_BLOCK: 485320
+    EXPLORER_URL: "https://explorer.swellnetwork.io"
+    RPC_NAME: "SWELL_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xA8A46596a7B17542d2cf6993FC61Ea0CBb4474c1"
+
+      #EVK Addresses
+      EVC: "0x08739CBede6E28E387685ba20e6409bD16969Cde"
+      SWAPPER: "0x05Eb1A647265D974a1B0A57206048312604Ac6C3"
+      SWAP_VERIFIER: "0x392C1570b3Bf29B113944b759cAa9a9282DA12Fe"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: ""
+  
