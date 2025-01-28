@@ -7,6 +7,7 @@ import json
 import functools
 import time
 import traceback
+import threading
 
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, Optional
@@ -170,6 +171,27 @@ def retry_request(logger: logging.Logger,
         return wrapper
     return decorator
 
+def rate_limit(logger: logging.Logger,
+                  max_calls_per_second: int = loaded_config.MAX_CALLS_PER_SECOND):
+    """
+    Decorator to limit the number of calls to a function to max_calls_per_second.
+    """
+    lock = threading.Lock()
+    last_called = [0.0]
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with lock:
+                elapsed = time.time() - last_called[0]
+                wait_time = max(0, 1.0 / max_calls_per_second - elapsed)
+                logger.info(f"RL: waiting for {wait_time} seconds")
+                time.sleep(wait_time)
+                result = func(*args, **kwargs)
+                last_called[0] = time.time()
+                return result
+        return wrapper
+    return decorator
+
 def get_spy_link(account):
     """
     Get account owner from EVC
@@ -186,6 +208,7 @@ def get_spy_link(account):
     return spy_link
 
 @retry_request(logging.getLogger("liquidation_bot"))
+@rate_limit(logging.getLogger("liquidation_bot"))
 def make_api_request(url: str,
                      headers: Dict[str, str],
                      params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
