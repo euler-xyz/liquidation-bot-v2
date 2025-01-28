@@ -97,7 +97,7 @@ class Vault:
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_redstone_batch_simulation(
                     self, account_address, self.redstone_feed_ids, self.config)
             else:
-                logger.info("Vault: Getting account liquidity normally for vault %s", self.address)
+                logger.info("Vault: Getting account liquidity normally for address %s in vault %s", account_address, self.address)
                 (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
                     Web3.to_checksum_address(account_address),
                     True
