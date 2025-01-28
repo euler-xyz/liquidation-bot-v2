@@ -160,3 +160,46 @@ forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url $RPC_URL --broa
 ```
 
 This test is intended to create a position on an existing vault. To test a liquitation, you can either wait for price fluctuations to happen or manually change the LTV of the vault using the create.euler.finance UI if it is a governed vault that you control.
+
+## To run the liquidation bot
+
+Added /etc/systemd/system/liquidation-bot.service
+```
+[Unit]
+Description=Liquidation Bot Service
+After=network.target
+
+[Service]
+User=admin
+WorkingDirectory=/home/admin/liq-bot-v2
+Environment="PATH=/home/admin/liq-bot-v2/venv/bin"
+Environment="FLASK_APP=application.py"
+Environment="FLASK_RUN_HOST=0.0.0.0"
+Environment="FLASK_RUN_PORT=8080"
+Environment="FLASK_ENV=production"
+Environment="FLASK_DEBUG=False"
+
+# Using flask instead of python3
+ExecStart=/home/admin/liq-bot-v2/venv/bin/flask run --host=0.0.0.0 --port=8080
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Reload systemd:
+```
+sudo systemctl daemon-reload
+```
+
+Then run with:
+```
+sudo systemctl start liquidation-bot.service
+```
+
+Check status with:
+```
+sudo systemctl status liquidation-bot.service
+```

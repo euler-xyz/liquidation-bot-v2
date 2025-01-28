@@ -1,0 +1,6 @@
+forge script contracts/DeployLiquidator.sol --rpc-url https://eth-mainnet.g.alchemy.com/v2/ivS5Oiw2RjJMwvRaJiOaIG5-Wry-IVUj --broadcast --ffi -vvv --slow
+
+forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url https://eth-mainnet.g.alchemy.com/v2/ivS5Oiw2RjJMwvRaJiOaIG5-Wry-IVUj --broadcast --ffi -vvv --slow --evm-version shanghai
+
+Display only the logs for a specific health score:
+tail -f logfile | grep "health score" | awk -F'health score: ' '{ split($2, arr, ","); if (arr[1] < 1.1) print $0 }'
