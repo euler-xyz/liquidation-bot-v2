@@ -113,9 +113,16 @@ def retry_request(logger: logging.Logger,
     return decorator
 
 def rate_limit(logger: logging.Logger,
-                  max_calls_per_second: int = loaded_config.MAX_CALLS_PER_SECOND):
+                  max_calls_per_second: int = 10):
     """
     Decorator to limit the number of calls to a function to max_calls_per_second.
+    Args:
+        logger (logging.Logger): Logger instance to log retry attempts.
+        max_calls_per_second (int, optional): Maximum number of retry attempts.
+                                    Defaults to config.MAX_CALLS_PER_SECOND.
+
+    Returns:
+        Callable: Decorated function.
     """
     lock = threading.Lock()
     last_called = [0.0]
