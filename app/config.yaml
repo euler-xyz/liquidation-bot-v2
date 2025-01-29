@@ -77,7 +77,7 @@ global:
   # API Retry
   NUM_RETRIES: 3
   RETRY_DELAY: 10
-  # Acceptable amound of overswapping of collateral for 1INCH binary search
+  # Acceptable amount of overswapping of collateral for 1INCH binary search
   API_REQUEST_DELAY: .25
   SWAP_SLIPPAGE: 1.0 # 1%
   SWAP_DEADLINE: 300 # 5 minutes
