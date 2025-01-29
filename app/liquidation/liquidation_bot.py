@@ -368,7 +368,7 @@ class AccountMonitor:
     updates, triggering liquidations, and managing the overall state of the
     monitored accounts. It also handles saving and loading the monitor's state.
     """
-    def __init__(self, chain_id: int, config: ChainConfig, notify = False, execute_liquidation = False):
+    def __init__(self, chain_id: int, config: ChainConfig, notify = True, execute_liquidation = True):
         self.chain_id = chain_id
         self.w3 = config.w3,
         self.config = config
@@ -660,23 +660,26 @@ class AccountMonitor:
         logger.info("Rebuilding queue based on current account health")
 
         self.update_queue = queue.PriorityQueue()
+        idx = 0
+        total_accounts = len(self.accounts)
         for address, account in self.accounts.items():
             try:
+                idx += 1
                 health_score = account.update_liquidity()
 
                 if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor: %s has no borrow, skipping", address)
+                    logger.info("AccountMonitor:  %s/%s, %s has no borrow, skipping", idx, total_accounts, address)
                     continue
 
                 next_update_time = account.time_of_next_update
                 self.update_queue.put((next_update_time, address))
-                logger.info("AccountMonitor: %s added to queue"
+                logger.info("AccountMonitor: %s/%s %s added to queue"
                             " with health score %s, next update at %s",
-                            address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
+                            idx, total_accounts, address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
                                                                  time.localtime(next_update_time)))
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
-                             address, ex, exc_info=True)
+                logger.error("AccountMonitor: Failed to put account %s/%s %s into rebuilt queue: %s",
+                             idx, total_accounts, address, ex, exc_info=True)
 
         logger.info("AccountMonitor: Queue rebuilt with %s acccounts", self.update_queue.qsize())
 
