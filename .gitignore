@@ -32,3 +32,5 @@ __pycache__/
 *.pyd
 
 /redstone_script/node_modules
+
+.flaskenv
