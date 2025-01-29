@@ -161,9 +161,9 @@ forge script test/LiquidationSetupWithVaultCreated.sol --rpc-url $RPC_URL --broa
 
 This test is intended to create a position on an existing vault. To test a liquitation, you can either wait for price fluctuations to happen or manually change the LTV of the vault using the create.euler.finance UI if it is a governed vault that you control.
 
-## To run the liquidation bot
+## To run the liquidation bot as a service
 
-Added /etc/systemd/system/liquidation-bot.service
+Define service in /etc/systemd/system/liquidation-bot.service
 ```
 [Unit]
 Description=Liquidation Bot Service
@@ -194,12 +194,12 @@ Reload systemd:
 sudo systemctl daemon-reload
 ```
 
-Then run with:
+Run service:
 ```
 sudo systemctl start liquidation-bot.service
 ```
 
-Check status with:
+Check service status:
 ```
 sudo systemctl status liquidation-bot.service
 ```

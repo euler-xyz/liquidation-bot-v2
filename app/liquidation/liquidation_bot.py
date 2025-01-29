@@ -98,7 +98,7 @@ class Vault:
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_redstone_batch_simulation(
                     self, account_address, self.redstone_feed_ids, self.config)
             else:
-                logger.info("Vault:  %s", self.address)
+                logger.info("Vault: Getting account liquidity normally for vault %s", self.address)
                 (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
                     Web3.to_checksum_address(account_address),
                     True
@@ -668,7 +668,7 @@ class AccountMonitor:
                 health_score = account.update_liquidity()
 
                 if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor: %s/%s %s ", idx, total_accounts, address)
+                    logger.info("AccountMonitor:  %s/%s, %s has no borrow, skipping", idx, total_accounts, address)
                     continue
 
                 next_update_time = account.time_of_next_update
