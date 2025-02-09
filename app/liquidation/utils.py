@@ -362,6 +362,7 @@ def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None
             spy_link = get_spy_link(address, config)
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
+            time.sleep(config.API_REQUEST_DELAY)  # Add delay between RPC calls
             
             if i >= 50:
                 break

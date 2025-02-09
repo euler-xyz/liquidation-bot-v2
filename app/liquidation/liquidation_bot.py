@@ -74,6 +74,7 @@ class Vault:
         try:
             balance = self.instance.functions.balanceOf(
                 Web3.to_checksum_address(account_address)).call()
+            time.sleep(self.config.API_REQUEST_DELAY)  # Add delay between RPC calls
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get balance for account %s: %s",
                          account_address, ex, exc_info=True)
