@@ -853,8 +853,14 @@ class PullOracleHandler:
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            asset_list = [Vault(collateral_vault, config).underlying_asset_address
-                          for collateral_vault in collateral_vault_list]
+            
+            # Replace list comprehension with a loop to add delays
+            asset_list = []
+            for collateral_vault in collateral_vault_list:
+                vault_instance = Vault(collateral_vault, config)
+                asset_list.append(vault_instance.underlying_asset_address)
+                time.sleep(config.API_REQUEST_DELAY)  # Add delay between RPC calls
+                
             asset_list.append(vault.underlying_asset_address)
 
             pyth_feed_ids = set()
@@ -864,31 +870,37 @@ class PullOracleHandler:
 
             for asset in asset_list:
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
+                time.sleep(config.API_REQUEST_DELAY)  # Add delay after oracle resolution
 
                 configured_oracle = create_contract_instance(configured_oracle_address,
                                                              config.ORACLE_ABI_PATH, config)
 
                 try:
                     configured_oracle_name = configured_oracle.functions.name().call()
+                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after name call
                 except Exception as ex: # pylint: disable=broad-except
                     logger.info("PullOracleHandler: Error calling contract for oracle"
                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
                     continue
+                    
                 if configured_oracle_name == "PythOracle":
                     logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
                                 "Address - %s", vault.address, configured_oracle_address)
                     pyth_feed_ids.add(configured_oracle.functions.feedId().call().hex())
+                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after feed ID call
                 elif configured_oracle_name == "RedstoneCoreOracle":
                     logger.info("PullOracleHandler: Redstone oracle found for"
                                 " vault %s: Address - %s",
                                 vault.address, configured_oracle_address)
                     redstone_feed_ids.add((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
+                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after feed ID call
                 elif configured_oracle_name == "CrossAdapter":
                     pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle, config)
                     pyth_feed_ids.update(pyth_ids)
                     redstone_feed_ids.update(redstone_ids)
+                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after cross oracle resolution
 
             return list(pyth_feed_ids), list(redstone_feed_ids)
 
