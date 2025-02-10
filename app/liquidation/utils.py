@@ -29,6 +29,10 @@ network_variables = {
         "name": "Arbitrum",
         "explorer_url": "https://arbiscan.io"
     },
+    8453: {
+        "name": "Base",
+        "explorer_url": "https://basescan.org"
+    }
 }
 
 def load_config() -> SimpleNamespace:
@@ -98,7 +102,7 @@ class Web3Singleton:
         """
         if Web3Singleton._instance is None:
             load_dotenv(override=True)
-            rpc_url = os.getenv("MAINNET_RPC_URL")
+            rpc_url = os.getenv("BASE_RPC_URL")
             logger = logging.getLogger("liquidation_bot")
             logger.info("Trying to connect to RPC URL: %s", rpc_url)
 
@@ -161,6 +165,8 @@ def retry_request(logger: logging.Logger,
                     logger.error(f"Error in API request, waiting {delay} seconds before retrying. "
                                  f"Attempt {attempt}/{max_retries}")
                     logger.error(f"Error: {e}")
+                    logger.error(f"Args: {args}")
+                    logger.error(f"Kwargs: {kwargs}")
 
                     if attempt == max_retries:
                         logger.error(f"Failed after {max_retries} attempts.")
@@ -181,7 +187,7 @@ def get_spy_link(account):
 
     subaccount_number = int(int(account, 16) ^ int(owner, 16))
 
-    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+    spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}&chainId={loaded_config.CHAIN_ID}"
     
     return spy_link
 
@@ -409,7 +415,7 @@ def post_low_health_account_report(sorted_accounts) -> None:
             
             formatted_value = f"{formatted_value:,.2f}"
 
-            spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}"
+            spy_link = spy_link = f"https://app.euler.finance/account/{subaccount_number}?spy={owner}&chainId={config.CHAIN_ID}"
 
             message += f"{i}. `{address}` Health Score: `{formatted_score}`, Value Borrowed: `${formatted_value}`, <{spy_link}|Spy Mode>\n"
 

@@ -37,9 +37,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ## SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x75cfE4ef963232aE8313Ac33E21Fc3924133860A"
-COLLATERAL_VAULT_ADDRESS = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
-CONTROLLER_VAULT_ADDRESS = "0x998D761eC1BAdaCeb064624cc3A1d37A46C88bA4"
+UNDERWATER_ACCOUNT = "0x177A20555e7e2c65fF12C54b23178fEEFEE4993B"
+COLLATERAL_VAULT_ADDRESS = "0x859160DB5841E5cfB8D3f144C6b3381A85A4b410"
+CONTROLLER_VAULT_ADDRESS = "0x0A1a3b5f2041F33522C4efc754a7D096f880eE16"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -1568,10 +1568,10 @@ class Quoter:
             "accountOut": account_out,
             "swapperMode": swapper_mode,  # TARGET_DEBT mode
             "slippage": str(slippage),
-            "deadline": str(deadline),  # 30 min
+            "deadline": str(deadline), 
             "isRepay": str(is_repay),
-            "currentDebt": str(current_debt),  # 2000 USDC debt
-            "targetDebt": str(target_debt)  # Fully repay the debt
+            "currentDebt": str(current_debt),
+            "targetDebt": str(target_debt)
         }
 
         response = make_api_request(SWAP_API_URL, headers={}, params=params)
