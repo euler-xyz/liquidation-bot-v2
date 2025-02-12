@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_VERSION=3.12.5
+ARG PYTHON_VERSION=3.13.2-slim
 FROM 310118226683.dkr.ecr.eu-west-1.amazonaws.com/python:${PYTHON_VERSION} as base
 
 # Copy the project files
