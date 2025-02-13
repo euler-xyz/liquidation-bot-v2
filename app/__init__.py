@@ -14,8 +14,8 @@ def create_app():
     @app.route("/health", methods=["GET"])
     def health_check():
         return jsonify({"status": "healthy"}), 200
-    
-    chain_ids = [1923, 8453, 146]
+
+    chain_ids = [146, 1923, 8453]
 
     monitor_thread = threading.Thread(target=start_monitor, args=(chain_ids,))
     monitor_thread.start()
