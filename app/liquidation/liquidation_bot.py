@@ -74,14 +74,15 @@ class Vault:
         try:
             balance = self.instance.functions.balanceOf(
                 Web3.to_checksum_address(account_address)).call()
-            time.sleep(self.config.API_REQUEST_DELAY)  # Add delay between RPC calls
+            # time.sleep(self.config.API_REQUEST_DELAY)  # Add delay between RPC calls
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get balance for account %s: %s",
                          account_address, ex, exc_info=True)
-            return (0, 0, 0)
+            raise  # Re-raise the exception instead of returning (0, 0, 0)
 
         try:
             # Check if vault contains a Pyth oracle
+            # Slow_function (up to 1 min 14 seconds)
             self.pyth_feed_ids, self.redstone_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
 
             if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
@@ -109,8 +110,7 @@ class Vault:
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
                             account_address, ex)
-                # return (balance, 100, 100)
-            return (balance, 0, 0)
+            raise  # Re-raise the exception instead of returning (balance, 0, 0)
 
         return (balance, collateral_value, liability_value)
 
@@ -228,11 +228,16 @@ class Account:
         Returns:
             float: The current health score of the account.
         """
+        try:
+            balance, collateral_value, liability_value = self.controller.get_account_liquidity(
+                self.address)
+        except Exception as ex:
+            logger.error("Account: Failed to get account liquidity for %s: %s", 
+                        self.address, ex, exc_info=True)
+            # Keep the previous health score instead of setting to infinity
+            return self.current_health_score
 
-        balance, collateral_value, liability_value = self.controller.get_account_liquidity(
-            self.address)
         self.balance = balance
-
         self.value_borrowed = liability_value
         if self.controller.unit_of_account == self.config.WETH:
             logger.info("Account: Getting a quote for %s WETH, unit of account %s",
@@ -621,6 +626,7 @@ class AccountMonitor:
                     state = json.load(f)
 
                 self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
+               
                 logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
 
                 self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
@@ -662,11 +668,18 @@ class AccountMonitor:
 
         self.update_queue = queue.PriorityQueue()
         idx = 0
+        skipped_accounts = 0
         total_accounts = len(self.accounts)
         for address, account in self.accounts.items():
             try:
                 idx += 1
-                health_score = account.update_liquidity()
+                # To speed up the state loading, we skip the update if the health score is already good
+                if account.current_health_score < 1.05:
+                    health_score = account.update_liquidity()
+                else:
+                    skipped_accounts += 1
+                    logger.info("AccountMonitor: %s/%s, %s has good health score, skipping initial update. Total skipped: %s", idx, total_accounts, address, skipped_accounts)
+                    health_score = account.current_health_score
 
                 if account.current_health_score == math.inf:
                     logger.info("AccountMonitor:  %s/%s, %s has no borrow, skipping", idx, total_accounts, address)
@@ -845,40 +858,51 @@ class PullOracleHandler:
             ).call()
         return result[0], result[1]
 
+    # Slow_function
+    # according to the logs it takes about 1 min 14 seconds
+
     @staticmethod
     def get_feed_ids(vault, config: ChainConfig):
         try:
+            logger.info("get_feed_ids start for vault: %s", vault.address)
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH, config)
-
+            logger.info("get_feed_ids oracle: %s", oracle_address)
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            
+            logger.info("get_feed_ids collateral_vault_list: %s", collateral_vault_list)
             # Replace list comprehension with a loop to add delays
+            # This for takes about 1.6s/record, and some vaults can have 30+ collateral vaults, 
+            # so this step can go to 1 min easily.
             asset_list = []
             for collateral_vault in collateral_vault_list:
                 vault_instance = Vault(collateral_vault, config)
                 asset_list.append(vault_instance.underlying_asset_address)
-                time.sleep(config.API_REQUEST_DELAY)  # Add delay between RPC calls
-                
+                # time.sleep(config.API_REQUEST_DELAY)  # Add delay between RPC calls
+            logger.info("get_feed_ids asset_list: %s", asset_list)
             asset_list.append(vault.underlying_asset_address)
+            logger.info("get_feed_ids asset_list: %s", asset_list)
 
             pyth_feed_ids = set()
             redstone_feed_ids = set()
 
             # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
-
+            # One iteration takes from 1 to 3 seconds, depending on the configured oracle (CrossAdapter, Chainlink or Redstone)
+            idx = 0
             for asset in asset_list:
+                idx += 1
+                logger.info("get_feed_ids asset: idx %s, asset %s", idx, asset)
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
-                time.sleep(config.API_REQUEST_DELAY)  # Add delay after oracle resolution
+                # time.sleep(config.API_REQUEST_DELAY)  # Add delay after oracle resolution
 
                 configured_oracle = create_contract_instance(configured_oracle_address,
                                                              config.ORACLE_ABI_PATH, config)
-
+                logger.info("get_feed_ids configured_oracle: idx %s, oracle %s", idx, configured_oracle_address)
                 try:
                     configured_oracle_name = configured_oracle.functions.name().call()
-                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after name call
+                    # time.sleep(config.API_REQUEST_DELAY)  # Add delay after name call
+                    logger.info("get_feed_ids configured_oracle_name: idx %s, name %s", idx, configured_oracle_name)
                 except Exception as ex: # pylint: disable=broad-except
                     logger.info("PullOracleHandler: Error calling contract for oracle"
                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
@@ -888,20 +912,20 @@ class PullOracleHandler:
                     logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
                                 "Address - %s", vault.address, configured_oracle_address)
                     pyth_feed_ids.add(configured_oracle.functions.feedId().call().hex())
-                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after feed ID call
+                    # time.sleep(config.API_REQUEST_DELAY)  # Add delay after feed ID call
                 elif configured_oracle_name == "RedstoneCoreOracle":
                     logger.info("PullOracleHandler: Redstone oracle found for"
                                 " vault %s: Address - %s",
                                 vault.address, configured_oracle_address)
                     redstone_feed_ids.add((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
-                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after feed ID call
+                    # time.sleep(config.API_REQUEST_DELAY)  # Add delay after feed ID call
                 elif configured_oracle_name == "CrossAdapter":
                     pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle, config)
                     pyth_feed_ids.update(pyth_ids)
                     redstone_feed_ids.update(redstone_ids)
-                    time.sleep(config.API_REQUEST_DELAY)  # Add delay after cross oracle resolution
+                    # time.sleep(config.API_REQUEST_DELAY)  # Add delay after cross oracle resolution
 
             return list(pyth_feed_ids), list(redstone_feed_ids)
 
@@ -1264,7 +1288,7 @@ class Liquidator:
                         violator_address, max_profit_data["collateral_address"],
                         max_profit_data["collateral_asset"], max_profit_data["leftover_borrow"],
                         max_profit_data["leftover_borrow_in_eth"])
-            return (True, max_profit_data, max_profit_params)
+
         return (False, None, None)
 
     @staticmethod

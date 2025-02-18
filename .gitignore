@@ -34,3 +34,5 @@ __pycache__/
 /redstone_script/node_modules
 
 .flaskenv
+
+/state
