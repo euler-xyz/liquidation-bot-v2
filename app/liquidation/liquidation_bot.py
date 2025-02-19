@@ -674,7 +674,7 @@ class AccountMonitor:
             try:
                 idx += 1
                 # To speed up the state loading, we skip the update if the health score is already good
-                if account.current_health_score < 1.05 or account.current_health_score == math.inf:
+                if account.current_health_score < 1.05:
                     health_score = account.update_liquidity()
                 else:
                     skipped_accounts += 1
