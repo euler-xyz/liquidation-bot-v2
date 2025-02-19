@@ -674,11 +674,12 @@ class AccountMonitor:
             try:
                 idx += 1
                 # To speed up the state loading, we skip the update if the health score is already good
-                if account.current_health_score < 1.05:
+                if account.current_health_score < 1.05 or account.current_health_score == math.inf:
                     health_score = account.update_liquidity()
                 else:
                     skipped_accounts += 1
-                    logger.info("AccountMonitor: %s/%s, %s has good health score, skipping initial update. Total skipped: %s", idx, total_accounts, address, skipped_accounts)
+                    logger.info("AccountMonitor: %s/%s (total skipped %s), %s has good health score %s, skipping initial update...", 
+                                idx, total_accounts, skipped_accounts, address, account.current_health_score)
                     health_score = account.current_health_score
 
                 if account.current_health_score == math.inf:
@@ -892,17 +893,17 @@ class PullOracleHandler:
             idx = 0
             for asset in asset_list:
                 idx += 1
-                logger.info("get_feed_ids asset: idx %s, asset %s", idx, asset)
+                logger.info("get_feed_ids[%s]: asset %s", idx, asset)
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
                 # time.sleep(config.API_REQUEST_DELAY)  # Add delay after oracle resolution
 
                 configured_oracle = create_contract_instance(configured_oracle_address,
                                                              config.ORACLE_ABI_PATH, config)
-                logger.info("get_feed_ids configured_oracle: idx %s, oracle %s", idx, configured_oracle_address)
+                logger.info("get_feed_ids[%s]: configured_oracle %s", idx, configured_oracle_address)
                 try:
                     configured_oracle_name = configured_oracle.functions.name().call()
                     # time.sleep(config.API_REQUEST_DELAY)  # Add delay after name call
-                    logger.info("get_feed_ids configured_oracle_name: idx %s, name %s", idx, configured_oracle_name)
+                    logger.info("get_feed_ids[%s]: configured_oracle_name %s", idx, configured_oracle_name)
                 except Exception as ex: # pylint: disable=broad-except
                     logger.info("PullOracleHandler: Error calling contract for oracle"
                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
@@ -1596,9 +1597,10 @@ class Quoter:
             "currentDebt": str(current_debt),
             "targetDebt": str(target_debt)
         }
-
-        response = make_api_request(config.SWAP_API_URL, headers={}, params=params)
-
+        logger.info("get_swap_api_quote: %s", params)
+        response = make_api_request(config.SWAP_API_URL, headers={"Authorization": f"Bearer {config.SWAP_API_KEY}"}, params=params)
+        logger.info("get_swap_api_quote: response %s", response)
+        
         if not response or not response["success"]:
             logger.error("Unable to get quote from swap api")
             return None
