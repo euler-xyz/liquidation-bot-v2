@@ -165,7 +165,7 @@ chains:
       # PYTH address
       PYTH: ""
 
-    # Base
+  # Sonic
   146:
     # Config
     name: "Sonic"
@@ -175,7 +175,7 @@ chains:
 
     # Deployed contract addresses
     contracts:
-      LIQUIDATOR_CONTRACT: "0xA8A46596a7B17542d2cf6993FC61Ea0CBb4474c1"
+      LIQUIDATOR_CONTRACT: "0x431e0a2768de070E860F33653C4634BD69aa4c6a"
 
       #EVK Addresses
       EVC: "0x4860C903f6Ad709c3eDA46D3D502943f184D4315"
@@ -188,5 +188,4 @@ chains:
       BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
       
       # PYTH address
-      PYTH: "0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a"
-  
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
