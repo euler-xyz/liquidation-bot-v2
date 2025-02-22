@@ -1372,41 +1372,6 @@ class Liquidator:
         pyth_feed_ids = vault.pyth_feed_ids
         redstone_feed_ids = vault.redstone_feed_ids
 
-        # #TODO: smarter way to do this
-        # suggested_gas_price = int(w3.eth.gas_price * 1.2)
-
-        # if len(feed_ids)> 0:
-        #     logger.info("Liquidator: executing with pyth")
-        #     update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
-        #     update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
-        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-        #         params, update_data
-        #         ).build_transaction({
-        #             "chainId": config.CHAIN_ID,
-        #             "gasPrice": suggested_gas_price,
-        #             "from": config.LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA),
-        #             "value": update_fee
-        #         })
-        # else:
-        #     logger.info("Liquidator: executing normally")
-        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-        #         params
-        #         ).build_transaction({
-        #             "chainId": config.CHAIN_ID,
-        #             "gasPrice": suggested_gas_price,
-        #             "from": config.LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
-        #         })
-
-        #From flashbots example code
-
-        # latest = w3.eth.get_block("latest")
-        # base_fee = latest["baseFeePerGas"]
-
-        # max_priority_fee = Web3.to_wei(2, "gwei")
-
-        # max_fee = base_fee + max_priority_fee
 
         suggested_gas_price = int(config.w3.eth.gas_price * 1.2)
 
@@ -1461,6 +1426,7 @@ class Liquidator:
 
         net_profit = leftover_borrow_in_eth - (
             config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        net_profit = 1
         logger.info("Net profit: %s", net_profit)
 
         return ({
