@@ -32,6 +32,10 @@ network_variables = {
     8453: {
         "name": "Base",
         "explorer_url": "https://basescan.org"
+    },
+    146: {
+        "name": "Sonic",
+        "explorer_url": "https://sonicscan.org"
     }
 }
 
@@ -102,7 +106,7 @@ class Web3Singleton:
         """
         if Web3Singleton._instance is None:
             load_dotenv(override=True)
-            rpc_url = os.getenv("BASE_RPC_URL")
+            rpc_url = os.getenv("SONIC_RPC_URL")
             logger = logging.getLogger("liquidation_bot")
             logger.info("Trying to connect to RPC URL: %s", rpc_url)
 
