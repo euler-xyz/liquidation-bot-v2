@@ -1020,7 +1020,8 @@ class EVCListener:
                                                   start_block: int,
                                                   end_block: int,
                                                   max_retries: int = 3,
-                                                  seen_accounts: set = set()) -> None:
+                                                  seen_accounts: set = set(),
+                                                  startup_mode: bool = False) -> None:
         """
         Scan a range of blocks for AccountStatusCheck events.
 
@@ -1051,7 +1052,7 @@ class EVCListener:
                             account_address).controller.address == Web3.to_checksum_address(
                                 vault_address)
 
-                        if same_controller:
+                        if same_controller and startup_mode:
                             logger.info("EVCListener: Account %s already seen with "
                                         "controller %s, skipping", account_address, vault_address)
                             continue
@@ -1113,7 +1114,8 @@ class EVCListener:
                 end_block = min(start_block + batch_block_size, current_block)
 
                 self.scan_block_range_for_account_status_check(start_block, end_block,
-                                                               seen_accounts=seen_accounts)
+                                                               seen_accounts=seen_accounts,
+                                                               startup_mode=True)
                 self.account_monitor.save_state()
 
                 start_block = end_block + 1
