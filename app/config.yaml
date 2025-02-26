@@ -189,3 +189,26 @@ chains:
       
       # PYTH address
       PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
+  60808:
+    name: "BOB"
+    EVC_DEPLOYMENT_BLOCK: 11481883
+    EXPLORER_URL: "https://explorer.gobob.xyz/"
+    RPC_NAME: "BOB_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x431e0a2768de070E860F33653C4634BD69aa4c6a"
+
+      #EVK Addresses
+      EVC: "0x59f0FeEc4fA474Ad4ffC357cC8d8595B68abE47d"
+      SWAPPER: "0x697Ca30D765c1603890D88AAffBa3BeCCe72059d"
+      SWAP_VERIFIER: "0x296041DbdBC92171293F23c0a31e1574b791060d"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
