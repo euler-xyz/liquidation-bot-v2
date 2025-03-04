@@ -1,8 +1,11 @@
+from asyncio.log import logger
 import requests, time
 from app.liquidation.utils import create_contract_instance
 from app.liquidation.liquidation_bot import Vault, Quoter
 
 from app.liquidation.config_loader import load_chain_config
+
+from web3.logs import DISCARD
 
 config = load_chain_config(1)
 
@@ -15,27 +18,28 @@ def get_small_accounts():
 
     response = requests.get(url)
     data = response.json()
-    
-    count = 0
 
     small_account_addresses = []
+    count = 0
+    total_yield = 0
+    total_repay = 0
+
     for account in data:
-        if account["vault_symbol"] == borrow_vault_symbol and account["health_score"] < 1:
-            small_account_addresses.append(account["account_address"])
-            count += 1
-        if account["health_score"] > 1 or count > 50:
+        if account["health_score"] > 0.9999 or count > 100:
             print("Number of small accounts:", count)
             break
-    return small_account_addresses
 
-small_account_addresses = get_small_accounts()
+        if account["vault_symbol"] == borrow_vault_symbol and account["health_score"] < 1:
+            repay_amount, yield_amount = borrow_vault.check_liquidation(account["account_address"], collateral_vault.address, config.LIQUIDATOR_EOA)
+            if repay_amount > 0:
+                small_account_addresses.append(account["account_address"])
+                total_yield += yield_amount
+                total_repay += repay_amount
+                count += 1
+    return small_account_addresses, total_yield, total_repay
 
-total_yield = 0
-total_repay = 0
-for address in small_account_addresses:
-    repay_amount, yield_amount = borrow_vault.check_liquidation(address, collateral_vault.address, config.LIQUIDATOR_EOA)
-    total_yield += yield_amount
-    total_repay += repay_amount
+small_account_addresses, total_yield, total_repay = get_small_accounts()
+
 
 print("Total yield:", total_yield)
 print("Total repay:", total_repay)
@@ -80,7 +84,7 @@ params = (
         config.LIQUIDATOR_EOA
 )
 
-liquidation_contract_adddress = "0x99087bC4D15f805372d415F2384A051Ad4c9aaE2"
+liquidation_contract_adddress = "0xEAfae49CB98999d633537b61b0b90648Cf2D9EC8"
 
 liquidator = create_contract_instance(liquidation_contract_adddress, "out/SmallAccountLiquidator.sol/Liquidator.json", config)
 
@@ -97,8 +101,14 @@ print("Current gas price: %.1f gwei" % gas_price_gwei)
 eth_cost = (estimated_gas * gas_price_gwei) / 1e9
 
 # Rough ETH price estimate - in production you'd want to get this from an oracle/API
-ETH_PRICE_USD = 2200  
+ETH_PRICE_USD = 2110
 gas_cost_usd = eth_cost * ETH_PRICE_USD
 
 print("Estimated gas: %d" % estimated_gas)
 print("Gas cost: %f ETH ($%.2f)" % (eth_cost, gas_cost_usd))
+
+if gas_cost_usd < 125:
+    print("executing liquidation")
+    signed_tx = config.w3.eth.account.sign_transaction(liquidation_tx, config.LIQUIDATOR_EOA_PRIVATE_KEY)
+    tx_hash = config.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    tx_receipt = config.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)

@@ -79,7 +79,7 @@ global:
   RETRY_DELAY: 10
   # Acceptable amound of overswapping of collateral for 1INCH binary search
   API_REQUEST_DELAY: .25
-  SWAP_SLIPPAGE: 1.0 # 1%
+  SWAP_SLIPPAGE: 3.0 # 1%
   SWAP_DEADLINE: 300 # 5 minutes
   
   ## EOA TO RECEIVE LIQUIDATION PROCEEDS ##
