@@ -29,6 +29,10 @@ network_variables = {
         "name": "Arbitrum",
         "explorer_url": "https://arbiscan.io"
     },
+    8453: {
+        "name": "Base",
+        "explorer_url": "https://basescan.org"
+    }
 }
 
 def load_config() -> SimpleNamespace:
@@ -98,7 +102,7 @@ class Web3Singleton:
         """
         if Web3Singleton._instance is None:
             load_dotenv(override=True)
-            rpc_url = os.getenv("MAINNET_RPC_URL")
+            rpc_url = os.getenv("BASE_RPC_URL")
             logger = logging.getLogger("liquidation_bot")
             logger.info("Trying to connect to RPC URL: %s", rpc_url)
 

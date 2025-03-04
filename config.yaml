@@ -82,4 +82,4 @@ ERC20_ABI_PATH: "out/IERC20.sol/IERC20.json"
 ROUTER_ABI_PATH: "contracts/EulerRouter.json"
 
 # Chain ID
-CHAIN_ID: 1
+CHAIN_ID: 8453
