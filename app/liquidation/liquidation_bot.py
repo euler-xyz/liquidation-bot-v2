@@ -77,7 +77,7 @@ class Vault:
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get balance for account %s: %s",
                          account_address, ex, exc_info=True)
-            raise  # Re-raise the exception instead of returning (0, 0, 0)
+            return (0, 0, 0)
 
         try:
             # Check if vault contains a Pyth oracle
@@ -109,7 +109,8 @@ class Vault:
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
                             account_address, ex)
-            raise  # Re-raise the exception instead of returning (balance, 0, 0)
+                # return (balance, 100, 100)
+            return (balance, 0, 0)
 
         return (balance, collateral_value, liability_value)
 
@@ -227,16 +228,11 @@ class Account:
         Returns:
             float: The current health score of the account.
         """
-        try:
-            balance, collateral_value, liability_value = self.controller.get_account_liquidity(
-                self.address)
-        except Exception as ex:
-            logger.error("Account: Failed to get account liquidity for %s: %s", 
-                        self.address, ex, exc_info=True)
-            # Keep the previous health score instead of setting to infinity
-            return self.current_health_score
 
+        balance, collateral_value, liability_value = self.controller.get_account_liquidity(
+            self.address)
         self.balance = balance
+
         self.value_borrowed = liability_value
         if self.controller.unit_of_account == self.config.WETH:
             logger.info("Account: Getting a quote for %s WETH, unit of account %s",
@@ -1281,7 +1277,7 @@ class Liquidator:
                         violator_address, max_profit_data["collateral_address"],
                         max_profit_data["collateral_asset"], max_profit_data["leftover_borrow"],
                         max_profit_data["leftover_borrow_in_eth"])
-
+            return (True, max_profit_data, max_profit_params)
         return (False, None, None)
 
     @staticmethod
@@ -1366,6 +1362,8 @@ class Liquidator:
         else:
             leftover_borrow_in_eth = leftover_borrow
 
+        time.sleep(config.API_REQUEST_DELAY)
+
         swap_data = []
         for _, item in enumerate(swap_api_response["swap"]["multicallItems"]):
             if item["functionName"] != "swap":
@@ -1381,6 +1379,8 @@ class Liquidator:
             logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
             return ({"profit": 0}, None)
 
+
+        time.sleep(config.API_REQUEST_DELAY)
 
         params = (
                 violator_address,
