@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+// To run:
+// forge build
+// forge script scripts/DeployLiquidator.sol --rpc-url $RPC_URL --broadcast --ffi -vvv --slow --sender $LIQUIDATOR_ADDRESS
+
+
 pragma solidity ^0.8.24;
 
 import {console} from "forge-std/Test.sol";
