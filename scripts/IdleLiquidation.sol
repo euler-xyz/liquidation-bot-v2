@@ -5,7 +5,7 @@ pragma solidity ^0.8.24;
 import {console} from "forge-std/Test.sol";
 import {Script} from "forge-std/Script.sol";
 
-import {IEVault, IERC20, ILiquidation} from "../contracts/IEVault.sol";
+import {IEVault, IERC20, ILiquidation, IBorrowing, IERC4626, IRiskManager} from "../contracts/IEVault.sol";
 import {IEVC} from "../contracts/IEVC.sol";
 
 contract IdleLiquidation is Script {
@@ -18,7 +18,6 @@ contract IdleLiquidation is Script {
     address constant EVC_ADDRESS = 0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383;
 
     address constant VIOLATOR = 0xe0e6111985A78E99596FE8100c07Ba8a8403060F;
-    address constant LIQUIDATOR = 0x8cbB534874bab83e44a7325973D2F04493359dF8;
 
     IEVault usdc_vault;
     IEVault idle_vault;
@@ -29,6 +28,8 @@ contract IdleLiquidation is Script {
     IEVC evc;
 
     function run() public {
+        uint256 liquidatorPrivateKey = vm.envUint("LIQUIDATOR_PRIVATE_KEY");
+        
         evc = IEVC(EVC_ADDRESS);
 
         usdc_vault = IEVault(USDC_VAULT);
@@ -37,13 +38,41 @@ contract IdleLiquidation is Script {
         idle_vault = IEVault(IDLE_VAULT);
         idle = IERC20(IDLE_ASSET);
 
-        idle.approve(IDLE_VAULT, type(uint256).max);
+        vm.startBroadcast(liquidatorPrivateKey);
+
+        usdc.approve(USDC_VAULT, type(uint256).max);
 
         evc.enableController(USDC_VAULT, USDC_VAULT);
         evc.enableCollateral(IDLE_VAULT, IDLE_VAULT);
 
-        (uint256 maxRepay, uint256 maxYield) = usdc_vault.checkLiquidation(LIQUIDATOR, VIOLATOR, IDLE_VAULT);
+        (uint256 maxRepay, ) = usdc_vault.checkLiquidation(msg.sender, VIOLATOR, IDLE_VAULT);
 
-        idle_vault.withdraw(maxYield, address(this), address(this));
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](3);
+
+        batchItems[0] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: USDC_VAULT,
+            value: 0,
+            data: abi.encodeCall(
+                ILiquidation.liquidate,
+                (VIOLATOR, IDLE_VAULT, maxRepay, 0)
+            )
+        });
+
+        batchItems[1] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: USDC_VAULT,
+            value: 0,
+            data: abi.encodeCall(IBorrowing.repay, (maxRepay, msg.sender))
+        });
+
+        batchItems[2] = IEVC.BatchItem({
+            onBehalfOfAccount: msg.sender,
+            targetContract: USDC_VAULT,
+            value: 0,
+            data: abi.encodeCall(IRiskManager.disableController, ())
+        });
+
+        evc.batch(batchItems);
     }
 }
