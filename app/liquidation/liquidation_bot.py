@@ -1383,7 +1383,7 @@ class Liquidator:
             update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
             update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-                params, swap_data, update_data
+                params, swap_data, [update_data]
                 ).build_transaction({
                     "chainId": config.CHAIN_ID,
                     "from": config.LIQUIDATOR_EOA,
