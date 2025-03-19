@@ -100,7 +100,7 @@ chains:
 
     # Deployed contract addresses
     contracts:
-      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+      LIQUIDATOR_CONTRACT: "0x35c6D87F8C26c00D31c17f14F46Fb437522E3a08"
 
       #EVK Addresses
       EVC: "0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383"
@@ -125,7 +125,7 @@ chains:
 
     # Deployed contract addresses
     contracts:
-      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+      LIQUIDATOR_CONTRACT: "0x7608926d200d2a85dDB3a034ADb7D18fD2D5F3Cf"
 
       #EVK Addresses
       EVC: "0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989"
@@ -164,4 +164,73 @@ chains:
       
       # PYTH address
       PYTH: ""
+
+  # Sonic
+  146:
+    # Config
+    name: "Sonic"
+    EVC_DEPLOYMENT_BLOCK: 5324624
+    EXPLORER_URL: "https://sonicscan.org"
+    RPC_NAME: "SONIC_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x431e0a2768de070E860F33653C4634BD69aa4c6a"
+
+      #EVK Addresses
+      EVC: "0x4860C903f6Ad709c3eDA46D3D502943f184D4315"
+      SWAPPER: "0xbAf5B12c92711a3657DD4adA6b3C7801e83Bb56a"
+      SWAP_VERIFIER: "0x003ef4048b45a5A79D4499aaBd52108B3Bc9209f"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
+  60808:
+    name: "BOB"
+    EVC_DEPLOYMENT_BLOCK: 11481883
+    EXPLORER_URL: "https://explorer.gobob.xyz/"
+    RPC_NAME: "BOB_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x431e0a2768de070E860F33653C4634BD69aa4c6a"
+
+      #EVK Addresses
+      EVC: "0x59f0FeEc4fA474Ad4ffC357cC8d8595B68abE47d"
+      SWAPPER: "0x697Ca30D765c1603890D88AAffBa3BeCCe72059d"
+      SWAP_VERIFIER: "0x296041DbdBC92171293F23c0a31e1574b791060d"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
   
+  80094:
+    name: "Berachain"
+    EVC_DEPLOYMENT_BLOCK: 786266
+    EXPLORER_URL: "https://berascan.com/"
+    RPC_NAME: "BERA_RPC_URL"
+    
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xA8A46596a7B17542d2cf6993FC61Ea0CBb4474c1"
+
+      #EVK Addresses
+      EVC: "0x45334608ECE7B2775136bC847EB92B5D332806A9"
+      SWAPPER: "0x4A35e6A872cf35623cd3fD07ebECEDFc0170D705"
+      SWAP_VERIFIER: "0x6fFf8Ac4AB123B62FF5e92aBb9fF702DCBD6C939"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
