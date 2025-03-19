@@ -169,7 +169,7 @@ chains:
   80094:
     # Config
     name: "Berrachain"
-    EVC_DEPLOYMENT_BLOCK: 485320
+    EVC_DEPLOYMENT_BLOCK: 786266
     EXPLORER_URL: "https://berascan.com/"
     RPC_NAME: "BERRA_RPC_URL"
 
