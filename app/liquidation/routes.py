@@ -13,7 +13,7 @@ def start_monitor(chain_ids=None):
     """Start monitoring for specified chains, defaults to mainnet if none specified"""
     global chain_manager
     if chain_ids is None:
-        chain_ids = [1] # Default to Ethereum mainnet
+        chain_ids = [1] # Default Ethereum mainnet
 
     chain_manager = ChainManager(chain_ids, notify=True)
 

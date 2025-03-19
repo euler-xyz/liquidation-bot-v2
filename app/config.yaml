@@ -165,3 +165,27 @@ chains:
       # PYTH address
       PYTH: ""
   
+  # Berrachain
+  80094:
+    # Config
+    name: "Berrachain"
+    EVC_DEPLOYMENT_BLOCK: 485320
+    EXPLORER_URL: "https://berascan.com/"
+    RPC_NAME: "BERRA_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xA8A46596a7B17542d2cf6993FC61Ea0CBb4474c1"
+
+      #EVK Addresses
+      EVC: "0x45334608ECE7B2775136bC847EB92B5D332806A9"
+      SWAPPER: "0x4A35e6A872cf35623cd3fD07ebECEDFc0170D705"
+      SWAP_VERIFIER: "0x6fFf8Ac4AB123B62FF5e92aBb9fF702DCBD6C939"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: ""
