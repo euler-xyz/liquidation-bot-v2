@@ -225,9 +225,9 @@ class Account:
         Returns:
             float: The current health score of the account.
         """
-
         balance, collateral_value, liability_value = self.controller.get_account_liquidity(
             self.address)
+
         self.balance = balance
 
         self.value_borrowed = liability_value
@@ -614,6 +614,7 @@ class AccountMonitor:
         """
         try:
             if local_save and os.path.exists(save_path):
+                print(save_path)
                 with open(save_path, "r", encoding="utf-8") as f:
                     state = json.load(f)
 
