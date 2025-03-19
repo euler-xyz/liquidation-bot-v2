@@ -44,7 +44,7 @@ class ChainManager:
 
     def start(self):
         """Start all chain monitors and evc_listeners"""
-        with ThreadPoolExecutor(max_workers=len(self.chain_ids) + 1) as executor:
+        with ThreadPoolExecutor(max_workers=len(self.chain_ids)*2) as executor:
             # First batch process historical logs
             for chain_id in self.chain_ids:
                 self.evc_listeners[chain_id].batch_account_logs_on_startup()
