@@ -36,3 +36,5 @@ __pycache__/
 .flaskenv
 
 /state
+/my_docs
+temp.txt

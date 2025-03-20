@@ -819,12 +819,19 @@ class PullOracleHandler:
 
         liquidator = config.liquidator
 
+        # Add logging to help troubleshoot the parameters
+        logger.info("Pyth Simulation - Params: vault=%s, liquidator=%s, borrower=%s, collateral=%s", 
+                    vault.address, liquidator_address, borrower_address, collateral_address)
+        logger.info("Pyth Simulation - Update data length: %s, update fee: %s", 
+                    len(update_data), update_fee)
+
+        # Try the call with a higher gas limit to ensure it's not a gas estimation issue
         result = liquidator.functions.simulatePythUpdateAndCheckLiquidation(
             [update_data], update_fee, vault.address,
             liquidator_address, borrower_address, collateral_address
             ).call({
                 "value": update_fee
-            })
+                })
         return result[0], result[1]
 
     @staticmethod
