@@ -47,3 +47,35 @@ def get_all_positions():
         })
 
     return make_response(jsonify(response))
+
+@liquidation.route("/account/<address>", methods=["GET"])
+def get_account_details(address):
+    """Get detailed information about a specific account"""
+    chain_id = int(request.args.get("chainId", 1))  # Default to mainnet if not specified
+    
+    if not chain_manager or chain_id not in chain_manager.monitors:
+        return jsonify({"error": f"Monitor not initialized for chain {chain_id}"}), 500
+
+    logger.info("API: Getting details for account %s on chain %s", address, chain_id)
+    monitor = chain_manager.monitors[chain_id]
+    
+    # Find the account in the monitor's accounts
+    account = monitor.accounts.get(address)
+    if not account:
+        return jsonify({"error": f"Account {address} not found on chain {chain_id}"}), 404
+    
+    response = {
+        "address": address,
+        "owner": account.owner,
+        "sub_account": account.subaccount_number,
+        "health_score": account.current_health_score,
+        "value_borrowed": account.value_borrowed,
+        "vault_name": account.controller.vault_name,
+        "vault_symbol": account.controller.vault_symbol,
+        "controller_address": account.controller.address,
+        "underlying_asset": account.controller.underlying_asset_address,
+        "balance": account.balance,
+        "next_update_time": account.time_of_next_update
+    }
+
+    return make_response(jsonify(response))
