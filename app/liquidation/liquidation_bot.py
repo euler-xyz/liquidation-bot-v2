@@ -1081,9 +1081,14 @@ class EVCListener:
                     #if we've seen the account already and the status
                     # check is not due to changing controller
                     if account_address in seen_accounts:
-                        same_controller = self.account_monitor.accounts.get(
-                            account_address).controller.address == Web3.to_checksum_address(
-                                vault_address)
+                        existing_account = self.account_monitor.accounts.get(account_address)
+                        if existing_account is None:
+                            logger.info("EVCListener: Account %s not found in monitor, adding it", account_address)
+                            seen_accounts.remove(account_address)  # Remove from seen to allow re-processing
+                            continue
+                            
+                        same_controller = existing_account.controller.address == Web3.to_checksum_address(
+                            vault_address)
 
                         if same_controller:
                             logger.info("EVCListener: Account %s already seen with "

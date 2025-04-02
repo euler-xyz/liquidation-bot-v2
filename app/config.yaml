@@ -114,31 +114,156 @@ chains:
       
       # PYTH address
       PYTH: "0x4305FB66699C3B2702D4d05CF36551390A4c69C6"
-  
-  # Base
-  8453:
+
+  # OP Mainnet
+  10:
     # Config
-    name: "Base"
-    EVC_DEPLOYMENT_BLOCK: 22282342
-    EXPLORER_URL: "https://basescan.org"
-    RPC_NAME: "BASE_RPC_URL"
+    name: "Optimism"
+    EVC_DEPLOYMENT_BLOCK: 131522277
+    EXPLORER_URL: "https://optimistic.etherscan.io/"
+    RPC_NAME: "OP_RPC_URL"
 
     # Deployed contract addresses
     contracts:
-      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
 
       #EVK Addresses
-      EVC: "0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989"
-      SWAPPER: "0x0D3d0F97eD816Ca3350D627AD8e57B6AD41774df"
-      SWAP_VERIFIER: "0x30660764A7a05B84608812C8AFC0Cb4845439EEe"
+      EVC: "0xbfB28650Cd13CE879E7D56569Ed4715c299823E4"
+      SWAPPER: "0x76B103bECa4459C9E0dd35a8E5ad48c8f93e768f"
+      SWAP_VERIFIER: "0x804C754ea602B54B28b0D3a10F8122e0a605dAD9"
       
       # Other relevant contracts & Units of Account
-      WETH: "0x4200000000000000000000000000000000000006"
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
       USD: "0x0000000000000000000000000000000000000348"
       BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
       
       # PYTH address
-      PYTH: "0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a"
+      PYTH: "0xff1a0f4744e8582DF1aE09D5611b887B6a12925C"
+
+  # BNB Smart Chain Mainnet
+  56:
+    # Config
+    name: "BNB Smart Chain"
+    EVC_DEPLOYMENT_BLOCK: 46370642
+    EXPLORER_URL: "https://bscscan.com/"
+    RPC_NAME: "BNBSC_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+
+      #EVK Addresses
+      EVC: "0xb2E5a73CeE08593d1a076a2AE7A6e02925a640ea"
+      SWAPPER: "0xAE4043937906975E95F885d8113D331133266Ee4"
+      SWAP_VERIFIER: "0xA8a4f96EC451f39Eb95913459901f39F5E1C068B"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x4D7E825f80bDf85e913E0DD2A2D54927e9dE1594"
+  
+  # Gnosis
+  100:
+    # Config
+    name: "Gnosis"
+    EVC_DEPLOYMENT_BLOCK: 38384051
+    EXPLORER_URL: "https://gnosisscan.io/"
+    RPC_NAME: "GNOSIS_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+
+      #EVK Addresses
+      EVC: "0xD1446CDaa29b342C04c6162023f3A645CB318736"
+      SWAPPER: "0x59072bf20763F311f560B26a887dca5a53E20922"
+      SWAP_VERIFIER: "0xf730e013eA862e91baD957Bc8F8837441259a4D2"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
+  # Unichain
+  130:
+    # Config
+    name: "Unichain"
+    EVC_DEPLOYMENT_BLOCK: 8541493
+    EXPLORER_URL: "https://unichain.blockscout.com/"
+    RPC_NAME: "UNICHAIN_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+
+      #EVK Addresses
+      EVC: "0x2A1176964F5D7caE5406B627Bf6166664FE83c60"
+      SWAPPER: "0x319E8ecd3BaB57fE684ca1aCfaB60c5603087B3A"
+      SWAP_VERIFIER: "0x7eaf8C22480129E5D7426e3A33880D7bE19B50a7"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
+  # Polygon
+  137:
+    # Config
+    name: "Polygon"
+    EVC_DEPLOYMENT_BLOCK: 64475512
+    EXPLORER_URL: "https://polygonscan.com/"
+    RPC_NAME: "POLYGON_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+
+      #EVK Addresses
+      EVC: "0xa1C13F5c4929521F0bf31cBE03025cb75C214DCB"
+      SWAPPER: "0xe6C04A97fdfAE75BBA82451Ae7296D8b48B8C0A4"
+      SWAP_VERIFIER: "0xD2c4D6831C6F7c2162015523b8105b972a3D2958"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0xff1a0f4744e8582DF1aE09D5611b887B6a12925C"
+  
+  # World Chain
+  480:
+    # Config
+    name: "World Chain"
+    EVC_DEPLOYMENT_BLOCK: 9860677
+    EXPLORER_URL: "https://worldscan.org/"
+    RPC_NAME: "WORLD_CHAIN_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+
+      #EVK Addresses
+      EVC: "0x1384708aD4EEd6c264c196555422956306348359"
+      SWAPPER: "0x20C6fC317bE2a454E4b8c1A08B3E6A15Ee8cb38E"
+      SWAP_VERIFIER: "0x7aAA49a2eC3A7CCCeb88B6E4cB450175623F7230"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: ""
 
   # Swell
   1923:
@@ -164,7 +289,107 @@ chains:
       
       # PYTH address
       PYTH: ""
+
+  # Base
+  8453:
+    # Config
+    name: "Base"
+    EVC_DEPLOYMENT_BLOCK: 22282342
+    EXPLORER_URL: "https://basescan.org"
+    RPC_NAME: "BASE_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+
+      #EVK Addresses
+      EVC: "0x5301c7dD20bD945D2013b48ed0DEE3A284ca8989"
+      SWAPPER: "0x0D3d0F97eD816Ca3350D627AD8e57B6AD41774df"
+      SWAP_VERIFIER: "0x30660764A7a05B84608812C8AFC0Cb4845439EEe"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a"
+
+  # Arbitrum One
+  42161:
+    # Config
+    name: "Arbitrum One"
+    EVC_DEPLOYMENT_BLOCK: 300690868
+    EXPLORER_URL: "https://arbiscan.io/"
+    RPC_NAME: "ARBITRUM_ONE_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+
+      #EVK Addresses
+      EVC: "0x6302ef0F34100CDDFb5489fbcB6eE1AA95CD1066"
+      SWAPPER: "0x6eE488A00A2ef1E2764cD7245F8a77C40060A7C7"
+      SWAP_VERIFIER: "0x7b16DAaFa76CfeC8C08D7a68aF31949B37ebfdF5"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0xff1a0f4744e8582DF1aE09D5611b887B6a12925C"
   
+  # Avalanche
+  43114:
+    # Config
+    name: "Avalanche"
+    EVC_DEPLOYMENT_BLOCK: 56805692
+    EXPLORER_URL: "https://subnets.avax.network/"
+    RPC_NAME: "AVALANCHE_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+
+      #EVK Addresses
+      EVC: "0xddcbe30A761Edd2e19bba930A977475265F36Fa1"
+      SWAPPER: "0x6E1C286e888Ab5911ca37aCeD81365d57eC29a06"
+      SWAP_VERIFIER: "0x0d7938D9c31Cd7dD693752074284af133c1142de"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x4305FB66699C3B2702D4d05CF36551390A4c69C6"
+  
+  # Ink
+  57073:
+    # Config
+    name: "Ink"
+    EVC_DEPLOYMENT_BLOCK: 402613
+    EXPLORER_URL: "https://explorer.inkonchain.com/"
+    RPC_NAME: "INK_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xdB940d3EcF986dDFcfC18D30D56Ad6C42428E537"
+
+      #EVK Addresses
+      EVC: "0x59B8DfBcD3F004e7287eA021A67D54763fEAeE0C"
+      SWAPPER: "0x4A790B1Dd4b59f07Ac31841dCbB0707d0aa2e616"
+      SWAP_VERIFIER: "0x389d4Bfa6F869542b220E4C71c74D58333B9F000"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
   # Berachain
   80094:
     # Config
