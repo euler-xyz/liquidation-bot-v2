@@ -311,7 +311,7 @@ class Account:
         if not(self.time_of_next_update < time_of_next_update and self.time_of_next_update > time.time()):
             self.time_of_next_update = time_of_next_update
 
-        logger.info("Account: %s next update scheduled for %s", self.address,
+        logger.info("[%s] Account: %s next update scheduled for %s", self.config.CHAIN_ID, self.address,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update)))
         return self.time_of_next_update
 
