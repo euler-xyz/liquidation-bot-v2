@@ -22,43 +22,64 @@ class ChainManager:
 
     def _initialize_chains(self):
         """Initialize components for each chain"""
-        print("Chain IDs: ", self.chain_ids)
+        logger.info("Starting initialization for chain IDs: %s", self.chain_ids)
         for chain_id in self.chain_ids:
-            # Load chain-specific config
-            config = load_chain_config(chain_id)
-            self.configs[chain_id] = config
+            try:
+                logger.info("Initializing chain %s", chain_id)
+                # Load chain-specific config
+                config = load_chain_config(chain_id)
+                self.configs[chain_id] = config
+                logger.info("Successfully loaded config for chain %s (%s)", 
+                          chain_id, config.CHAIN_NAME)
 
-            # Create monitor instance
-            monitor = AccountMonitor(
-                chain_id=chain_id,
-                config=config,
-                notify=self.notify,
-                execute_liquidation=self.execute_liquidation
-            )
-            monitor.load_state(config.SAVE_STATE_PATH)
-            self.monitors[chain_id] = monitor
+                # Create monitor instance
+                monitor = AccountMonitor(
+                    chain_id=chain_id,
+                    config=config,
+                    notify=self.notify,
+                    execute_liquidation=self.execute_liquidation
+                )
+                monitor.load_state(config.SAVE_STATE_PATH)
+                self.monitors[chain_id] = monitor
+                logger.info("Successfully initialized monitor for chain %s", chain_id)
 
-            # Create listener instance
-            listener = EVCListener(monitor, config)
-            self.evc_listeners[chain_id] = listener
+                # Create listener instance
+                listener = EVCListener(monitor, config)
+                self.evc_listeners[chain_id] = listener
+                logger.info("Successfully initialized listener for chain %s", chain_id)
+
+            except Exception as e:
+                logger.error("Failed to initialize chain %s: %s", chain_id, str(e), exc_info=True)
+                # Continue with other chains even if one fails
+                continue
+
+        logger.info("Chain initialization complete. Successfully initialized chains: %s", 
+                   list(self.monitors.keys()))
 
     def start(self):
         """Start all chain monitors and evc_listeners"""
+        logger.info("Starting chain monitors and listeners for chains: %s", list(self.monitors.keys()))
+        
         with ThreadPoolExecutor() as executor:
             # First batch process historical logs
-            for chain_id in self.chain_ids:
-                self.evc_listeners[chain_id].batch_account_logs_on_startup()
+            for chain_id in self.monitors.keys():
+                try:
+                    logger.info("Starting batch processing for chain %s", chain_id)
+                    self.evc_listeners[chain_id].batch_account_logs_on_startup()
+                except Exception as e:
+                    logger.error("Failed to batch process logs for chain %s: %s", 
+                               chain_id, str(e), exc_info=True)
 
             # Start monitors
             monitor_futures = [
                 executor.submit(self._run_monitor, chain_id)
-                for chain_id in self.chain_ids
+                for chain_id in self.monitors.keys()
             ]
 
             # Start evc_listeners
             listener_futures = [
                 executor.submit(self._run_listener, chain_id)
-                for chain_id in self.chain_ids
+                for chain_id in self.monitors.keys()
             ]
 
             # Wait for all to complete (they shouldn't unless there's an error)
@@ -70,13 +91,21 @@ class ChainManager:
 
     def _run_monitor(self, chain_id: int):
         """Run a single chain's monitor"""
-        monitor = self.monitors[chain_id]
-        monitor.start_queue_monitoring()
+        try:
+            logger.info("Starting monitor for chain %s", chain_id)
+            monitor = self.monitors[chain_id]
+            monitor.start_queue_monitoring()
+        except Exception as e:
+            logger.error("Monitor failed for chain %s: %s", chain_id, str(e), exc_info=True)
 
     def _run_listener(self, chain_id: int):
         """Run a single chain's listener"""
-        listener = self.evc_listeners[chain_id]
-        listener.start_event_monitoring()
+        try:
+            logger.info("Starting listener for chain %s", chain_id)
+            listener = self.evc_listeners[chain_id]
+            listener.start_event_monitoring()
+        except Exception as e:
+            logger.error("Listener failed for chain %s: %s", chain_id, str(e), exc_info=True)
 
     def stop(self):
         """Stop all chain instances"""

@@ -143,7 +143,7 @@ chains:
   # BNB Smart Chain Mainnet
   56:
     # Config
-    name: "BNB Smart Chain"
+    name: "BNB_Smart_Chain"
     EVC_DEPLOYMENT_BLOCK: 46370642
     EXPLORER_URL: "https://bscscan.com/"
     RPC_NAME: "BNBSC_RPC_URL"
@@ -243,7 +243,7 @@ chains:
   # World Chain
   480:
     # Config
-    name: "World Chain"
+    name: "World_Chain"
     EVC_DEPLOYMENT_BLOCK: 9860677
     EXPLORER_URL: "https://worldscan.org/"
     RPC_NAME: "WORLD_CHAIN_RPC_URL"
@@ -318,7 +318,7 @@ chains:
   # Arbitrum One
   42161:
     # Config
-    name: "Arbitrum One"
+    name: "Arbitrum_One"
     EVC_DEPLOYMENT_BLOCK: 300690868
     EXPLORER_URL: "https://arbiscan.io/"
     RPC_NAME: "ARBITRUM_ONE_RPC_URL"

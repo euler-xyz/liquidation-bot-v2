@@ -397,18 +397,18 @@ class AccountMonitor:
         save_thread = threading.Thread(target=self.periodic_save)
         save_thread.start()
 
-        logger.info("AccountMonitor: Save thread started.")
+        logger.info("[%s] AccountMonitor: Save thread started.", self.chain_id)
 
         if self.notify:
             low_health_report_thread = threading.Thread(target=
                                                         self.periodic_report_low_health_accounts)
             low_health_report_thread.start()
-            logger.info("AccountMonitor: Low health report thread started.")
+            logger.info("[%s] AccountMonitor: Low health report thread started.", self.chain_id)
 
         while self.running:
             with self.condition:
                 while self.update_queue.empty():
-                    logger.info("AccountMonitor: Waiting for queue to be non-empty.")
+                    logger.info("[%s] AccountMonitor: Waiting for queue to be non-empty.", self.chain_id)
                     self.condition.wait()
 
                 next_update_time, address = self.update_queue.get()
@@ -416,8 +416,8 @@ class AccountMonitor:
                 # check for special value that indicates
                 # account should be skipped & removed from queue
                 if next_update_time == -1:
-                    logger.info("AccountMonitor: %s has no position,"
-                                " skipping and removing from queue", address)
+                    logger.info("[%s] AccountMonitor: %s has no position,"
+                                " skipping and removing from queue", self.chain_id, address)
                     continue
 
                 current_time = time.time()
@@ -441,7 +441,7 @@ class AccountMonitor:
         # If the vault is not already tracked in the list, create it
         if vault_address not in self.vaults:
             self.vaults[vault_address] = Vault(vault_address, self.config)
-            logger.info("AccountMonitor: Vault %s added to vault list.", vault_address)
+            logger.info("[%s] AccountMonitor: Vault %s added to vault list.", self.chain_id, vault_address)
 
         vault = self.vaults[vault_address]
 
@@ -451,11 +451,13 @@ class AccountMonitor:
             account = Account(address, vault, self.config)
             self.accounts[address] = account
 
-            logger.info("AccountMonitor: Adding %s to account list with controller %s.",
+            logger.info("[%s] AccountMonitor: %s to account list with controller %s.",
+                        self.chain_id,
                         address,
                         vault.address)
         else:
-            logger.info("AccountMonitor: %s already in list with controller %s.",
+            logger.info("[%s] AccountMonitor: %s already in list with controller %s.",
+                        self.chain_id,
                         address,
                         vault.address)
 
@@ -472,11 +474,14 @@ class AccountMonitor:
             account = self.accounts.get(address)
 
             if not account:
-                logger.error("AccountMonitor: %s not found in account list.",
+                logger.error("[%s] AccountMonitor: %s not found in account list.",
+                             self.chain_id,
                              address, exc_info=True)
                 return
 
-            logger.info("AccountMonitor: Updating %s liquidity.", address)
+            logger.info("[%s] AccountMonitor: Updating %s liquidity.",
+                        self.chain_id,
+                        address)
             prev_scheduled_time = account.time_of_next_update
 
             health_score = account.update_liquidity()
@@ -488,86 +493,89 @@ class AccountMonitor:
                             if (time.time() - self.recently_posted_low_value[account.address]
                                 < self.config.LOW_HEALTH_REPORT_INTERVAL
                                 and account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD):
-                                logger.info("Skipping posting notification "
-                                            "for account %s, recently posted", address)
+                                logger.info("[%s] AccountMonitor: Skipping posting notification "
+                                            "for account %s, recently posted", self.chain_id, address)
                         else:
                             try:
                                 post_unhealthy_account_on_slack(address, account.controller.address,
                                                                 health_score,
                                                                 account.value_borrowed, self.config)
-                                logger.info("Valut borrowed: %s", account.value_borrowed)
+                                logger.info("[%s] AccountMonitor: Valut borrowed: %s",
+                                            self.chain_id, account.value_borrowed)
                                 if account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD:
                                     self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
-                                logger.error("AccountMonitor: "
+                                logger.error("[%s] AccountMonitor: "
                                              "Failed to post low health notification "
                                              "for account %s to slack: %s",
-                                             address, ex, exc_info=True)
+                                             self.chain_id, address, ex, exc_info=True)
 
-                    logger.info("AccountMonitor: %s is unhealthy, "
+                    logger.info("[%s] AccountMonitor: %s is unhealthy, "
                                 "checking liquidation profitability.",
-                                address)
+                                self.chain_id, address)
                     (result, liquidation_data, params) = account.simulate_liquidation()
 
                     if result:
                         if self.notify:
                             try:
-                                logger.info("AccountMonitor: Posting liquidation notification "
-                                            "to slack for account %s.", address)
+                                logger.info("[%s] AccountMonitor: Posting liquidation notification "
+                                            "to slack for account %s.", self.chain_id, address)
                                 post_liquidation_opportunity_on_slack(address,
                                                                       account.controller.address,
                                                                       liquidation_data, params, self.config)
                             except Exception as ex: # pylint: disable=broad-except
-                                logger.error("AccountMonitor: "
+                                logger.error("[%s] AccountMonitor: "
                                              "Failed to post liquidation notification "
                                              " for account %s to slack: %s",
-                                             address, ex, exc_info=True)
+                                             self.chain_id, address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
                                 tx_hash, tx_receipt = Liquidator.execute_liquidation(
                                     liquidation_data["tx"], self.config)
                                 if tx_hash and tx_receipt:
-                                    logger.info("AccountMonitor: %s liquidated "
+                                    logger.info("[%s] AccountMonitor: %s liquidated "
                                                 "on collateral %s.",
+                                                self.chain_id,
                                                 address,
                                                 liquidation_data["collateral_address"])
                                     if self.notify:
                                         try:
-                                            logger.info("AccountMonitor: Posting liquidation result"
-                                                        " to slack for account %s.", address)
+                                            logger.info("[%s] AccountMonitor: Posting liquidation result"
+                                                        " to slack for account %s.",
+                                                        self.chain_id, address)
                                             post_liquidation_result_on_slack(address,
                                                                             account.controller.address,
                                                                             liquidation_data,
                                                                             tx_hash, self.config)
                                         except Exception as ex: # pylint: disable=broad-except
-                                            logger.error("AccountMonitor: "
+                                            logger.error("[%s] AccountMonitor: "
                                                 "Failed to post liquidation result "
                                                 " for account %s to slack: %s",
-                                                address, ex, exc_info=True)
+                                                self.chain_id, address, ex, exc_info=True)
 
                                 # Update account health score after liquidation
                                 # Need to know how healthy the account is after liquidation
                                 # and if we need to liquidate again
                                 account.update_liquidity()
                             except Exception as ex: # pylint: disable=broad-except
-                                logger.error("AccountMonitor: "
+                                logger.error("[%s] AccountMonitor: "
                                              "Failed to execute liquidation for account %s: %s",
-                                             address, ex, exc_info=True)
+                                             self.chain_id, address, ex, exc_info=True)
                     else:
-                        logger.info("AccountMonitor: "
+                        logger.info("[%s] AccountMonitor: "
                                     "Account %s is unhealthy but not profitable to liquidate.",
-                                    address)
+                                    self.chain_id, address)
                 except Exception as ex: # pylint: disable=broad-except
-                    logger.error("AccountMonitor: "
+                    logger.error("[%s] AccountMonitor: "
                                  "Exception simulating liquidation for account %s: %s",
-                                 address, ex, exc_info=True)
+                                 self.chain_id, address, ex, exc_info=True)
 
             next_update_time = account.time_of_next_update
 
             # if next update hasn't changed, means we already have a check scheduled
             if next_update_time == prev_scheduled_time:
-                logger.info("AccountMonitor: %s next update already scheduled for %s",
-                            address, time.strftime("%Y-%m-%d %H:%M:%S",
+                logger.info("[%s] AccountMonitor: %s next update already scheduled for %s",
+                            self.chain_id, address, time.strftime("%Y-%m-%d %H:%M:%S",
                                                   time.localtime(next_update_time)))
                 return
 
@@ -576,8 +584,8 @@ class AccountMonitor:
                 self.condition.notify()
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Exception updating account %s: %s",
-                         address, ex, exc_info=True)
+            logger.error("[%s] AccountMonitor: Exception updating account %s: %s",
+                         self.chain_id, address, ex, exc_info=True)
 
     def save_state(self, local_save: bool = True) -> None:
         """
@@ -604,11 +612,13 @@ class AccountMonitor:
 
             self.last_saved_block = self.latest_block
 
-            logger.info("AccountMonitor: State saved at time %s up to block %s",
+            logger.info("[%s] AccountMonitor: State saved at time %s up to block %s",
+                        self.chain_id,
                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                         self.latest_block)
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to save state: %s", ex, exc_info=True)
+            logger.error("[%s] AccountMonitor: Failed to save state: %s",
+                         self.chain_id, ex, exc_info=True)
 
     def load_state(self, save_path: str, local_save: bool = True) -> None:
         """
@@ -826,10 +836,10 @@ class PullOracleHandler:
         liquidator = config.liquidator
 
         # Add logging to help troubleshoot the parameters
-        logger.info("Pyth Simulation - Params: vault=%s, liquidator=%s, borrower=%s, collateral=%s", 
-                    vault.address, liquidator_address, borrower_address, collateral_address)
-        logger.info("Pyth Simulation - Update data length: %s, update fee: %s", 
-                    len(update_data), update_fee)
+        logger.info("[%s] PullOracleHandler: Pyth Simulation - Params: vault=%s, liquidator=%s, borrower=%s, collateral=%s", 
+                    config.CHAIN_ID, vault.address, liquidator_address, borrower_address, collateral_address)
+        logger.info("[%s] PullOracleHandler: Pyth Simulation - Update data length: %s, update fee: %s", 
+                    config.CHAIN_ID, len(update_data), update_fee)
 
         # Try the call with a higher gas limit to ensure it's not a gas estimation issue
         result = liquidator.functions.simulatePythUpdateAndCheckLiquidation(

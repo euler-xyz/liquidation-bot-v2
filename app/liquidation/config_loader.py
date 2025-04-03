@@ -7,6 +7,7 @@ import json
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
+from .liquidation_bot import logger
 
 
 class Web3Singleton:
@@ -61,12 +62,27 @@ class ChainConfig:
         self.RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
 
         # Load chain-specific RPC from env using RPC_NAME from config
-        self.RPC_URL = os.getenv(self._chain["RPC_NAME"])
+        rpc_name = self._chain["RPC_NAME"]
+        self.RPC_URL = os.getenv(rpc_name)
+        logger.info("[%s] Attempting to load RPC URL from env var %s: %s", 
+                   self.CHAIN_ID, rpc_name, 
+                   "Found" if self.RPC_URL else "Not found")
+        
         if not self.RPC_URL:
-            raise ValueError(f"Missing RPC URL for {self._chain["name"]}. "
-                           f"Env var {self._chain["RPC_NAME"]} not found")
+            error_msg = f"Missing RPC URL for {self._chain["name"]}. Env var {rpc_name} not found"
+            logger.error("[%s] %s", self.CHAIN_ID, error_msg)
+            raise ValueError(error_msg)
 
-        self.w3 = setup_w3(self.RPC_URL)
+        try:
+            self.w3 = setup_w3(self.RPC_URL)
+            # Test connection
+            block = self.w3.eth.block_number
+            logger.info("[%s] Successfully connected to RPC. Current block: %s", 
+                       self.CHAIN_ID, block)
+        except Exception as e:
+            logger.error("[%s] Failed to connect to RPC: %s", self.CHAIN_ID, str(e))
+            raise
+
         self.mainnet_w3 = setup_w3(os.getenv("MAINNET_RPC_URL"))
 
         # Set chain-specific paths
