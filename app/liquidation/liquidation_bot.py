@@ -56,6 +56,16 @@ class Vault:
         self.unit_of_account = self.instance.functions.unitOfAccount().call()
         self.oracle_address = self.instance.functions.oracle().call()
 
+        self.creator = self.instance.functions.creator().call()
+
+        self.total_borrowed = self.instance.functions.totalBorrows().call()
+        self.total_deposited = self.instance.functions.totalAssets().call()
+        
+        self.decimals = self.instance.functions.decimals().call()
+        self.total_borrowed_ui = self.total_borrowed / (10 ** self.decimals)
+        self.total_deposited_ui = self.total_deposited / (10 ** self.decimals)
+        self.utilization_ratio = round(self.total_borrowed / self.total_deposited * 100, 2) if self.total_deposited > 0 else 0
+
         self.pyth_feed_ids = []
         self.redstone_feed_ids = []
 
@@ -449,7 +459,7 @@ class AccountMonitor:
             account = Account(address, vault, self.config)
             self.accounts[address] = account
 
-            logger.info("[%s] AccountMonitor: %s to account list with controller %s.",
+            logger.info("[%s] AccountMonitor: %s added to account list with controller %s.",
                         self.chain_id,
                         address,
                         vault.address)
@@ -721,7 +731,7 @@ class AccountMonitor:
 
         return [(account.address, account.owner, account.subaccount_number,
                  account.current_health_score, account.value_borrowed,
-                 account.controller.vault_name, account.controller.vault_symbol)
+                 account.controller.vault_name, account.controller.vault_symbol, account.controller.address)
                  for account in sorted_accounts]
 
     def periodic_report_low_health_accounts(self):
