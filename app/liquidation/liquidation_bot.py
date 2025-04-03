@@ -17,9 +17,8 @@ from typing import Tuple, Dict, Any, Optional
 from web3 import Web3
 from web3.logs import DISCARD
 
-
-from app.liquidation.utils import (setup_logger,
-                   create_contract_instance,
+from .logging_setup import logger
+from app.liquidation.utils import (create_contract_instance,
                    make_api_request,
                    global_exception_handler,
                    post_liquidation_opportunity_on_slack,
@@ -33,7 +32,6 @@ from app.liquidation.utils import (setup_logger,
 from app.liquidation.config_loader import ChainConfig
 
 ### ENVIRONMENT & CONFIG SETUP ###
-logger = setup_logger()
 sys.excepthook = global_exception_handler
 
 

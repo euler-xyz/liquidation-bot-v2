@@ -7,7 +7,7 @@ import json
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
-from .liquidation_bot import logger
+from .logging_setup import logger
 
 
 class Web3Singleton:
