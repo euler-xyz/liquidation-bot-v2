@@ -60,7 +60,7 @@ class ChainManager:
         """Start all chain monitors and evc_listeners"""
         logger.info("Starting chain monitors and listeners for chains: %s", list(self.monitors.keys()))
         
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=len(self.chain_ids) * 2) as executor:
             # First batch process historical logs
             for chain_id in self.monitors.keys():
                 try:
