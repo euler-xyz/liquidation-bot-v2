@@ -100,7 +100,7 @@ chains:
 
     # Deployed contract addresses
     contracts:
-      LIQUIDATOR_CONTRACT: "0x29ee42D8849bc1aD341C49F0a8522AC57ae10b7B"
+      LIQUIDATOR_CONTRACT: "0xf5a94480BD2b657FeB7FcD5Cc3d9fD43061058Da"
 
       #EVK Addresses
       EVC: "0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383"
