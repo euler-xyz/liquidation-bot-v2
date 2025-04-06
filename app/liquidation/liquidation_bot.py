@@ -37,9 +37,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ## SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x32Ca4d4C1FEC5a01c0A1bEDF9e62A69183b961D0"
-COLLATERAL_VAULT_ADDRESS = "0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9"
-CONTROLLER_VAULT_ADDRESS = "0xE88e44C2C7dfc9bcb86e380d29375ccD6cd85406"
+UNDERWATER_ACCOUNT = "0x387FE763dDaC7a6B568Ee344fEfC31F626Bc837B"
+COLLATERAL_VAULT_ADDRESS = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
+CONTROLLER_VAULT_ADDRESS = "0x056f3a2E41d2778D3a0c0714439c53af2987718E"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -866,9 +866,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_feed_ids(vault):
-        pyth_feed_ids = ['eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', 'f9c96a45784d0ce4390825a43a313149da787e6a6c66076f3a3f83e92501baeb']
-        redstone_feed_ids = []
-        return pyth_feed_ids, redstone_feed_ids
+
         try:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
