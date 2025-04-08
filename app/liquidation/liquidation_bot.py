@@ -1162,11 +1162,14 @@ class EVCListener:
             # assume it has been loaded from that and start from the last saved block
             start_block = max(int(self.config.EVC_DEPLOYMENT_BLOCK),
                               self.account_monitor.last_saved_block)
-
+            logger.info("[%s] EVCListener: Starting batch scan of AccountStatusCheck events from block %s",
+                        self.config.CHAIN_ID, start_block)
             current_block = self.w3.eth.block_number
-
+            logger.info("[%s] EVCListener: Current block is %s",
+                        self.config.CHAIN_ID, current_block)
             batch_block_size = self.config.BATCH_SIZE
-
+            logger.info("[%s] EVCListener: Batch block size is %s",
+                        self.config.CHAIN_ID, batch_block_size)
             logger.info("[%s] EVCListener: "
                         "Starting batch scan of AccountStatusCheck events from block %s to %s.",
                         self.config.CHAIN_ID, start_block, current_block)
