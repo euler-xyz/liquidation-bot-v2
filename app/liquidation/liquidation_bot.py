@@ -809,7 +809,7 @@ class PullOracleHandler:
 
         liquidator = create_contract_instance(config.LIQUIDATOR_CONTRACT,
                                               config.LIQUIDATOR_ABI_PATH)
-        logger.info("here1")
+
         result = liquidator.functions.simulatePythUpdateAndGetAccountStatus(
             [update_data], update_fee, vault.address, account_address
             ).call({
@@ -871,24 +871,16 @@ class PullOracleHandler:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
 
-
             unit_of_account = vault.unit_of_account
-
             collateral_vault_list = vault.get_ltv_list()
             asset_list = [Vault(collateral_vault).underlying_asset_address
                           for collateral_vault in collateral_vault_list]
             asset_list.append(vault.underlying_asset_address)
 
-            pyth_feed_ids = []
-            redstone_feed_ids = []
-
-            # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
+            pyth_feed_ids = set()
+            redstone_feed_ids = set()
 
             for asset in asset_list:
-                # configured_oracle_address = oracle.functions.getConfiguredOracle(asset,
-                #                                                                  unit_of_account
-                #                                                                  ).call()
-
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
 
                 configured_oracle = create_contract_instance(configured_oracle_address,
@@ -900,23 +892,22 @@ class PullOracleHandler:
                     logger.info("PullOracleHandler: Error calling contract for oracle"
                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
                     continue
-
-                # logger.info("Asset: %s, Configured oracle name: %s, address: %s", asset, configured_oracle_name, configured_oracle_address)
+                
                 if configured_oracle_name == "PythOracle":
                     logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
                                 "Address - %s", vault.address, configured_oracle_address)
-                    pyth_feed_ids.append(configured_oracle.functions.feedId().call().hex())
+                    pyth_feed_ids.add(configured_oracle.functions.feedId().call().hex())
                 elif configured_oracle_name == "RedstoneCoreOracle":
                     logger.info("PullOracleHandler: Redstone oracle found for"
                                 " vault %s: Address - %s",
                                 vault.address, configured_oracle_address)
-                    redstone_feed_ids.append((configured_oracle_address,
+                    redstone_feed_ids.add((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
                 elif configured_oracle_name == "CrossAdapter":
                     pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle)
-                    pyth_feed_ids += pyth_ids
-                    redstone_feed_ids += redstone_ids
+                    pyth_feed_ids.update(pyth_ids)
+                    redstone_feed_ids.update(redstone_ids)
 
             return pyth_feed_ids, redstone_feed_ids
 
@@ -925,36 +916,36 @@ class PullOracleHandler:
 
     @staticmethod
     def resolve_cross_oracle(cross_oracle):
-        pyth_feed_ids = []
-        redstone_feed_ids = []
+        pyth_feed_ids = set()
+        redstone_feed_ids = set()
 
         oracle_base_address = cross_oracle.functions.oracleBaseCross().call()
         oracle_base = create_contract_instance(oracle_base_address, config.ORACLE_ABI_PATH)
         oracle_base_name = oracle_base.functions.name().call()
 
         if oracle_base_name == "PythOracle":
-            pyth_feed_ids.append(oracle_base.functions.feedId().call().hex())
+            pyth_feed_ids.add(oracle_base.functions.feedId().call().hex())
         elif oracle_base_name == "RedstoneCoreOracle":
-            redstone_feed_ids.append((oracle_base_address,
+            redstone_feed_ids.add((oracle_base_address,
                                       oracle_base.functions.feedId().call().hex()))
-        elif oracle_base_name == "CrossOracle":
+        elif oracle_base_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_base)
-            pyth_feed_ids.append(pyth_ids)
-            redstone_feed_ids.append(redstone_ids)
+            pyth_feed_ids.update(pyth_ids)
+            redstone_feed_ids.update(redstone_ids)
 
         oracle_quote_address = cross_oracle.functions.oracleCrossQuote().call()
         oracle_quote = create_contract_instance(oracle_quote_address, config.ORACLE_ABI_PATH)
         oracle_quote_name = oracle_quote.functions.name().call()
 
         if oracle_quote_name == "PythOracle":
-            pyth_feed_ids.append(oracle_quote.functions.feedId().call().hex())
+            pyth_feed_ids.add(oracle_quote.functions.feedId().call().hex())
         elif oracle_quote_name == "RedstoneCoreOracle":
-            redstone_feed_ids.append((oracle_quote_address,
+            redstone_feed_ids.add((oracle_quote_address,
                                       oracle_quote.functions.feedId().call().hex()))
-        elif oracle_quote_name == "CrossOracle":
+        elif oracle_quote_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote)
-            pyth_feed_ids.append(pyth_ids)
-            redstone_feed_ids.append(redstone_ids)
+            pyth_feed_ids.update(pyth_ids)
+            redstone_feed_ids.update(redstone_ids)
 
         return pyth_feed_ids, redstone_feed_ids
 
