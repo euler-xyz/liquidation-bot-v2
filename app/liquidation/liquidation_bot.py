@@ -909,7 +909,7 @@ class PullOracleHandler:
         elif oracle_base_name == "RedstoneCoreOracle":
             redstone_feed_ids.add((oracle_base_address,
                                       oracle_base.functions.feedId().call().hex()))
-        elif oracle_base_name == "CrossOracle":
+        elif oracle_base_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_base, config)
             pyth_feed_ids.add(pyth_ids)
             redstone_feed_ids.add(redstone_ids)
@@ -923,7 +923,7 @@ class PullOracleHandler:
         elif oracle_quote_name == "RedstoneCoreOracle":
             redstone_feed_ids.add((oracle_quote_address,
                                       oracle_quote.functions.feedId().call().hex()))
-        elif oracle_quote_name == "CrossOracle":
+        elif oracle_quote_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote, config)
             pyth_feed_ids.update(pyth_ids)
             redstone_feed_ids.update(redstone_ids)
