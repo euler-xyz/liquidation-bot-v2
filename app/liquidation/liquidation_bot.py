@@ -911,8 +911,8 @@ class PullOracleHandler:
                                       oracle_base.functions.feedId().call().hex()))
         elif oracle_base_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_base, config)
-            pyth_feed_ids.add(pyth_ids)
-            redstone_feed_ids.add(redstone_ids)
+            pyth_feed_ids.update(pyth_ids)
+            redstone_feed_ids.update(redstone_ids)
 
         oracle_quote_address = cross_oracle.functions.oracleCrossQuote().call()
         oracle_quote = create_contract_instance(oracle_quote_address, config.ORACLE_ABI_PATH, config)
