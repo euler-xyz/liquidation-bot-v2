@@ -1,13 +1,15 @@
 """
 Utility functions for the liquidation bot.
 """
-import logging
+import os
+import sys
 import json
 import functools
 import time
 import traceback
 import threading
 import requests
+import logging
 
 from typing import Any, Callable, Dict, Optional
 
@@ -15,66 +17,31 @@ from web3 import Web3
 from web3.contract import Contract
 from urllib.parse import urlencode
 
+from .logging_setup import logger
 from .config_loader import ChainConfig
 
 LOGS_PATH = "logs/account_monitor_logs.log"
 
-def setup_logger() -> logging.Logger:
-    """
-    Set up and configure a logger for the liquidation bot.
-
-    Args:
-        logs_path (str): Path to the log output file.
-
-    Returns:
-        logging.Logger: Configured logger instance.
-    """
-    logger = logging.getLogger("liquidation_bot")
-    logger.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(LOGS_PATH, mode="a")
-
-    detailed_formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s\n%(exc_info)s")
-
-    # Create a standard formatter for other log levels
-    standard_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-
-    class DetailedExceptionFormatter(logging.Formatter):
-        def format(self, record):
-            if record.levelno >= logging.ERROR:
-                record.exc_text = "".join(
-                    traceback.format_exception(*record.exc_info)) if record.exc_info else ""
-                return detailed_formatter.format(record)
-            else:
-                return standard_formatter.format(record)
-
-    console_handler.setFormatter(DetailedExceptionFormatter())
-    file_handler.setFormatter(DetailedExceptionFormatter())
-
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-
-    return logger
-
 def create_contract_instance(address: str, abi_path: str, config: ChainConfig) -> Contract:
     """
-    Create and return a contract instance.
+    Create a contract instance from an address and ABI file.
 
     Args:
-        address (str): The address of the contract.
-        abi_path (str): Path to the ABI JSON file.
+        address (str): The contract address.
+        abi_path (str): Path to the ABI file.
+        config (ChainConfig): Chain configuration object.
 
     Returns:
-        Contract: Web3 contract instance.
+        Contract: A Web3 contract instance.
     """
-    with open(abi_path, "r", encoding="utf-8") as file:
-        interface = json.load(file)
-    abi = interface["abi"]
-
-    return config.w3.eth.contract(address=address, abi=abi)
+    try:
+        with open(abi_path, "r", encoding="utf-8") as file:
+            interface = json.load(file)
+        abi = interface["abi"]
+        return config.w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
+    except Exception as ex: # pylint: disable=broad-except
+        logger.error("Failed to create contract instance: %s", ex, exc_info=True)
+        raise
 
 def retry_request(logger: logging.Logger,
                   max_retries: int = 3,
@@ -153,8 +120,8 @@ def get_spy_link(account, config: ChainConfig):
     
     return spy_link
 
-@retry_request(logging.getLogger("liquidation_bot"))
-@rate_limit(logging.getLogger("liquidation_bot"))
+@retry_request(logger)
+@rate_limit(logger)
 def make_api_request(url: str,
                      headers: Dict[str, str],
                      params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -190,13 +157,7 @@ def global_exception_handler(exctype: type, value: BaseException, tb: Any) -> No
         tb (Any): A traceback object encapsulating the call stack
                         at the point where the exception occurred.
     """
-    logger = logging.getLogger("liquidation_bot")
-
-    # Get the full traceback as a string
-    trace_str = "".join(traceback.format_exception(exctype, value, tb))
-
-    # Log the full exception information
-    logger.critical("Uncaught exception:\n %s", trace_str)
+    logger.critical("Uncaught exception:\n %s", "".join(traceback.format_exception(exctype, value, tb)))
 
 def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
                     health_score: float, value_borrowed: int, config: ChainConfig) -> None:
@@ -340,18 +301,18 @@ def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None
     """
     # Filter accounts below the threshold
     low_health_accounts = [
-        (address, owner, subaccount, score, value, _, _) for address, owner, subaccount, score, value, _, _ in sorted_accounts
+        (address, owner, subaccount, score, value, _, _, _) for address, owner, subaccount, score, value, _, _, _ in sorted_accounts
         if (score < config.SLACK_REPORT_HEALTH_SCORE and value > (config.BORROW_VALUE_THRESHOLD * 10**18)) or score < 1.0
     ]
 
-    total_value = sum(value / 10**18 for _, _, _, _, value, _, _ in sorted_accounts)
+    total_value = sum(value / 10**18 for _, _, _, _, value, _, _, _ in sorted_accounts)
 
     message = ":warning: *Account Health Report* :warning:\n\n"
 
     if not low_health_accounts:
         message += f"No accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` detected.\n"
     else:
-        for i, (address, _, _, score, value, _, _) in enumerate(low_health_accounts, start=1):
+        for i, (address, _, _, score, value, _, _, _) in enumerate(low_health_accounts, start=1):
 
             # Format score to 4 decimal places
             formatted_score = f"{score:.4f}"

@@ -17,9 +17,8 @@ from typing import Tuple, Dict, Any, Optional
 from web3 import Web3
 from web3.logs import DISCARD
 
-
-from app.liquidation.utils import (setup_logger,
-                   create_contract_instance,
+from .logging_setup import logger
+from app.liquidation.utils import (create_contract_instance,
                    make_api_request,
                    global_exception_handler,
                    post_liquidation_opportunity_on_slack,
@@ -33,7 +32,6 @@ from app.liquidation.utils import (setup_logger,
 from app.liquidation.config_loader import ChainConfig
 
 ### ENVIRONMENT & CONFIG SETUP ###
-logger = setup_logger()
 sys.excepthook = global_exception_handler
 
 
@@ -58,6 +56,16 @@ class Vault:
         self.unit_of_account = self.instance.functions.unitOfAccount().call()
         self.oracle_address = self.instance.functions.oracle().call()
 
+        self.creator = self.instance.functions.creator().call()
+
+        self.total_borrowed = self.instance.functions.totalBorrows().call()
+        self.total_deposited = self.instance.functions.totalAssets().call()
+        
+        self.decimals = self.instance.functions.decimals().call()
+        self.total_borrowed_ui = self.total_borrowed / (10 ** self.decimals)
+        self.total_deposited_ui = self.total_deposited / (10 ** self.decimals)
+        self.utilization_ratio = round(self.total_borrowed / self.total_deposited * 100, 2) if self.total_deposited > 0 else 0
+
         self.pyth_feed_ids = []
         self.redstone_feed_ids = []
 
@@ -75,39 +83,41 @@ class Vault:
             balance = self.instance.functions.balanceOf(
                 Web3.to_checksum_address(account_address)).call()
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("Vault: Failed to get balance for account %s: %s",
-                         account_address, ex, exc_info=True)
+            logger.error("[%s] Vault: Failed to get balance for account %s: %s",
+                         self.config.CHAIN_ID, account_address, ex, exc_info=True)
             return (0, 0, 0)
 
         try:
             # Check if vault contains a Pyth oracle
+            # Slow_function (up to 1 min 14 seconds)
             self.pyth_feed_ids, self.redstone_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
 
             if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
-                logger.info("Vault: Pyth & Redstone oracle found for vault %s, "
-                            "getting account liquidity through simulation", self.address)
+                logger.info("[%s] Vault: Pyth & Redstone oracle found for vault %s, "
+                            "getting account liquidity through simulation", self.config.CHAIN_ID, self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_and_redstone_simulation(self, account_address, self.pyth_feed_ids, self.redstone_feed_ids, self.config)
             elif len(self.pyth_feed_ids) > 0:
-                logger.info("Vault: Pyth Oracle found for vault %s, "
-                            "getting account liquidity through simulation", self.address)
+                logger.info("[%s] Vault: Pyth Oracle found for vault %s, "
+                            "getting account liquidity through simulation", self.config.CHAIN_ID, self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_batch_simulation(
                     self, account_address, self.pyth_feed_ids, self.config)
             elif len(self.redstone_feed_ids) > 0:
-                logger.info("Vault: Redstone Oracle found for vault %s, "
-                            "getting account liquidity through simulation", self.address)
+                logger.info("[%s] Vault: Redstone Oracle found for vault %s, "
+                            "getting account liquidity through simulation", self.config.CHAIN_ID, self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_redstone_batch_simulation(
                     self, account_address, self.redstone_feed_ids, self.config)
             else:
-                logger.info("Vault: Getting account liquidity normally for vault %s", self.address)
+                logger.info("[%s] Vault: Getting account liquidity normally for address %s in vault %s",
+                            self.config.CHAIN_ID, account_address, self.address)
                 (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
                     Web3.to_checksum_address(account_address),
                     True
                 ).call()
         except Exception as ex: # pylint: disable=broad-except
             if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708":
-                logger.error("Vault: Failed to get account liquidity"
+                logger.error("[%s] Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
-                            account_address, ex)
+                            self.config.CHAIN_ID, account_address, ex)
                 # return (balance, 100, 100)
             return (balance, 0, 0)
 
@@ -129,9 +139,9 @@ class Vault:
         Returns:
             Tuple[int, int]: A tuple containing (max_repay, seized_collateral).
         """
-        logger.info("Vault: Checking liquidation for account %s, collateral vault %s,"
+        logger.info("[%s] Vault: Checking liquidation for account %s, collateral vault %s,"
                     " liquidator address %s, borrowed asset %s",
-                    borower_address, collateral_address,
+                    self.config.CHAIN_ID, borower_address, collateral_address,
                     liquidator_address, self.underlying_asset_address)
 
         if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
@@ -234,17 +244,19 @@ class Account:
 
         self.value_borrowed = liability_value
         if self.controller.unit_of_account == self.config.WETH:
-            logger.info("Account: Getting a quote for %s WETH, unit of account %s",
-                        liability_value, self.controller.unit_of_account)
+            logger.info("[%s] Account: Getting a quote for %s WETH, unit of account %s",
+                        self.config.CHAIN_ID, liability_value, self.controller.unit_of_account)
             self.value_borrowed = get_eth_usd_quote(liability_value, self.config)
 
-            logger.info("Account: value borrowed: %s", self.value_borrowed)
+            logger.info("[%s] Account: value borrowed: %s",
+                        self.config.CHAIN_ID, self.value_borrowed)
         elif self.controller.unit_of_account == self.config.BTC:
-            logger.info("Account: Getting a quote for %s BTC, unit of account %s",
-                        liability_value, self.controller.unit_of_account)
+            logger.info("[%s] Account: Getting a quote for %s BTC, unit of account %s",
+                        self.config.CHAIN_ID, liability_value, self.controller.unit_of_account)
             self.value_borrowed = get_btc_usd_quote(liability_value, self.config)
 
-            logger.info("Account: value borrowed: %s", self.value_borrowed)
+            logger.info("[%s] Account: value borrowed: %s",
+                        self.config.CHAIN_ID, self.value_borrowed)
 
         # Special case for 0 values on balance or liability
         if liability_value == 0:
@@ -254,8 +266,8 @@ class Account:
 
         self.current_health_score = collateral_value / liability_value
 
-        logger.info("Account: %s health score: %s, Collateral Value: %s,"
-                    " Liability Value: %s", self.address, self.current_health_score,
+        logger.info("[%s] Account: %s health score: %s, Collateral Value: %s,"
+                    " Liability Value: %s", self.config.CHAIN_ID, self.address, self.current_health_score,
                     collateral_value, liability_value)
         return self.current_health_score
 
@@ -309,7 +321,7 @@ class Account:
         if not(self.time_of_next_update < time_of_next_update and self.time_of_next_update > time.time()):
             self.time_of_next_update = time_of_next_update
 
-        logger.info("Account: %s next update scheduled for %s", self.address,
+        logger.info("[%s] Account: %s next update scheduled for %s", self.config.CHAIN_ID, self.address,
                     time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update)))
         return self.time_of_next_update
 
@@ -393,18 +405,18 @@ class AccountMonitor:
         save_thread = threading.Thread(target=self.periodic_save)
         save_thread.start()
 
-        logger.info("AccountMonitor: Save thread started.")
+        logger.info("[%s] AccountMonitor: Save thread started.", self.chain_id)
 
         if self.notify:
             low_health_report_thread = threading.Thread(target=
                                                         self.periodic_report_low_health_accounts)
             low_health_report_thread.start()
-            logger.info("AccountMonitor: Low health report thread started.")
+            logger.info("[%s] AccountMonitor: Low health report thread started.", self.chain_id)
 
         while self.running:
             with self.condition:
                 while self.update_queue.empty():
-                    logger.info("AccountMonitor: Waiting for queue to be non-empty.")
+                    logger.info("[%s] AccountMonitor: Waiting for queue to be non-empty.", self.chain_id)
                     self.condition.wait()
 
                 next_update_time, address = self.update_queue.get()
@@ -412,8 +424,8 @@ class AccountMonitor:
                 # check for special value that indicates
                 # account should be skipped & removed from queue
                 if next_update_time == -1:
-                    logger.info("AccountMonitor: %s has no position,"
-                                " skipping and removing from queue", address)
+                    logger.info("[%s] AccountMonitor: %s has no position,"
+                                " skipping and removing from queue", self.chain_id, address)
                     continue
 
                 current_time = time.time()
@@ -437,7 +449,7 @@ class AccountMonitor:
         # If the vault is not already tracked in the list, create it
         if vault_address not in self.vaults:
             self.vaults[vault_address] = Vault(vault_address, self.config)
-            logger.info("AccountMonitor: Vault %s added to vault list.", vault_address)
+            logger.info("[%s] AccountMonitor: Vault %s added to vault list.", self.chain_id, vault_address)
 
         vault = self.vaults[vault_address]
 
@@ -447,11 +459,13 @@ class AccountMonitor:
             account = Account(address, vault, self.config)
             self.accounts[address] = account
 
-            logger.info("AccountMonitor: Adding %s to account list with controller %s.",
+            logger.info("[%s] AccountMonitor: %s added to account list with controller %s.",
+                        self.chain_id,
                         address,
                         vault.address)
         else:
-            logger.info("AccountMonitor: %s already in list with controller %s.",
+            logger.info("[%s] AccountMonitor: %s already in list with controller %s.",
+                        self.chain_id,
                         address,
                         vault.address)
 
@@ -468,11 +482,14 @@ class AccountMonitor:
             account = self.accounts.get(address)
 
             if not account:
-                logger.error("AccountMonitor: %s not found in account list.",
+                logger.error("[%s] AccountMonitor: %s not found in account list.",
+                             self.chain_id,
                              address, exc_info=True)
                 return
 
-            logger.info("AccountMonitor: Updating %s liquidity.", address)
+            logger.info("[%s] AccountMonitor: Updating %s liquidity.",
+                        self.chain_id,
+                        address)
             prev_scheduled_time = account.time_of_next_update
 
             health_score = account.update_liquidity()
@@ -484,86 +501,89 @@ class AccountMonitor:
                             if (time.time() - self.recently_posted_low_value[account.address]
                                 < self.config.LOW_HEALTH_REPORT_INTERVAL
                                 and account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD):
-                                logger.info("Skipping posting notification "
-                                            "for account %s, recently posted", address)
+                                logger.info("[%s] AccountMonitor: Skipping posting notification "
+                                            "for account %s, recently posted", self.chain_id, address)
                         else:
                             try:
                                 post_unhealthy_account_on_slack(address, account.controller.address,
                                                                 health_score,
                                                                 account.value_borrowed, self.config)
-                                logger.info("Valut borrowed: %s", account.value_borrowed)
+                                logger.info("[%s] AccountMonitor: Valut borrowed: %s",
+                                            self.chain_id, account.value_borrowed)
                                 if account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD:
                                     self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
-                                logger.error("AccountMonitor: "
+                                logger.error("[%s] AccountMonitor: "
                                              "Failed to post low health notification "
                                              "for account %s to slack: %s",
-                                             address, ex, exc_info=True)
+                                             self.chain_id, address, ex, exc_info=True)
 
-                    logger.info("AccountMonitor: %s is unhealthy, "
+                    logger.info("[%s] AccountMonitor: %s is unhealthy, "
                                 "checking liquidation profitability.",
-                                address)
+                                self.chain_id, address)
                     (result, liquidation_data, params) = account.simulate_liquidation()
 
                     if result:
                         if self.notify:
                             try:
-                                logger.info("AccountMonitor: Posting liquidation notification "
-                                            "to slack for account %s.", address)
+                                logger.info("[%s] AccountMonitor: Posting liquidation notification "
+                                            "to slack for account %s.", self.chain_id, address)
                                 post_liquidation_opportunity_on_slack(address,
                                                                       account.controller.address,
                                                                       liquidation_data, params, self.config)
                             except Exception as ex: # pylint: disable=broad-except
-                                logger.error("AccountMonitor: "
+                                logger.error("[%s] AccountMonitor: "
                                              "Failed to post liquidation notification "
                                              " for account %s to slack: %s",
-                                             address, ex, exc_info=True)
+                                             self.chain_id, address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
                                 tx_hash, tx_receipt = Liquidator.execute_liquidation(
                                     liquidation_data["tx"], self.config)
                                 if tx_hash and tx_receipt:
-                                    logger.info("AccountMonitor: %s liquidated "
+                                    logger.info("[%s] AccountMonitor: %s liquidated "
                                                 "on collateral %s.",
+                                                self.chain_id,
                                                 address,
                                                 liquidation_data["collateral_address"])
                                     if self.notify:
                                         try:
-                                            logger.info("AccountMonitor: Posting liquidation result"
-                                                        " to slack for account %s.", address)
+                                            logger.info("[%s] AccountMonitor: Posting liquidation result"
+                                                        " to slack for account %s.",
+                                                        self.chain_id, address)
                                             post_liquidation_result_on_slack(address,
                                                                             account.controller.address,
                                                                             liquidation_data,
                                                                             tx_hash, self.config)
                                         except Exception as ex: # pylint: disable=broad-except
-                                            logger.error("AccountMonitor: "
+                                            logger.error("[%s] AccountMonitor: "
                                                 "Failed to post liquidation result "
                                                 " for account %s to slack: %s",
-                                                address, ex, exc_info=True)
+                                                self.chain_id, address, ex, exc_info=True)
 
                                 # Update account health score after liquidation
                                 # Need to know how healthy the account is after liquidation
                                 # and if we need to liquidate again
                                 account.update_liquidity()
                             except Exception as ex: # pylint: disable=broad-except
-                                logger.error("AccountMonitor: "
+                                logger.error("[%s] AccountMonitor: "
                                              "Failed to execute liquidation for account %s: %s",
-                                             address, ex, exc_info=True)
+                                             self.chain_id, address, ex, exc_info=True)
                     else:
-                        logger.info("AccountMonitor: "
+                        logger.info("[%s] AccountMonitor: "
                                     "Account %s is unhealthy but not profitable to liquidate.",
-                                    address)
+                                    self.chain_id, address)
                 except Exception as ex: # pylint: disable=broad-except
-                    logger.error("AccountMonitor: "
+                    logger.error("[%s] AccountMonitor: "
                                  "Exception simulating liquidation for account %s: %s",
-                                 address, ex, exc_info=True)
+                                 self.chain_id, address, ex, exc_info=True)
 
             next_update_time = account.time_of_next_update
 
             # if next update hasn't changed, means we already have a check scheduled
             if next_update_time == prev_scheduled_time:
-                logger.info("AccountMonitor: %s next update already scheduled for %s",
-                            address, time.strftime("%Y-%m-%d %H:%M:%S",
+                logger.info("[%s] AccountMonitor: %s next update already scheduled for %s",
+                            self.chain_id, address, time.strftime("%Y-%m-%d %H:%M:%S",
                                                   time.localtime(next_update_time)))
                 return
 
@@ -572,8 +592,8 @@ class AccountMonitor:
                 self.condition.notify()
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Exception updating account %s: %s",
-                         address, ex, exc_info=True)
+            logger.error("[%s] AccountMonitor: Exception updating account %s: %s",
+                         self.chain_id, address, ex, exc_info=True)
 
     def save_state(self, local_save: bool = True) -> None:
         """
@@ -600,11 +620,13 @@ class AccountMonitor:
 
             self.last_saved_block = self.latest_block
 
-            logger.info("AccountMonitor: State saved at time %s up to block %s",
+            logger.info("[%s] AccountMonitor: State saved at time %s up to block %s",
+                        self.chain_id,
                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                         self.latest_block)
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to save state: %s", ex, exc_info=True)
+            logger.error("[%s] AccountMonitor: Failed to save state: %s",
+                         self.chain_id, ex, exc_info=True)
 
     def load_state(self, save_path: str, local_save: bool = True) -> None:
         """
@@ -620,16 +642,18 @@ class AccountMonitor:
                     state = json.load(f)
 
                 self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
-                logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
+               
+                logger.info("[%s] Loaded %s vaults: %s", self.chain_id, len(self.vaults), list(self.vaults.keys()))
 
                 self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
                                  for address, data in state["accounts"].items()}
-                logger.info("Loaded %s accounts:", len(self.accounts))
+                logger.info("[%s] Loaded %s accounts:", self.chain_id, len(self.accounts))
 
                 for address, account in self.accounts.items():
-                    logger.info("  Account %s: Controller: %s, "
+                    logger.info("[%s]  Account %s: Controller: %s, "
                                 "Health Score: %s, "
                                 "Next Update: %s",
+                                self.chain_id,
                                 address,
                                 account.controller.address,
                                 account.current_health_score,
@@ -640,8 +664,9 @@ class AccountMonitor:
 
                 self.last_saved_block = state["last_saved_block"]
                 self.latest_block = self.last_saved_block
-                logger.info("AccountMonitor: State loaded from save"
+                logger.info("[%s] AccountMonitor: State loaded from save"
                             " file %s from block %s to block %s",
+                            self.chain_id,
                             save_path,
                             self.config.EVC_DEPLOYMENT_BLOCK,
                             self.latest_block)
@@ -649,39 +674,48 @@ class AccountMonitor:
                 # Load from remote location
                 pass
             else:
-                logger.info("AccountMonitor: No saved state found.")
+                logger.info("[%s] AccountMonitor: No saved state found.", self.chain_id)
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to load state: %s", ex, exc_info=True)
+            logger.error("[%s] AccountMonitor: Failed to load state: %s", self.chain_id, ex, exc_info=True)
 
     def rebuild_queue(self):
         """
         Rebuild queue based on current account health
         """
-        logger.info("Rebuilding queue based on current account health")
+        logger.info("[%s] Rebuilding queue based on current account health", self.chain_id)
 
         self.update_queue = queue.PriorityQueue()
         idx = 0
+        skipped_accounts = 0
         total_accounts = len(self.accounts)
         for address, account in self.accounts.items():
             try:
                 idx += 1
-                health_score = account.update_liquidity()
+                # To speed up the state loading, we skip the update if the health score is already good
+                if account.current_health_score < 1.05:
+                    health_score = account.update_liquidity()
+                else:
+                    skipped_accounts += 1
+                    logger.info("[%s] AccountMonitor: %s/%s (total skipped %s), %s has good health score %s, skipping initial update...", 
+                                self.chain_id, idx, total_accounts, skipped_accounts, address, account.current_health_score)
+                    health_score = account.current_health_score
 
                 if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor:  %s/%s, %s has no borrow, skipping", idx, total_accounts, address)
+                    logger.info("[%s] AccountMonitor:  %s/%s, %s has no borrow, skipping", 
+                                self.chain_id, idx, total_accounts, address)
                     continue
 
                 next_update_time = account.time_of_next_update
                 self.update_queue.put((next_update_time, address))
-                logger.info("AccountMonitor: %s/%s %s added to queue"
+                logger.info("[%s] AccountMonitor: %s/%s %s added to queue"
                             " with health score %s, next update at %s",
-                            idx, total_accounts, address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
+                            self.chain_id, idx, total_accounts, address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
                                                                  time.localtime(next_update_time)))
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("AccountMonitor: Failed to put account %s/%s %s into rebuilt queue: %s",
-                             idx, total_accounts, address, ex, exc_info=True)
+                logger.error("[%s] AccountMonitor: Failed to put account %s/%s %s into rebuilt queue: %s",
+                             self.chain_id, idx, total_accounts, address, ex, exc_info=True)
 
-        logger.info("AccountMonitor: Queue rebuilt with %s acccounts", self.update_queue.qsize())
+        logger.info("[%s] AccountMonitor: Queue rebuilt with %s acccounts", self.chain_id, self.update_queue.qsize())
 
     def get_accounts_by_health_score(self):
         """
@@ -697,7 +731,7 @@ class AccountMonitor:
 
         return [(account.address, account.owner, account.subaccount_number,
                  account.current_health_score, account.value_borrowed,
-                 account.controller.vault_name, account.controller.vault_symbol)
+                 account.controller.vault_name, account.controller.vault_symbol, account.controller.address)
                  for account in sorted_accounts]
 
     def periodic_report_low_health_accounts(self):
@@ -757,7 +791,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_account_values_with_pyth_and_redstone_simulation(vault, account_address, pyth_feed_ids, redstone_feed_ids, config: ChainConfig):
-        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids, config)
         pyth_update_fee = PullOracleHandler.get_pyth_update_fee(pyth_update_data, config)
 
         redstone_addresses, redstone_update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
@@ -773,7 +807,7 @@ class PullOracleHandler:
 
     @staticmethod
     def check_liquidation_with_pyth_and_redstone_simulation(vault, liquidator_address, borrower_address, collateral_address, pyth_feed_ids, redstone_feed_ids, config: ChainConfig):
-        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids, config)
         pyth_update_fee = PullOracleHandler.get_pyth_update_fee(pyth_update_data, config)
 
         redstone_addresses, redstone_update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
@@ -789,7 +823,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_account_values_with_pyth_batch_simulation(vault, account_address, feed_ids, config: ChainConfig):
-        update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
+        update_data = PullOracleHandler.get_pyth_update_data(feed_ids, config)
         update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
 
         liquidator = config.liquidator
@@ -804,17 +838,24 @@ class PullOracleHandler:
     @staticmethod
     def check_liquidation_with_pyth_batch_simulation(vault, liquidator_address, borrower_address,
                                                      collateral_address, feed_ids, config: ChainConfig):
-        update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
+        update_data = PullOracleHandler.get_pyth_update_data(feed_ids, config)
         update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
 
         liquidator = config.liquidator
 
+        # Add logging to help troubleshoot the parameters
+        logger.info("[%s] PullOracleHandler: Pyth Simulation - Params: vault=%s, liquidator=%s, borrower=%s, collateral=%s", 
+                    config.CHAIN_ID, vault.address, liquidator_address, borrower_address, collateral_address)
+        logger.info("[%s] PullOracleHandler: Pyth Simulation - Update data length: %s, update fee: %s", 
+                    config.CHAIN_ID, len(update_data), update_fee)
+
+        # Try the call with a higher gas limit to ensure it's not a gas estimation issue
         result = liquidator.functions.simulatePythUpdateAndCheckLiquidation(
             [update_data], update_fee, vault.address,
             liquidator_address, borrower_address, collateral_address
             ).call({
                 "value": update_fee
-            })
+                })
         return result[0], result[1]
 
     @staticmethod
@@ -844,44 +885,59 @@ class PullOracleHandler:
             ).call()
         return result[0], result[1]
 
+    # Slow_function
+    # according to the logs it takes about 1 min 14 seconds
+
     @staticmethod
     def get_feed_ids(vault, config: ChainConfig):
         try:
+            logger.info("[%s] get_feed_ids start for vault: %s", config.CHAIN_ID, vault.address)
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH, config)
-
+            logger.info("[%s] get_feed_ids oracle: %s", config.CHAIN_ID, oracle_address)
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            asset_list = [Vault(collateral_vault, config).underlying_asset_address
-                          for collateral_vault in collateral_vault_list]
+            logger.info("[%s] get_feed_ids collateral_vault_list length: %s", config.CHAIN_ID, len(collateral_vault_list))
+            # Replace list comprehension with a loop to add delays
+            # This for takes about 1.6s/record, and some vaults can have 30+ collateral vaults, 
+            # so this step can go to 1 min easily.
+            asset_list = []
+            for collateral_vault in collateral_vault_list:
+                vault_instance = Vault(collateral_vault, config)
+                asset_list.append(vault_instance.underlying_asset_address)
             asset_list.append(vault.underlying_asset_address)
+            logger.info("[%s] get_feed_ids asset_list length: %s", config.CHAIN_ID, len(asset_list))
 
             pyth_feed_ids = set()
             redstone_feed_ids = set()
 
             # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
-
+            # One iteration takes from 1 to 3 seconds, depending on the configured oracle (CrossAdapter, Chainlink or Redstone)
+            idx = 0
             for asset in asset_list:
+                idx += 1
+                # logger.info("get_feed_ids[%s]: asset %s", idx, asset)
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
 
                 configured_oracle = create_contract_instance(configured_oracle_address,
                                                              config.ORACLE_ABI_PATH, config)
-
+                # logger.info("get_feed_ids[%s]: configured_oracle %s", idx, configured_oracle_address)
                 try:
                     configured_oracle_name = configured_oracle.functions.name().call()
+                    # logger.info("get_feed_ids[%s]: configured_oracle_name %s", idx, configured_oracle_name)
                 except Exception as ex: # pylint: disable=broad-except
-                    logger.info("PullOracleHandler: Error calling contract for oracle"
-                                " at %s, asset %s: %s", configured_oracle_address, asset, ex)
+                    logger.info("[%s] PullOracleHandler: Error calling contract for oracle"
+                                " at %s, asset %s: %s", config.CHAIN_ID, configured_oracle_address, asset, ex)
                     continue
+                    
                 if configured_oracle_name == "PythOracle":
-                    logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
-                                "Address - %s", vault.address, configured_oracle_address)
+                    logger.info("[%s] PullOracleHandler: Pyth oracle found for vault %s: "
+                                "Address - %s", config.CHAIN_ID, vault.address, configured_oracle_address)
                     pyth_feed_ids.add(configured_oracle.functions.feedId().call().hex())
                 elif configured_oracle_name == "RedstoneCoreOracle":
-                    logger.info("PullOracleHandler: Redstone oracle found for"
-                                " vault %s: Address - %s",
-                                vault.address, configured_oracle_address)
+                    logger.info("[%s] PullOracleHandler: Redstone oracle found for"
+                                " vault %s: Address - %s", config.CHAIN_ID, vault.address, configured_oracle_address)
                     redstone_feed_ids.add((configured_oracle_address,
                                               configured_oracle.functions.feedId().call().hex()))
                 elif configured_oracle_name == "CrossAdapter":
@@ -893,7 +949,7 @@ class PullOracleHandler:
             return list(pyth_feed_ids), list(redstone_feed_ids)
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("PullOracleHandler: Error calling contract: %s", ex, exc_info=True)
+            logger.error("[%s] PullOracleHandler: Error calling contract: %s", config.CHAIN_ID, ex, exc_info=True)
 
     @staticmethod
     def resolve_cross_oracle(cross_oracle, config):
@@ -909,7 +965,7 @@ class PullOracleHandler:
         elif oracle_base_name == "RedstoneCoreOracle":
             redstone_feed_ids.add((oracle_base_address,
                                       oracle_base.functions.feedId().call().hex()))
-        elif oracle_base_name == "CrossOracle":
+        elif oracle_base_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_base, config)
             pyth_feed_ids.add(pyth_ids)
             redstone_feed_ids.add(redstone_ids)
@@ -923,15 +979,15 @@ class PullOracleHandler:
         elif oracle_quote_name == "RedstoneCoreOracle":
             redstone_feed_ids.add((oracle_quote_address,
                                       oracle_quote.functions.feedId().call().hex()))
-        elif oracle_quote_name == "CrossOracle":
+        elif oracle_quote_name == "CrossAdapter":
             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote, config)
             pyth_feed_ids.update(pyth_ids)
             redstone_feed_ids.update(redstone_ids)
         return pyth_feed_ids, redstone_feed_ids
 
     @staticmethod
-    def get_pyth_update_data(feed_ids):
-        logger.info("PullOracleHandler: Getting update data for feeds: %s", feed_ids)
+    def get_pyth_update_data(feed_ids, config: ChainConfig):
+        logger.info("[%s] PullOracleHandler: Getting update data for feeds: %s", config.CHAIN_ID, feed_ids)
         pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
         for feed_id in feed_ids:
             pyth_url += "ids[]=" + feed_id + "&"
@@ -942,7 +998,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_pyth_update_fee(update_data, config):
-        logger.info("PullOracleHandler: Getting update fee for data: %s", update_data)
+        logger.info("[%s] PullOracleHandler: Getting update fee for data: %s", config.CHAIN_ID, update_data)
         pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH, config)
         return pyth.functions.getUpdateFee([update_data]).call()
 
@@ -1011,8 +1067,8 @@ class EVCListener:
                         self.account_monitor.latest_block,
                         current_block)
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("EVCListener: Unexpected exception in event monitoring: %s",
-                             ex, exc_info=True)
+                logger.error("[%s] EVCListener: Unexpected exception in event monitoring: %s",
+                             self.config.CHAIN_ID, ex, exc_info=True)
 
             time.sleep(self.config.SCAN_INTERVAL)
 
@@ -1021,7 +1077,8 @@ class EVCListener:
                                                   start_block: int,
                                                   end_block: int,
                                                   max_retries: int = 3,
-                                                  seen_accounts: set = set()) -> None:
+                                                  seen_accounts: set = set(),
+                                                  startup_mode: bool = False) -> None:
         """
         Scan a range of blocks for AccountStatusCheck events.
 
@@ -1034,8 +1091,8 @@ class EVCListener:
         """
         for attempt in range(max_retries):
             try:
-                logger.info("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
-                            start_block, end_block)
+                logger.info("[%s] EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
+                            self.config.CHAIN_ID, start_block, end_block)
 
                 logs = self.evc_instance.events.AccountStatusCheck().get_logs(
                     fromBlock=start_block,
@@ -1048,43 +1105,49 @@ class EVCListener:
                     #if we've seen the account already and the status
                     # check is not due to changing controller
                     if account_address in seen_accounts:
-                        same_controller = self.account_monitor.accounts.get(
-                            account_address).controller.address == Web3.to_checksum_address(
-                                vault_address)
+                        existing_account = self.account_monitor.accounts.get(account_address)
+                        if existing_account is None:
+                            logger.info("[%s] EVCListener: Account %s not found in monitor, adding it",
+                                        self.config.CHAIN_ID, account_address)
+                            seen_accounts.remove(account_address)  # Remove from seen to allow re-processing
+                            continue
+                            
+                        same_controller = existing_account.controller.address == Web3.to_checksum_address(
+                            vault_address)
 
-                        if same_controller:
-                            logger.info("EVCListener: Account %s already seen with "
-                                        "controller %s, skipping", account_address, vault_address)
+                        if same_controller and startup_mode:
+                            logger.info("[%s] EVCListener: Account %s already seen with "
+                                        "controller %s, skipping", self.config.CHAIN_ID, account_address, vault_address)
                             continue
                     else:
                         seen_accounts.add(account_address)
 
-                    logger.info("EVCListener: AccountStatusCheck event found for account %s "
+                    logger.info("[%s] EVCListener: AccountStatusCheck event found for account %s "
                                 "with controller %s, triggering monitor update.",
-                                account_address, vault_address)
+                                self.config.CHAIN_ID, account_address, vault_address)
 
                     try:
                         self.account_monitor.update_account_on_status_check_event(
                             account_address,
                             vault_address)
                     except Exception as ex: # pylint: disable=broad-except
-                        logger.error("EVCListener: Exception updating account %s "
+                        logger.error("[%s] EVCListener: Exception updating account %s "
                                      "on AccountStatusCheck event: %s",
-                                     account_address, ex, exc_info=True)
+                                     self.config.CHAIN_ID, account_address, ex, exc_info=True)
 
-                logger.info("EVCListener: Finished scanning blocks %s to %s "
-                            "for AccountStatusCheck events.", start_block, end_block)
+                logger.info("[%s] EVCListener: Finished scanning blocks %s to %s "
+                            "for AccountStatusCheck events.", self.config.CHAIN_ID, start_block, end_block)
 
                 self.account_monitor.latest_block = end_block
                 return
             except Exception as ex: # pylint: disable=broad-except
-                logger.error("EVCListener: Exception scanning block range %s to %s "
+                logger.error("[%s] EVCListener: Exception scanning block range %s to %s "
                              "(attempt %s/%s): %s",
-                             start_block, end_block, attempt + 1, max_retries, ex, exc_info=True)
+                             self.config.CHAIN_ID, start_block, end_block, attempt + 1, max_retries, ex, exc_info=True)
                 if attempt == max_retries - 1:
-                    logger.error("EVCListener: "
+                    logger.error("[%s] EVCListener: "
                                  "Failed to scan block range %s to %s after %s attempts",
-                                 start_block, end_block, max_retries, exc_info=True)
+                                 self.config.CHAIN_ID, start_block, end_block, max_retries, exc_info=True)
                 else:
                     time.sleep(self.config.RETRY_DELAY) # cooldown between retries
 
@@ -1099,14 +1162,17 @@ class EVCListener:
             # assume it has been loaded from that and start from the last saved block
             start_block = max(int(self.config.EVC_DEPLOYMENT_BLOCK),
                               self.account_monitor.last_saved_block)
-
+            logger.info("[%s] EVCListener: Starting batch scan of AccountStatusCheck events from block %s",
+                        self.config.CHAIN_ID, start_block)
             current_block = self.w3.eth.block_number
-
+            logger.info("[%s] EVCListener: Current block is %s",
+                        self.config.CHAIN_ID, current_block)
             batch_block_size = self.config.BATCH_SIZE
-
-            logger.info("EVCListener: "
+            logger.info("[%s] EVCListener: Batch block size is %s",
+                        self.config.CHAIN_ID, batch_block_size)
+            logger.info("[%s] EVCListener: "
                         "Starting batch scan of AccountStatusCheck events from block %s to %s.",
-                        start_block, current_block)
+                        self.config.CHAIN_ID, start_block, current_block)
 
             seen_accounts = set()
 
@@ -1114,21 +1180,22 @@ class EVCListener:
                 end_block = min(start_block + batch_block_size, current_block)
 
                 self.scan_block_range_for_account_status_check(start_block, end_block,
-                                                               seen_accounts=seen_accounts)
+                                                               seen_accounts=seen_accounts,
+                                                               startup_mode=True)
                 self.account_monitor.save_state()
 
                 start_block = end_block + 1
 
                 time.sleep(self.config.BATCH_INTERVAL) # Sleep in between batches to avoid rate limiting
 
-            logger.info("EVCListener: "
+            logger.info("[%s] EVCListener: "
                         "Finished batch scan of AccountStatusCheck events from block %s to %s.",
-                        start_block, current_block)
+                        self.config.CHAIN_ID, start_block, current_block)
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("EVCListener: "
+            logger.error("[%s] EVCListener: "
                          "Unexpected exception in batch scanning account logs on startup: %s",
-                         ex, exc_info=True)
+                         self.config.CHAIN_ID, ex, exc_info=True)
 
     @staticmethod
     def get_account_owner_and_subaccount_number(account, config):
@@ -1207,9 +1274,9 @@ class Liquidator:
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
-                logger.info("Liquidator: Checking liquidation for "
+                logger.info("[%s] Liquidator: Checking liquidation for "
                             "account %s, borrowed asset %s, collateral asset %s",
-                            violator_address, borrowed_asset, collateral)
+                            config.CHAIN_ID, violator_address, borrowed_asset, collateral)
 
                 liquidation_results = Liquidator.calculate_liquidation_profit(vault,
                                                                       violator_address,
@@ -1226,7 +1293,7 @@ class Liquidator:
                 message = ("Exception simulating liquidation "
                              f"for account {violator_address} with collateral {collateral}: {ex}")
 
-                logger.error("Liquidator: %s", message, exc_info=True)
+                logger.error("[%s] Liquidator: %s", config.CHAIN_ID, message, exc_info=True)
 
                 time_of_last_post = liquidation_error_slack_cooldown.get(violator_address, 0)
                 value_borrowed = violator_account.value_borrowed
@@ -1244,11 +1311,11 @@ class Liquidator:
 
 
         if max_profit_data["tx"]:
-            logger.info("Liquidator: Profitable liquidation found for account %s. "
+            logger.info("[%s] Liquidator: Profitable liquidation found for account %s. "
                         "Collateral: %s, Underlying Collateral Asset: %s, "
                         "Remaining borrow asset after swap and repay: %s, "
                         "Estimated profit in ETH: %s",
-                        violator_address, max_profit_data["collateral_address"],
+                        config.CHAIN_ID, violator_address, max_profit_data["collateral_address"],
                         max_profit_data["collateral_asset"], max_profit_data["leftover_borrow"],
                         max_profit_data["leftover_borrow_in_eth"])
             return (True, max_profit_data, max_profit_params)
@@ -1284,8 +1351,8 @@ class Liquidator:
         seized_collateral_assets = collateral_vault.convert_to_assets(seized_collateral_shares)
 
         if max_repay == 0 or seized_collateral_shares == 0:
-            logger.info("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
-                        max_repay, seized_collateral_shares)
+            logger.info("[%s] Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
+                        config.CHAIN_ID, max_repay, seized_collateral_shares)
             return ({"profit": 0}, None)
 
         swap_api_response = Quoter.get_swap_api_quote(
@@ -1344,13 +1411,14 @@ class Liquidator:
                 continue
             swap_data.append(item["data"])
 
-        logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
-                    "leftover_borrow: %s", seized_collateral_assets, amount_out,
+        logger.info("[%s] Liquidator: Seized collateral assets: %s, output amount: %s, "
+                    "leftover_borrow: %s", config.CHAIN_ID, seized_collateral_assets, amount_out,
                     leftover_borrow_in_eth)
 
         # leftover_borrow_in_eth = 1
         if leftover_borrow_in_eth < 0:
-            logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
+            logger.warning("[%s] Liquidator: Negative leftover borrow value, aborting liquidation",
+                           config.CHAIN_ID)
             return ({"profit": 0}, None)
 
 
@@ -1368,7 +1436,7 @@ class Liquidator:
         )
 
 
-        logger.info("Liquidator: Liquidation details: %s", params)
+        logger.info("[%s] Liquidator: Liquidation details: %s", config.CHAIN_ID, params)
 
         pyth_feed_ids = vault.pyth_feed_ids
         redstone_feed_ids = vault.redstone_feed_ids
@@ -1412,8 +1480,8 @@ class Liquidator:
         suggested_gas_price = int(config.w3.eth.gas_price * 1.2)
 
         if len(pyth_feed_ids)> 0:
-            logger.info("Liquidator: executing with pyth")
-            update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+            logger.info("[%s] Liquidator: executing with pyth", config.CHAIN_ID)
+            update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids, config)
             update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
                 params, swap_data, [update_data]
@@ -1425,7 +1493,7 @@ class Liquidator:
                     "gasPrice": suggested_gas_price
                 })
         elif len(redstone_feed_ids) > 0:
-            logger.info("Liquidator: executing with Redstone")
+            logger.info("[%s] Liquidator: executing with Redstone", config.CHAIN_ID)
             addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
                 params, swap_data, update_data, addresses
@@ -1436,7 +1504,7 @@ class Liquidator:
                     "nonce": config.w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
         else:
-            logger.info("Liquidator: executing normally")
+            logger.info("[%s] Liquidator: executing normally", config.CHAIN_ID)
             # liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
             #     params
             #     ).build_transaction({
@@ -1456,13 +1524,13 @@ class Liquidator:
                     "from": config.LIQUIDATOR_EOA,
                     "nonce": config.w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
-        logger.info("Leftover borrow in eth: %s", leftover_borrow_in_eth)
-        logger.info("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
-        logger.info("Suggested gas price: %s", suggested_gas_price)
+        logger.info("[%s] Leftover borrow in eth: %s", config.CHAIN_ID, leftover_borrow_in_eth)
+        logger.info("[%s] Estimated gas: %s", config.CHAIN_ID, config.w3.eth.estimate_gas(liquidation_tx))
+        logger.info("[%s] Suggested gas price: %s", config.CHAIN_ID, suggested_gas_price)
 
         net_profit = leftover_borrow_in_eth - (
             config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
-        logger.info("Net profit: %s", net_profit)
+        logger.info("[%s] Net profit: %s", config.CHAIN_ID, net_profit)
 
         return ({
             "tx": liquidation_tx, 
@@ -1482,8 +1550,8 @@ class Liquidator:
             liquidation_transaction (Dict[str, Any]): The liquidation transaction details.
         """
         try:
-            logger.info("Liquidator: Executing liquidation transaction %s...",
-                        liquidation_transaction)
+            logger.info("[%s] Liquidator: Executing liquidation transaction %s...",
+                        config.CHAIN_ID, liquidation_transaction)
             # flashbots_provider = "https://rpc.flashbots.net"
             # flashbots_relay = "https://relay.flashbots.net"
             # flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
@@ -1503,9 +1571,9 @@ class Liquidator:
             result = liquidator_contract.events.Liquidation().process_receipt(
                 tx_receipt, errors=DISCARD)
 
-            logger.info("Liquidator: Liquidation details: ")
+            logger.info("[%s] Liquidator: Liquidation details: ", config.CHAIN_ID)
             for event in result:
-                logger.info("Liquidator: %s", event["args"])
+                logger.info("[%s] Liquidator: %s", config.CHAIN_ID, event["args"])
 
             logger.info("Liquidator: Liquidation transaction executed successfully.")
             return tx_hash.hex(), tx_receipt
@@ -1559,17 +1627,18 @@ class Quoter:
             "currentDebt": str(current_debt),
             "targetDebt": str(target_debt)
         }
-
+        logger.info("[%s] get_swap_api_quote: %s", config.CHAIN_ID, params)
         response = make_api_request(config.SWAP_API_URL, headers={}, params=params)
-
+        logger.info("[%s] get_swap_api_quote: response %s", config.CHAIN_ID, response)
+        
         if not response or not response["success"]:
-            logger.error("Unable to get quote from swap api")
+            logger.error("[%s] Unable to get quote from swap api", config.CHAIN_ID)
             return None
 
         amount_out = int(response["data"]["amountOut"])
 
         if amount_out < min_amount_out:
-            logger.error("Quote too low")
+            logger.error("[%s] Quote too low", config.CHAIN_ID)
             return None
 
         return response["data"]
