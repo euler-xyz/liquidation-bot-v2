@@ -180,7 +180,7 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
         f"*Account*: `{account_address}`, <{spy_link}|Spy Mode>\n"
         f"*Vault*: `{vault_address}`\n"
         f"*Health Score*: `{health_score:.4f}`\n"
-        f"*Value Borrowed*: `${value_borrowed / 10 ** 18:.2f}`\n"
+        f"*Value Borrowed*: `${value_borrowed / 10 ** 18:,.2f}`\n"
         f"Time of detection: {time.strftime("%Y-%m-%d %H:%M:%S")}\n"
         f"Network: `{config.CHAIN_NAME}`\n\n"
     )
