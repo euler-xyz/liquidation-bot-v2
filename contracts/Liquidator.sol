@@ -18,14 +18,6 @@ contract Liquidator {
 
     address public immutable PYTH;
 
-    bytes32 public constant HANDLER_GENERIC = bytes32("Generic");
-    bytes32 public constant HANDLER_UNISWAP_V2 = bytes32("UniswapV2");
-
-    address public constant ONE_INCH_AGGREGATOR = 0x111111125421cA6dc452d289314280a0f8842A65;
-
-    uint256 internal constant MODE_EXACT_IN = 0;
-    uint256 internal constant MODE_EXACT_OUT = 1;
-
     ISwapper swapper;
     IEVC evc;
 
@@ -83,7 +75,7 @@ contract Liquidator {
         // Sweep any dust left in the swapper contract
         multicallItems[swapperData.length + 1] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, params.receiver));
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
 
         // Step 1: enable controller
         batchItems[0] = IEVC.BatchItem({
@@ -137,6 +129,13 @@ contract Liquidator {
             data: abi.encodeCall(IRiskManager.disableController, ())
         });
 
+        batchItems[6] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(IEVC.disableCollateral, (address(this), params.collateralVault))
+        });
+
 
         // Submit batch to EVC
         evc.batch(batchItems);
@@ -172,7 +171,7 @@ contract Liquidator {
         // Sweep any dust left in the swapper contract
         multicallItems[swapperData.length + 1] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, params.receiver));
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
 
         IPyth(PYTH).updatePriceFeeds{value: msg.value}(pythUpdateData);
         // // Step 0: update Pyth oracles
@@ -235,6 +234,12 @@ contract Liquidator {
             data: abi.encodeCall(IRiskManager.disableController, ())
         });
 
+        batchItems[6] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(IEVC.disableCollateral, (address(this), params.collateralVault))
+        });
 
 
         // Submit batch to EVC
@@ -273,7 +278,7 @@ contract Liquidator {
 
         uint256 numberOfOracleUpdates = redstoneUpdateData.length;
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](numberOfOracleUpdates + 5);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](numberOfOracleUpdates + 7);
 
         // Step 0: update Redstone oracles
         for (uint256 i = 0; i < redstoneUpdateData.length; i++){
@@ -335,6 +340,13 @@ contract Liquidator {
             targetContract: params.vault,
             value: 0,
             data: abi.encodeCall(IRiskManager.disableController, ())
+        });
+
+        batchItems[numberOfOracleUpdates + 6] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(IEVC.disableCollateral, (address(this), params.collateralVault))
         });
 
 
