@@ -37,9 +37,9 @@ from app.liquidation.utils import (setup_logger,
 
 
 ## SETUP FOR MANUAL LIQUIDATION
-UNDERWATER_ACCOUNT = "0x387FE763dDaC7a6B568Ee344fEfC31F626Bc837B"
+UNDERWATER_ACCOUNT = "0xf47249e6a3D1326439316f23081810094BE53bfe"
 COLLATERAL_VAULT_ADDRESS = "0xD8b27CF359b7D15710a5BE299AF6e7Bf904984C2"
-CONTROLLER_VAULT_ADDRESS = "0x056f3a2E41d2778D3a0c0714439c53af2987718E"
+CONTROLLER_VAULT_ADDRESS = "0x2daCa71Cb58285212Dc05D65Cfd4f59A82BC4cF6"
 
 ### ENVIRONMENT & CONFIG SETUP ###
 load_dotenv()
@@ -866,62 +866,65 @@ class PullOracleHandler:
 
     @staticmethod
     def get_feed_ids(vault):
+        pyth_feed_ids = ["0x6ec879b1e9963de5ee97e9c8710b742d6228252a5e2ca12d4ae81d7fe5ee8c5d"]
+        redstone_feed_ids = []
+        return pyth_feed_ids, redstone_feed_ids
 
-        try:
-            oracle_address = vault.oracle_address
-            oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
+        # try:
+        #     oracle_address = vault.oracle_address
+        #     oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
 
 
-            unit_of_account = vault.unit_of_account
+        #     unit_of_account = vault.unit_of_account
 
-            collateral_vault_list = vault.get_ltv_list()
-            asset_list = [Vault(collateral_vault).underlying_asset_address
-                          for collateral_vault in collateral_vault_list]
-            asset_list.append(vault.underlying_asset_address)
+        #     collateral_vault_list = vault.get_ltv_list()
+        #     asset_list = [Vault(collateral_vault).underlying_asset_address
+        #                   for collateral_vault in collateral_vault_list]
+        #     asset_list.append(vault.underlying_asset_address)
 
-            pyth_feed_ids = []
-            redstone_feed_ids = []
+        #     pyth_feed_ids = []
+        #     redstone_feed_ids = []
 
-            # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
+        #     # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
 
-            for asset in asset_list:
-                # configured_oracle_address = oracle.functions.getConfiguredOracle(asset,
-                #                                                                  unit_of_account
-                #                                                                  ).call()
+        #     for asset in asset_list:
+        #         # configured_oracle_address = oracle.functions.getConfiguredOracle(asset,
+        #         #                                                                  unit_of_account
+        #         #                                                                  ).call()
 
-                (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
+        #         (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
 
-                configured_oracle = create_contract_instance(configured_oracle_address,
-                                                             config.ORACLE_ABI_PATH)
+        #         configured_oracle = create_contract_instance(configured_oracle_address,
+        #                                                      config.ORACLE_ABI_PATH)
 
-                try:
-                    configured_oracle_name = configured_oracle.functions.name().call()
-                except Exception as ex: # pylint: disable=broad-except
-                    logger.info("PullOracleHandler: Error calling contract for oracle"
-                                " at %s, asset %s: %s", configured_oracle_address, asset, ex)
-                    continue
+        #         try:
+        #             configured_oracle_name = configured_oracle.functions.name().call()
+        #         except Exception as ex: # pylint: disable=broad-except
+        #             logger.info("PullOracleHandler: Error calling contract for oracle"
+        #                         " at %s, asset %s: %s", configured_oracle_address, asset, ex)
+        #             continue
 
-                # logger.info("Asset: %s, Configured oracle name: %s, address: %s", asset, configured_oracle_name, configured_oracle_address)
-                if configured_oracle_name == "PythOracle":
-                    logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
-                                "Address - %s", vault.address, configured_oracle_address)
-                    pyth_feed_ids.append(configured_oracle.functions.feedId().call().hex())
-                elif configured_oracle_name == "RedstoneCoreOracle":
-                    logger.info("PullOracleHandler: Redstone oracle found for"
-                                " vault %s: Address - %s",
-                                vault.address, configured_oracle_address)
-                    redstone_feed_ids.append((configured_oracle_address,
-                                              configured_oracle.functions.feedId().call().hex()))
-                elif configured_oracle_name == "CrossAdapter":
-                    pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
-                        configured_oracle)
-                    pyth_feed_ids += pyth_ids
-                    redstone_feed_ids += redstone_ids
+        #         # logger.info("Asset: %s, Configured oracle name: %s, address: %s", asset, configured_oracle_name, configured_oracle_address)
+        #         if configured_oracle_name == "PythOracle":
+        #             logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
+        #                         "Address - %s", vault.address, configured_oracle_address)
+        #             pyth_feed_ids.append(configured_oracle.functions.feedId().call().hex())
+        #         elif configured_oracle_name == "RedstoneCoreOracle":
+        #             logger.info("PullOracleHandler: Redstone oracle found for"
+        #                         " vault %s: Address - %s",
+        #                         vault.address, configured_oracle_address)
+        #             redstone_feed_ids.append((configured_oracle_address,
+        #                                       configured_oracle.functions.feedId().call().hex()))
+        #         elif configured_oracle_name == "CrossAdapter":
+        #             pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
+        #                 configured_oracle)
+        #             pyth_feed_ids += pyth_ids
+        #             redstone_feed_ids += redstone_ids
 
-            return pyth_feed_ids, redstone_feed_ids
+        #     return pyth_feed_ids, redstone_feed_ids
 
-        except Exception as ex: # pylint: disable=broad-except
-            logger.error("PullOracleHandler: Error calling contract: %s", ex, exc_info=True)
+        # except Exception as ex: # pylint: disable=broad-except
+        #     logger.error("PullOracleHandler: Error calling contract: %s", ex, exc_info=True)
 
     @staticmethod
     def resolve_cross_oracle(cross_oracle):

@@ -83,7 +83,7 @@ contract Liquidator {
         // Sweep any dust left in the swapper contract
         multicallItems[swapperData.length + 1] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, params.receiver));
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
 
         // Step 1: enable controller
         batchItems[0] = IEVC.BatchItem({
@@ -137,6 +137,13 @@ contract Liquidator {
             data: abi.encodeCall(IRiskManager.disableController, ())
         });
 
+        batchItems[6] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(IEVC.disableCollateral, (address(this), params.collateralVault))
+        });
+
 
         // Submit batch to EVC
         evc.batch(batchItems);
@@ -172,7 +179,7 @@ contract Liquidator {
         // Sweep any dust left in the swapper contract
         multicallItems[swapperData.length + 1] = abi.encodeCall(ISwapper.sweep, (params.borrowedAsset, 0, params.receiver));
 
-        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](6);
+        IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
 
         IPyth(PYTH).updatePriceFeeds{value: msg.value}(pythUpdateData);
         // // Step 0: update Pyth oracles
@@ -233,6 +240,13 @@ contract Liquidator {
             targetContract: params.vault,
             value: 0,
             data: abi.encodeCall(IRiskManager.disableController, ())
+        });
+
+        batchItems[6] = IEVC.BatchItem({
+            onBehalfOfAccount: address(0),
+            targetContract: address(evc),
+            value: 0,
+            data: abi.encodeCall(IEVC.disableCollateral, (address(this), params.collateralVault))
         });
 
 
