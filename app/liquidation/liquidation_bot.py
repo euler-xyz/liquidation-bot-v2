@@ -866,9 +866,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_feed_ids(vault):
-        pyth_feed_ids = ['eaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a', 'f9c96a45784d0ce4390825a43a313149da787e6a6c66076f3a3f83e92501baeb']
-        redstone_feed_ids = []
-        return pyth_feed_ids, redstone_feed_ids
+
         try:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH)
