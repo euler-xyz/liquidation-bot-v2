@@ -45,7 +45,7 @@ global:
 
   ## REPORTING PARAMETERS ##
   # Interval for reporting low health accounts
-  LOW_HEALTH_REPORT_INTERVAL: 43200 # 12 hours
+  LOW_HEALTH_REPORT_INTERVAL: 86400 # 24 hours
   SLACK_REPORT_HEALTH_SCORE: 1.05
   BORROW_VALUE_THRESHOLD: 10000 # $1000 minimum for reporting
   # Threshold for excluding small positions from frequent notifications, in USD terms
@@ -278,3 +278,25 @@ chains:
       
       # PYTH address
       PYTH: "0x4D7E825f80bDf85e913E0DD2A2D54927e9dE1594"
+
+  130:
+    name: "Unichain"
+    EVC_DEPLOYMENT_BLOCK: 8541493
+    EXPLORER_URL: "https://unichain.blockscout.com/"
+    RPC_NAME: "UNICHAIN_RPC_URL"
+    
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xA8A46596a7B17542d2cf6993FC61Ea0CBb4474c1"
+
+      #EVK Addresses
+      EVC: "0x2A1176964F5D7caE5406B627Bf6166664FE83c60"
+      SWAPPER: "0x319E8ecd3BaB57fE684ca1aCfaB60c5603087B3A"
+      SWAP_VERIFIER: "0x7eaf8C22480129E5D7426e3A33880D7bE19B50a7"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x4200000000000000000000000000000000000006"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
