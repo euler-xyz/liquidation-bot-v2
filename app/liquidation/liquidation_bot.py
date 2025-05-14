@@ -9,7 +9,6 @@ import os
 import json
 import sys
 import math
-import subprocess
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
@@ -59,7 +58,7 @@ class Vault:
         self.oracle_address = self.instance.functions.oracle().call()
 
         self.pyth_feed_ids = []
-        self.redstone_feed_ids = []
+        self.last_pyth_feed_ids_update = 0
 
     def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
         """
@@ -80,23 +79,15 @@ class Vault:
             return (0, 0, 0)
 
         try:
-            # Check if vault contains a Pyth oracle
-            self.pyth_feed_ids, self.redstone_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
+            if time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
+                self.pyth_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
+                self.last_pyth_feed_ids_update = time.time()
 
-            if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
-                logger.info("Vault: Pyth & Redstone oracle found for vault %s, "
-                            "getting account liquidity through simulation", self.address)
-                collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_and_redstone_simulation(self, account_address, self.pyth_feed_ids, self.redstone_feed_ids, self.config)
-            elif len(self.pyth_feed_ids) > 0:
+            if len(self.pyth_feed_ids) > 0:
                 logger.info("Vault: Pyth Oracle found for vault %s, "
                             "getting account liquidity through simulation", self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_batch_simulation(
                     self, account_address, self.pyth_feed_ids, self.config)
-            elif len(self.redstone_feed_ids) > 0:
-                logger.info("Vault: Redstone Oracle found for vault %s, "
-                            "getting account liquidity through simulation", self.address)
-                collateral_value, liability_value = PullOracleHandler.get_account_values_with_redstone_batch_simulation(
-                    self, account_address, self.redstone_feed_ids, self.config)
             else:
                 logger.info("Vault: Getting account liquidity normally for vault %s", self.address)
                 (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
@@ -134,32 +125,13 @@ class Vault:
                     borower_address, collateral_address,
                     liquidator_address, self.underlying_asset_address)
 
-        if len(self.pyth_feed_ids) > 0 and len(self.redstone_feed_ids) > 0:
-            (max_repay, seized_collateral) = PullOracleHandler.check_liquidation_with_pyth_and_redstone_simulation(
-                self,
-                Web3.to_checksum_address(liquidator_address),
-                Web3.to_checksum_address(borower_address),
-                Web3.to_checksum_address(collateral_address),
-                self.pyth_feed_ids,
-                self.redstone_feed_ids,
-                self.config
-                )
-        elif len(self.pyth_feed_ids) > 0:
+        if len(self.pyth_feed_ids) > 0:
             (max_repay, seized_collateral) = PullOracleHandler.check_liquidation_with_pyth_batch_simulation(
                 self,
                 Web3.to_checksum_address(liquidator_address),
                 Web3.to_checksum_address(borower_address),
                 Web3.to_checksum_address(collateral_address),
                 self.pyth_feed_ids,
-                self.config
-                )
-        elif len(self.redstone_feed_ids) > 0:
-            (max_repay, seized_collateral) = PullOracleHandler.check_liquidation_with_redstone_batch_simulation(
-                self,
-                Web3.to_checksum_address(liquidator_address),
-                Web3.to_checksum_address(borower_address),
-                Web3.to_checksum_address(collateral_address),
-                self.redstone_feed_ids,
                 self.config
                 )
         else:
@@ -753,38 +725,6 @@ class PullOracleHandler:
         pass
 
     @staticmethod
-    def get_account_values_with_pyth_and_redstone_simulation(vault, account_address, pyth_feed_ids, redstone_feed_ids, config: ChainConfig):
-        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
-        pyth_update_fee = PullOracleHandler.get_pyth_update_fee(pyth_update_data, config)
-
-        redstone_addresses, redstone_update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
-
-        liquidator = config.liquidator
-
-        result = liquidator.functions.simulatePythAndRedstoneAccountStatus(
-            [pyth_update_data], pyth_update_fee, redstone_update_data, redstone_addresses, vault.address, account_address
-            ).call({
-                "value": pyth_update_fee
-            })
-        return result[0], result[1]
-
-    @staticmethod
-    def check_liquidation_with_pyth_and_redstone_simulation(vault, liquidator_address, borrower_address, collateral_address, pyth_feed_ids, redstone_feed_ids, config: ChainConfig):
-        pyth_update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
-        pyth_update_fee = PullOracleHandler.get_pyth_update_fee(pyth_update_data, config)
-
-        redstone_addresses, redstone_update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
-
-        liquidator = config.liquidator
-
-        result = liquidator.functions.simulatePythAndRedstoneLiquidation(
-            [pyth_update_data], pyth_update_fee, redstone_update_data, redstone_addresses, vault.address, liquidator_address, borrower_address, collateral_address
-            ).call({
-                "value": pyth_update_fee
-            })
-        return result[0], result[1]
-
-    @staticmethod
     def get_account_values_with_pyth_batch_simulation(vault, account_address, feed_ids, config: ChainConfig):
         update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
         update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
@@ -814,32 +754,6 @@ class PullOracleHandler:
             })
         return result[0], result[1]
 
-    @staticmethod
-    def get_account_values_with_redstone_batch_simulation(vault, account_address, feed_ids, config: ChainConfig):
-        addresses, update_data = PullOracleHandler.get_redstone_update_payloads(feed_ids)
-
-        liquidator = config.liquidator
-
-        result = liquidator.functions.simulateRedstoneUpdateAndGetAccountStatus(
-            update_data, addresses, vault.address, account_address
-            ).call()
-        return result[0], result[1]
-
-    @staticmethod
-    def check_liquidation_with_redstone_batch_simulation(vault,
-                                                         liquidator_address,
-                                                         borrower_address,
-                                                         collateral_address,
-                                                         feed_ids, config: ChainConfig):
-        addresses, update_data = PullOracleHandler.get_redstone_update_payloads(feed_ids)
-
-        liquidator = config.liquidator
-
-        result = liquidator.functions.simulateRedstoneUpdateAndCheckLiquidation(
-            update_data, addresses, vault.address,
-            liquidator_address, borrower_address, collateral_address
-            ).call()
-        return result[0], result[1]
 
     @staticmethod
     def get_feed_ids(vault, config: ChainConfig):
@@ -855,9 +769,6 @@ class PullOracleHandler:
             asset_list.append(vault.underlying_asset_address)
 
             pyth_feed_ids = set()
-            redstone_feed_ids = set()
-
-            # logger.info("PullOracleHandler: Trying to get feed ids for oracle %s with assets %s and unit of account %s", oracle_address, collateral_vault_list, unit_of_account)
 
             for asset in asset_list:
                 (_, _, _, configured_oracle_address) = oracle.functions.resolveOracle(0, asset, unit_of_account).call()
@@ -875,19 +786,12 @@ class PullOracleHandler:
                     logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
                                 "Address - %s", vault.address, configured_oracle_address)
                     pyth_feed_ids.add(configured_oracle.functions.feedId().call().hex())
-                elif configured_oracle_name == "RedstoneCoreOracle":
-                    logger.info("PullOracleHandler: Redstone oracle found for"
-                                " vault %s: Address - %s",
-                                vault.address, configured_oracle_address)
-                    redstone_feed_ids.add((configured_oracle_address,
-                                              configured_oracle.functions.feedId().call().hex()))
                 elif configured_oracle_name == "CrossAdapter":
-                    pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(
+                    pyth_ids = PullOracleHandler.resolve_cross_oracle(
                         configured_oracle, config)
                     pyth_feed_ids.update(pyth_ids)
-                    redstone_feed_ids.update(redstone_ids)
 
-            return list(pyth_feed_ids), list(redstone_feed_ids)
+            return list(pyth_feed_ids)
 
         except Exception as ex: # pylint: disable=broad-except
             logger.error("PullOracleHandler: Error calling contract: %s", ex, exc_info=True)
@@ -895,7 +799,6 @@ class PullOracleHandler:
     @staticmethod
     def resolve_cross_oracle(cross_oracle, config):
         pyth_feed_ids = set()
-        redstone_feed_ids = set()
 
         oracle_base_address = cross_oracle.functions.oracleBaseCross().call()
         oracle_base = create_contract_instance(oracle_base_address, config.ORACLE_ABI_PATH, config)
@@ -903,13 +806,9 @@ class PullOracleHandler:
 
         if oracle_base_name == "PythOracle":
             pyth_feed_ids.add(oracle_base.functions.feedId().call().hex())
-        elif oracle_base_name == "RedstoneCoreOracle":
-            redstone_feed_ids.add((oracle_base_address,
-                                      oracle_base.functions.feedId().call().hex()))
         elif oracle_base_name == "CrossAdapter":
-            pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_base, config)
+            pyth_ids = PullOracleHandler.resolve_cross_oracle(oracle_base, config)
             pyth_feed_ids.update(pyth_ids)
-            redstone_feed_ids.update(redstone_ids)
 
         oracle_quote_address = cross_oracle.functions.oracleCrossQuote().call()
         oracle_quote = create_contract_instance(oracle_quote_address, config.ORACLE_ABI_PATH, config)
@@ -917,14 +816,10 @@ class PullOracleHandler:
 
         if oracle_quote_name == "PythOracle":
             pyth_feed_ids.add(oracle_quote.functions.feedId().call().hex())
-        elif oracle_quote_name == "RedstoneCoreOracle":
-            redstone_feed_ids.add((oracle_quote_address,
-                                      oracle_quote.functions.feedId().call().hex()))
         elif oracle_quote_name == "CrossAdapter":
-            pyth_ids, redstone_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote, config)
+            pyth_ids = PullOracleHandler.resolve_cross_oracle(oracle_quote, config)
             pyth_feed_ids.update(pyth_ids)
-            redstone_feed_ids.update(redstone_ids)
-        return pyth_feed_ids, redstone_feed_ids
+        return pyth_feed_ids
 
     @staticmethod
     def get_pyth_update_data(feed_ids):
@@ -942,41 +837,6 @@ class PullOracleHandler:
         logger.info("PullOracleHandler: Getting update fee for data: %s", update_data)
         pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH, config)
         return pyth.functions.getUpdateFee([update_data]).call()
-
-    @staticmethod
-    def get_redstone_update_payloads(redstone_oracle_data):
-        addresses = []
-        feed_ids = []
-
-        for data in redstone_oracle_data:
-            addresses.append(data[0])
-            feed_ids.append(data[1])
-
-        feed_ids_json = json.dumps(feed_ids)
-
-        result = subprocess.run(
-            ["node", "redstone_script/getRedstonePayload.js", feed_ids_json],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-
-        if result.returncode != 0:
-            logger.error("PullOracleHandler: Error getting update payload")
-            logger.error("stderr: %s", result.stderr)
-            logger.error("stdout: %s", result.stdout)
-            return None
-
-        result = json.loads(result.stdout)
-
-        output_data = []
-
-        for i in range(len(result)):
-
-            output_data.append(result[i]["data"])
-
-        return addresses, output_data
-
 
 class EVCListener:
     """
@@ -1368,43 +1228,6 @@ class Liquidator:
         logger.info("Liquidator: Liquidation details: %s", params)
 
         pyth_feed_ids = vault.pyth_feed_ids
-        redstone_feed_ids = vault.redstone_feed_ids
-
-        # #TODO: smarter way to do this
-        # suggested_gas_price = int(w3.eth.gas_price * 1.2)
-
-        # if len(feed_ids)> 0:
-        #     logger.info("Liquidator: executing with pyth")
-        #     update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
-        #     update_fee = PullOracleHandler.get_pyth_update_fee(update_data)
-        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
-        #         params, update_data
-        #         ).build_transaction({
-        #             "chainId": config.CHAIN_ID,
-        #             "gasPrice": suggested_gas_price,
-        #             "from": config.LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA),
-        #             "value": update_fee
-        #         })
-        # else:
-        #     logger.info("Liquidator: executing normally")
-        #     liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-        #         params
-        #         ).build_transaction({
-        #             "chainId": config.CHAIN_ID,
-        #             "gasPrice": suggested_gas_price,
-        #             "from": config.LIQUIDATOR_EOA,
-        #             "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
-        #         })
-
-        #From flashbots example code
-
-        # latest = w3.eth.get_block("latest")
-        # base_fee = latest["baseFeePerGas"]
-
-        # max_priority_fee = Web3.to_wei(2, "gwei")
-
-        # max_fee = base_fee + max_priority_fee
 
         suggested_gas_price = int(config.w3.eth.gas_price * 1.2)
 
@@ -1421,29 +1244,8 @@ class Liquidator:
                     "value": update_fee,
                     "gasPrice": suggested_gas_price
                 })
-        elif len(redstone_feed_ids) > 0:
-            logger.info("Liquidator: executing with Redstone")
-            addresses, update_data = PullOracleHandler.get_redstone_update_payloads(redstone_feed_ids)
-            liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithRedstoneOracle(
-                params, swap_data, update_data, addresses
-                ).build_transaction({
-                    "chainId": config.CHAIN_ID,
-                    "gasPrice": suggested_gas_price,
-                    "from": config.LIQUIDATOR_EOA,
-                    "nonce": config.w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
-                })
         else:
             logger.info("Liquidator: executing normally")
-            # liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
-            #     params
-            #     ).build_transaction({
-            #         "chainId": config.CHAIN_ID,
-            #         "from": config.LIQUIDATOR_EOA,
-            #         "nonce": w3.eth.get_transaction_count(config.LIQUIDATOR_EOA),
-            #         "gas": 21000,
-            #         "maxFeePerGas": max_fee,
-            #         "maxPriorityFeePerGas": max_priority_fee
-            #     })
 
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
                 params, swap_data
@@ -1481,14 +1283,6 @@ class Liquidator:
         try:
             logger.info("Liquidator: Executing liquidation transaction %s...",
                         liquidation_transaction)
-            # flashbots_provider = "https://rpc.flashbots.net"
-            # flashbots_relay = "https://relay.flashbots.net"
-            # flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
-
-            # signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
-            #                                             config.LIQUIDATOR_EOA_PRIVATE_KEY)
-            # tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            # tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
             signed_tx = config.w3.eth.account.sign_transaction(liquidation_transaction,
                                                         config.LIQUIDATOR_EOA_PRIVATE_KEY)
