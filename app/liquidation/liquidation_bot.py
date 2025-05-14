@@ -9,7 +9,6 @@ import os
 import json
 import sys
 import math
-import subprocess
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
@@ -17,9 +16,7 @@ from typing import Tuple, Dict, Any, Optional
 from dotenv import load_dotenv
 from web3 import Web3
 from web3.logs import DISCARD
-from eth_abi.abi import encode, decode
-# from eth_abi.abi import encode, decode
-# from eth_utils import to_hex, keccak
+from eth_abi.abi import encode
 
 from app.liquidation.utils import (setup_logger,
                    setup_w3,
@@ -692,7 +689,7 @@ class AccountMonitor:
         """
         while self.running:
             try:
-                sorted_accounts = self.get_accounts_by_health_score()
+                sorted_accounts = self.get_accounts_by_health_score() # pylint: disable=unused-variable
                 # post_low_health_account_report(sorted_accounts)
                 time.sleep(config.LOW_HEALTH_REPORT_INTERVAL)
             except Exception as ex: # pylint: disable=broad-except
@@ -894,7 +891,7 @@ class EVCListener:
                 # Just update the test account periodically
                 # self.account_monitor.update_account_liquidity(test_address)
                 time.sleep(config.SCAN_INTERVAL)
-            except Exception as ex:
+            except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Unexpected exception in event monitoring: %s",
                              ex, exc_info=True)
 
@@ -1151,41 +1148,19 @@ class Liquidator:
         if not swap_api_response:
             return ({"profit": 0}, None)
 
-        amount_out = int(swap_api_response['amountOut'])
+        amount_out = int(swap_api_response["amountOut"])
         leftover_borrow = amount_out - max_repay
         leftover_borrow_in_eth = leftover_borrow
-
-        # if borrowed_asset != config.WETH:
-        #     borrow_to_eth_response = Quoter.get_swap_api_quote(
-        #         chain_id = config.CHAIN_ID,
-        #         token_in = borrowed_asset,
-        #         token_out = config.WETH,
-        #         amount = leftover_borrow,
-        #         min_amount_out = 0,
-        #         receiver = LIQUIDATOR_EOA,
-        #         vault_in = vault.address,
-        #         account_in = LIQUIDATOR_EOA,
-        #         account_out = LIQUIDATOR_EOA,
-        #         swapper_mode = "0",
-        #         slippage = config.SWAP_SLIPPAGE,
-        #         deadline = int(time.time()) + config.SWAP_DEADLINE,
-        #         is_repay = False,
-        #         current_debt = 0,
-        #         target_debt = 0
-        #     )
-        #     leftover_borrow_in_eth = int(borrow_to_eth_response['amountOut'])
-        # else:
-        #     leftover_borrow_in_eth = leftover_borrow
 
         time.sleep(config.API_REQUEST_DELAY)
 
         swap_data = []
-        for _, item in enumerate(swap_api_response['swap']['multicallItems']):
+        for _, item in enumerate(swap_api_response["swap"]["multicallItems"]):
             # logger.info("Item: %s", item)
-            if item['functionName'] != 'swap':
+            if item["functionName"] != "swap":
                 # logger.info("Item skipped")
                 continue
-            swap_data.append(item['data'])
+            swap_data.append(item["data"])
 
         logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
                     "leftover_borrow: %s", seized_collateral_assets, amount_out,
@@ -1223,8 +1198,8 @@ class Liquidator:
             function_signature = "liquidateSingleCollateralWithPythOracle((address,address,address,address,address,uint256,uint256,address),bytes[],bytes[])"
 
             # Convert hex strings to bytes for swap_data and update_data
-            swap_data_bytes = [bytes.fromhex(data[2:]) if data.startswith('0x') else bytes.fromhex(data) for data in swap_data]
-            update_data_bytes = bytes.fromhex(update_data[2:]) if update_data.startswith('0x') else bytes.fromhex(update_data)
+            swap_data_bytes = [bytes.fromhex(data[2:]) if data.startswith("0x") else bytes.fromhex(data) for data in swap_data]
+            update_data_bytes = bytes.fromhex(update_data[2:]) if update_data.startswith("0x") else bytes.fromhex(update_data)
 
             # Encode with the converted bytes
             encoded_params = encode(
