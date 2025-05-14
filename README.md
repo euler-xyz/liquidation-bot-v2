@@ -75,7 +75,6 @@ foundryup
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cd redstone_script && npm install && cd ..
 forge install && forge build
 cd lib/evk-periphery && forge build && cd ../..
 mkdir logs state
@@ -105,9 +104,7 @@ Configuration through `.env` file:
 REQUIRED:
 - `LIQUIDATOR_EOA, LIQUIDATOR_PRIVATE_KEY` - public/private key of EOA that will be used to liquidate
 
-- `RPC_URL` - RPC provider endpoint (Infura, Rivet, Alchemy etc.)
-
-- `API_KEY_1INCH` - API key for 1inch to help with executing swaps
+- `{CHAIN}_RPC_URL` - RPC provider endpoint (Infura, Rivet, Alchemy etc.)
 
 OPTIONAL:
 - `SLACK_WEBHOOK_URL` - Optional URL to post notifications to slack
