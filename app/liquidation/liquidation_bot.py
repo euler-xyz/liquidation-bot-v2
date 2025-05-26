@@ -1192,6 +1192,7 @@ class Liquidator:
                 target_debt = 0,
                 config=config
             )
+            logger.info("Liquidator: borrow_to_eth_response: %s", borrow_to_eth_response)
             leftover_borrow_in_eth = int(borrow_to_eth_response["amountOut"])
         else:
             leftover_borrow_in_eth = leftover_borrow
