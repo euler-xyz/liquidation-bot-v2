@@ -1173,7 +1173,8 @@ class Liquidator:
         amount_out = int(swap_api_response["amountOut"])
         leftover_borrow = amount_out - max_repay
 
-        if borrowed_asset != config.WETH:
+        ## Disabled on non-mainnet chains, because gas is assumed to be negligible
+        if False and borrowed_asset != config.WETH:
             borrow_to_eth_response = Quoter.get_swap_api_quote(
                 chain_id = config.CHAIN_ID,
                 token_in = borrowed_asset,
