@@ -1165,6 +1165,8 @@ class Liquidator:
             config=config
         )
 
+        logger.info("Liquidator: swap_api_response for account %s, collateral %s: %s", violator_address, collateral_vault_address, swap_api_response)
+
         if not swap_api_response:
             return ({"profit": 0}, None)
 
