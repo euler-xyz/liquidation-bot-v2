@@ -143,6 +143,31 @@ chains:
       # PYTH address
       PYTH: "0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a"
 
+  # Arbitrum
+  42161:
+    # Config
+    name: "Arbitrum"
+    EVC_DEPLOYMENT_BLOCK: 300691177
+    EXPLORER_URL: "https://arbiscan.io/"
+    RPC_NAME: "ARBITRUM_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x431e0a2768de070E860F33653C4634BD69aa4c6a"
+
+      #EVK Addresses
+      EVC: "0x6302ef0F34100CDDFb5489fbcB6eE1AA95CD1066"
+      SWAPPER: "0x6eE488A00A2ef1E2764cD7245F8a77C40060A7C7"
+      SWAP_VERIFIER: "0x7b16DAaFa76CfeC8C08D7a68aF31949B37ebfdF5"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+      USD: "0x0000000000000000000000000000000000000348" 
+      BTC: "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f"
+      
+      # PYTH address
+      PYTH: "0xff1a0f4744e8582DF1aE09D5611b887B6a12925C"
+
   # Swell
   1923:
     # Config
