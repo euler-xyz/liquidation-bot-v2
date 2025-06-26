@@ -15,7 +15,7 @@ def create_app():
     def health_check():
         return jsonify({"status": "healthy"}), 200
 
-    chain_ids = [1923, 8453, 146, 60808, 80094, 43114, 56, 130]
+    chain_ids = [1923, 8453, 146, 60808, 80094, 43114, 56, 130, 42161]
     # chain_ids = [130]
 
     monitor_thread = threading.Thread(target=start_monitor, args=(chain_ids,))
