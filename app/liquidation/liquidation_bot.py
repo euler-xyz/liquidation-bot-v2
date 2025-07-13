@@ -902,7 +902,7 @@ class EVCListener:
                     vault_address = log["args"]["controller"]
                     account_address = log["args"]["account"]
 
-                    #if we've seen the account already and the status
+                    #ifwe've seen the account already and the status
                     # check is not due to changing controller
                     if account_address in seen_accounts:
                         same_controller = self.account_monitor.accounts.get(
@@ -1244,6 +1244,7 @@ class Liquidator:
                     "value": update_fee,
                     "gasPrice": suggested_gas_price
                 })
+            logger.info("Liquidator: Built liquidation transaction with Pyth: %s", liquidation_tx)
         else:
             logger.info("Liquidator: executing normally")
 
@@ -1255,6 +1256,7 @@ class Liquidator:
                     "from": config.LIQUIDATOR_EOA,
                     "nonce": config.w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
+            logger.info("Liquidator: Built liquidation transaction without Pyth: %s", liquidation_tx)
         logger.info("Leftover borrow in eth: %s", leftover_borrow_in_eth)
         logger.info("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
         logger.info("Suggested gas price: %s", suggested_gas_price)
