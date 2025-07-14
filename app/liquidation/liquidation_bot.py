@@ -1259,8 +1259,13 @@ class Liquidator:
         logger.info("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
         logger.info("Suggested gas price: %s", suggested_gas_price)
 
-        net_profit = leftover_borrow_in_eth - (
-            config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+        if borrowed_asset.lower() == "0x90d2af7d622ca3141efa4d8f1f24d86e5974cc8f":
+            logger.info("eUSDe workaround")
+            net_profit = leftover_borrow_in_eth
+        else:
+            net_profit = leftover_borrow_in_eth - (
+                config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
+
         logger.info("Net profit: %s", net_profit)
 
         return ({
