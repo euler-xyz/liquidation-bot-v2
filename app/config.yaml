@@ -241,6 +241,29 @@ chains:
       # PYTH address
       PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
   
+  239:
+    name: "TAC"
+    EVC_DEPLOYMENT_BLOCK: 555101
+    EXPLORER_URL: "https://explorer.tac.build/"
+    RPC_NAME: "TAC_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xa0C9408f0B5D5952C00206708Ab72581c07F1256"
+
+      #EVK Addresses
+      EVC: "0x01F594c66A5561b90Bc782dD0297f294cD668b64"
+      SWAPPER: "0x5ff07e50D83769861db40C5087753124D389c1c0"
+      SWAP_VERIFIER: "0x5a8610DB17CfF800C8abEb6Da31B9bB1fF51843f"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x61D66bC21fED820938021B06e9b2291f3FB91945"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+      
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
   80094:
     name: "Berachain"
     EVC_DEPLOYMENT_BLOCK: 786266
