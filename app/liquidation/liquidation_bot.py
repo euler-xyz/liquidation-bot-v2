@@ -1162,6 +1162,7 @@ class Liquidator:
             is_repay = False,
             current_debt = max_repay,
             target_debt = 0,
+            skip_sweep_deposit_out = True,
             config=config
         )
 
@@ -1191,6 +1192,7 @@ class Liquidator:
                 is_repay = False,
                 current_debt = 0,
                 target_debt = 0,
+                skip_sweep_deposit_out = True,
                 config=config
             )
             logger.info("Liquidator: borrow_to_eth_response: %s", borrow_to_eth_response)
@@ -1202,8 +1204,6 @@ class Liquidator:
 
         swap_data = []
         for _, item in enumerate(swap_api_response["swap"]["multicallItems"]):
-            if item["functionName"] != "swap":
-                continue
             swap_data.append(item["data"])
 
         logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
@@ -1343,6 +1343,7 @@ class Quoter:
         is_repay: bool,
         current_debt: int, # needed in exact input or output and with `isRepay` set
         target_debt: int, # ignored if not in target debt mode
+        skip_sweep_deposit_out: bool, # this flag will leve the sold assets in the Swapper contract
         config
     ):
 
@@ -1361,7 +1362,8 @@ class Quoter:
             "deadline": str(deadline), 
             "isRepay": str(is_repay),
             "currentDebt": str(current_debt),
-            "targetDebt": str(target_debt)
+            "targetDebt": str(target_debt),
+            "skipSweepDepositOut": str(skip_sweep_deposit_out),
         }
 
         response = make_api_request(config.SWAP_API_URL, headers={}, params=params)
