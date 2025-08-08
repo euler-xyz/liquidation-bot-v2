@@ -1063,7 +1063,7 @@ class Liquidator:
         collateral_vaults = {collateral: Vault(collateral, config) for collateral in collateral_list}
 
         for collateral, collateral_vault in collateral_vaults.items():
-            if collateral_vault == vault:
+            if collateral_vault.address == vault.address:
                 continue
             try:
                 logger.info("Liquidator: Checking liquidation for "
