@@ -457,12 +457,23 @@ class AccountMonitor:
                                             "for account %s, recently posted", address)
                         else:
                             try:
-                                post_unhealthy_account_on_slack(address, account.controller.address,
-                                                                health_score,
-                                                                account.value_borrowed, self.config)
-                                logger.info("Valut borrowed: %s", account.value_borrowed)
-                                if account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD:
-                                    self.recently_posted_low_value[account.address] = time.time()
+                                ignore_posting_unhealthy_account_special_cases = {
+                                    (146, "wmetaS", 0)
+                                }
+                                if (self.chain_id, account.controller.vault_symbol, health_score) in ignore_posting_unhealthy_account_special_cases:
+                                    logger.info(
+                                        "AccountMonitor: Skipping low health Slack post for %s %s %s",
+                                        self.chain_id,
+                                        account.controller.vault_symbol,
+                                        health_score,
+                                    )
+                                else:
+                                    post_unhealthy_account_on_slack(address, account.controller.address,
+                                                                    health_score,
+                                                                    account.value_borrowed, self.config)
+                                    logger.info("Valut borrowed: %s", account.value_borrowed)
+                                    if account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD:
+                                        self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
                                 logger.error("AccountMonitor: "
                                              "Failed to post low health notification "
