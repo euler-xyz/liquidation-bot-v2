@@ -468,6 +468,7 @@ class AccountMonitor:
                                         health_score,
                                     )
                                 else:
+                                    logger.info("Posting unhealthy account notification to slack for %s %s %s", self.chain_id, account.controller.vault_symbol, health_score)
                                     post_unhealthy_account_on_slack(address, account.controller.address,
                                                                     health_score,
                                                                     account.value_borrowed, self.config)
