@@ -949,7 +949,7 @@ class EVCListener:
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Exception scanning block range %s to %s "
                              "(attempt %s/%s): %s",
-                             start_block, end_block, attempt + 1, max_retries, ex, exc_info=True, chain_id=self.chain_id)
+                             start_block, end_block, attempt + 1, max_retries, ex, exc_info=True)
                 if attempt == max_retries - 1:
                     logger.error("EVCListener: "
                                  "Failed to scan block range %s to %s after %s attempts",
