@@ -458,7 +458,7 @@ class AccountMonitor:
                         else:
                             try:
                                 ignore_posting_unhealthy_account_special_cases = {
-                                    (146, "wmetaS", 0)
+                                    (146, "ewS-2", 0)
                                 }
                                 if (self.chain_id, account.controller.vault_symbol, health_score) in ignore_posting_unhealthy_account_special_cases:
                                     logger.info(
@@ -949,7 +949,7 @@ class EVCListener:
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Exception scanning block range %s to %s "
                              "(attempt %s/%s): %s",
-                             start_block, end_block, attempt + 1, max_retries, ex, exc_info=True)
+                             start_block, end_block, attempt + 1, max_retries, ex, exc_info=True, chain_id=self.chain_id)
                 if attempt == max_retries - 1:
                     logger.error("EVCListener: "
                                  "Failed to scan block range %s to %s after %s attempts",
