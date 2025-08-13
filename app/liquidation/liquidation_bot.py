@@ -903,8 +903,8 @@ class EVCListener:
         """
         for attempt in range(max_retries):
             try:
-                logger.info("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
-                            start_block, end_block)
+                logger.info("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events. Chain id %s",
+                            start_block, end_block, self.account_monitor.chain_id)
 
                 logs = self.evc_instance.events.AccountStatusCheck().get_logs(
                     fromBlock=start_block,

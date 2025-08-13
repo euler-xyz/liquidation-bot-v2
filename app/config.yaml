@@ -56,7 +56,7 @@ global:
 
   ## MONITORING PARAMETERS ##
   # Batch size for scanning blocks on startup
-  BATCH_SIZE: 9000
+  BATCH_SIZE: 10000
   BATCH_INTERVAL: 0.1
   # Time to wait between scanning on regular intervals
   SCAN_INTERVAL: 600 # 2 minutes
