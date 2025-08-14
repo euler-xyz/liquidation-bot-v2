@@ -13,8 +13,9 @@ def start_monitor(chain_ids=None):
     """Start monitoring for specified chains, defaults to mainnet if none specified"""
     global chain_manager
     if chain_ids is None:
-        chain_ids = [1] # Default to Ethereum mainnet
+        chain_ids = [43114]
 
+    print(chain_ids)
     chain_manager = ChainManager(chain_ids, notify=True)
 
     chain_manager.start()
@@ -23,8 +24,8 @@ def start_monitor(chain_ids=None):
 
 @liquidation.route("/allPositions", methods=["GET"])
 def get_all_positions():
-    chain_id = int(request.args.get("chainId", 1))  # Default to mainnet if not specified
-    
+    chain_id = int(request.args.get("chainId", 43114))  # Default to mainnet if not specified
+
     if not chain_manager or chain_id not in chain_manager.monitors:
         return jsonify({"error": f"Monitor not initialized for chain {chain_id}"}), 500
 
