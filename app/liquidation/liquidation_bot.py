@@ -46,7 +46,7 @@ class Vault:
     """
     def __init__(self, address, config: ChainConfig):
         self.config = config
-        
+
         self.address = address
         self.instance = create_contract_instance(address, self.config.EVAULT_ABI_PATH, self.config)
 
@@ -752,8 +752,7 @@ class PullOracleHandler:
             ).call({
                 "value": update_fee
             })
-        return result[0], result[1]
-
+        return result[0, 1]
 
     @staticmethod
     def get_feed_ids(vault, config: ChainConfig):
@@ -880,57 +879,62 @@ class EVCListener:
                                                   max_retries: int = 3,
                                                   seen_accounts: set = set()) -> None:
         """
-        Scan a range of blocks for AccountStatusCheck events.
+        Scan a range of blocks for AccountStatusCheck events in smaller batches.
 
         Args:
             start_block (int): The starting block number.
             end_block (int): The ending block number.
-            max_retries (int, optional): Maximum number of retry attempts. 
-                                        Defaults to config.NUM_RETRIES.
-            
+            max_retries (int, optional): Maximum number of retry attempts. Defaults to config.NUM_RETRIES.
         """
+        batch_size = self.config.BATCH_SIZE  # Define a batch size to limit the block range per query
+
         for attempt in range(max_retries):
             try:
-                logger.info("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
-                            start_block, end_block)
+                current_start = start_block
 
-                logs = self.evc_instance.events.AccountStatusCheck().get_logs(
-                    fromBlock=start_block,
-                    toBlock=end_block)
+                while current_start <= end_block:
+                    current_end = min(current_start + batch_size - 1, end_block)
 
-                for log in logs:
-                    vault_address = log["args"]["controller"]
-                    account_address = log["args"]["account"]
+                    logger.info("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
+                                current_start, current_end)
 
-                    #if we've seen the account already and the status
-                    # check is not due to changing controller
-                    if account_address in seen_accounts:
-                        same_controller = self.account_monitor.accounts.get(
-                            account_address).controller.address == Web3.to_checksum_address(
+                    logs = self.evc_instance.events.AccountStatusCheck().get_logs(
+                        fromBlock=current_start,
+                        toBlock=current_end)
+
+                    for log in logs:
+                        vault_address = log["args"]["controller"]
+                        account_address = log["args"]["account"]
+
+                        if account_address in seen_accounts:
+                            same_controller = self.account_monitor.accounts.get(
+                                account_address).controller.address == Web3.to_checksum_address(
+                                    vault_address)
+
+                            if same_controller:
+                                logger.info("EVCListener: Account %s already seen with "
+                                            "controller %s, skipping", account_address, vault_address)
+                                continue
+                        else:
+                            seen_accounts.add(account_address)
+
+                        logger.info("EVCListener: AccountStatusCheck event found for account %s "
+                                    "with controller %s, triggering monitor update.",
+                                    account_address, vault_address)
+
+                        try:
+                            self.account_monitor.update_account_on_status_check_event(
+                                account_address,
                                 vault_address)
+                        except Exception as ex: # pylint: disable=broad-except
+                            logger.error("EVCListener: Exception updating account %s "
+                                         "on AccountStatusCheck event: %s",
+                                         account_address, ex, exc_info=True)
 
-                        if same_controller:
-                            logger.info("EVCListener: Account %s already seen with "
-                                        "controller %s, skipping", account_address, vault_address)
-                            continue
-                    else:
-                        seen_accounts.add(account_address)
+                    logger.info("EVCListener: Finished scanning blocks %s to %s "
+                                "for AccountStatusCheck events.", current_start, current_end)
 
-                    logger.info("EVCListener: AccountStatusCheck event found for account %s "
-                                "with controller %s, triggering monitor update.",
-                                account_address, vault_address)
-
-                    try:
-                        self.account_monitor.update_account_on_status_check_event(
-                            account_address,
-                            vault_address)
-                    except Exception as ex: # pylint: disable=broad-except
-                        logger.error("EVCListener: Exception updating account %s "
-                                     "on AccountStatusCheck event: %s",
-                                     account_address, ex, exc_info=True)
-
-                logger.info("EVCListener: Finished scanning blocks %s to %s "
-                            "for AccountStatusCheck events.", start_block, end_block)
+                    current_start = current_end + 1
 
                 self.account_monitor.latest_block = end_block
                 return
@@ -1022,7 +1026,7 @@ class Liquidator:
     """
     Class to handle liquidation logic for accounts
     This class provides static methods for simulating liquidations, calculating
-    liquidation profits, and executing liquidation transactions. 
+    liquidation profits, and executing liquidation transactions.
     """
     def __init__(self):
         pass
@@ -1041,7 +1045,7 @@ class Liquidator:
 
         Returns:
             Tuple[bool, Optional[Dict[str, Any]]]: A tuple containing a boolean indicating
-            if liquidation is profitable, and a dictionary with liquidation details 
+            if liquidation is profitable, and a dictionary with liquidation details
             & transaction object if profitable.
         """
 
@@ -1051,11 +1055,11 @@ class Liquidator:
         liquidator_contract = config.liquidator
 
         max_profit_data = {
-            "tx": None, 
+            "tx": None,
             "profit": 0,
             "collateral_address": None,
             "collateral_asset": None,
-            "leftover_borrow": 0, 
+            "leftover_borrow": 0,
             "leftover_borrow_in_eth": 0
         }
         max_profit_params = None
@@ -1125,7 +1129,7 @@ class Liquidator:
             vault (Vault): The vault that violator has borrowed from.
             violator_address (str): The address of the account to potentially liquidate.
             borrowed_asset (str): The address of the borrowed asset.
-            collateral_vault (Vault): The collatearl vault to seize. 
+            collateral_vault (Vault): The collatearl vault to seize.
             liquidator_contract (Any): The liquidator contract instance.
 
         Returns:
@@ -1265,11 +1269,11 @@ class Liquidator:
         logger.info("Net profit: %s", net_profit)
 
         return ({
-            "tx": liquidation_tx, 
-            "profit": net_profit, 
+            "tx": liquidation_tx,
+            "profit": net_profit,
             "collateral_address": collateral_vault.address,
             "collateral_asset": collateral_asset,
-            "leftover_borrow": leftover_borrow, 
+            "leftover_borrow": leftover_borrow,
             "leftover_borrow_in_eth": leftover_borrow_in_eth
         }, params)
 
@@ -1313,7 +1317,7 @@ class Quoter:
     """
     def __init__(self):
         pass
-    
+
     @staticmethod
     def get_swap_api_quote(
         chain_id: int,
@@ -1338,7 +1342,7 @@ class Quoter:
         params = {
             "chainId": str(chain_id),
             "tokenIn": token_in,
-            "tokenOut": token_out, 
+            "tokenOut": token_out,
             "amount": str(amount),
             "receiver": receiver,
             "vaultIn": vault_in,
@@ -1347,7 +1351,7 @@ class Quoter:
             "accountOut": account_out,
             "swapperMode": swapper_mode,  # TARGET_DEBT mode
             "slippage": str(slippage),
-            "deadline": str(deadline), 
+            "deadline": str(deadline),
             "isRepay": str(is_repay),
             "currentDebt": str(current_debt),
             "targetDebt": str(target_debt),

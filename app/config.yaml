@@ -56,7 +56,7 @@ global:
 
   ## MONITORING PARAMETERS ##
   # Batch size for scanning blocks on startup
-  BATCH_SIZE: 10000
+  BATCH_SIZE: 2048
   BATCH_INTERVAL: 0.1
   # Time to wait between scanning on regular intervals
   SCAN_INTERVAL: 600 # 2 minutes
@@ -241,7 +241,7 @@ chains:
   # AVAX Mainnet
   43114:
     name: "Avalanche"
-    EVC_DEPLOYMENT_BLOCK: 56805692
+    EVC_DEPLOYMENT_BLOCK: 65350665 # this is when the first reservoir vault was deployed
     EXPLORER_URL: "https://snowscan.xyz/"
     RPC_NAME: "AVALANCHE_RPC_URL"
 
@@ -253,3 +253,6 @@ chains:
       EVC: "0xddcbe30A761Edd2e19bba930A977475265F36Fa1"
       SWAPPER: "0x6E1C286e888Ab5911ca37aCeD81365d57eC29a06"
       SWAP_VERIFIER: "0x0d7938D9c31Cd7dD693752074284af133c1142de"
+
+      WETH: "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7"
+      BTC: "0x152b9d0FdC40C096757F570A51E494bd4b943E50"
