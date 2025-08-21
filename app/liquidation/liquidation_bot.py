@@ -1101,18 +1101,25 @@ class Liquidator:
             except Exception as ex: # pylint: disable=broad-except
                 message = ("Exception simulating liquidation "
                              f"for account {violator_address} with collateral {collateral}: {ex}")
-
+                
                 logger.error("Liquidator: %s", message, exc_info=True)
+                collateral_symbol = collateral_vault.vault_symbol
+                match = re.search(r"e(.+?)-", collateral_symbol)
+                collateral_asset_symbol = match.group(1) if match else None
+                logger.info("Exception with collateral %s .", collateral_asset_symbol)
+                ignore_collaterals = ["wmetaS"]
 
                 time_of_last_post = liquidation_error_slack_cooldown.get(violator_address, 0)
                 value_borrowed = violator_account.value_borrowed
 
                 now = time.time()
                 time_elapsed = now - time_of_last_post
-                if ((value_borrowed > config.SMALL_POSITION_THRESHOLD and
+                if (
+                    collateral_asset_symbol not in ignore_collaterals
+                    and ((value_borrowed > config.SMALL_POSITION_THRESHOLD and
                      time_elapsed > config.ERROR_COOLDOWN)
                     or (value_borrowed <= config.SMALL_POSITION_THRESHOLD and
-                        time_elapsed > config.SMALL_POSITION_REPORT_INTERVAL)):
+                        time_elapsed > config.SMALL_POSITION_REPORT_INTERVAL))):
                     post_error_notification(message, config)
                     time_of_last_post = now
                     liquidation_error_slack_cooldown[violator_address] = time_of_last_post
