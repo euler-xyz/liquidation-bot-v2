@@ -9,6 +9,7 @@ import os
 import json
 import sys
 import math
+import re
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
@@ -458,9 +459,14 @@ class AccountMonitor:
                         else:
                             try:
                                 ignore_posting_unhealthy_account_special_cases = {
-                                    (146, "ewS-2", 0)
+                                    (146, "wS", 0)
                                 }
-                                if (self.chain_id, account.controller.vault_symbol, health_score) in ignore_posting_unhealthy_account_special_cases:
+                            
+                                symbol = account.controller.vault_symbol
+                                match = re.search(r"e(.+?)-", symbol)
+                                asset_symbol = match.group(1) if match else None
+                                
+                                if (self.chain_id, asset_symbol, health_score) in ignore_posting_unhealthy_account_special_cases:
                                     logger.info(
                                         "AccountMonitor: Skipping low health Slack post for %s %s %s",
                                         self.chain_id,
@@ -468,7 +474,7 @@ class AccountMonitor:
                                         health_score,
                                     )
                                 else:
-                                    logger.info("Posting unhealthy account notification to slack for %s %s %s", self.chain_id, account.controller.vault_symbol, health_score)
+                                    logger.info("Posting unhealthy account notification to slack for %s %s %s", self.chain_id, asset_symbol, health_score)
                                     post_unhealthy_account_on_slack(address, account.controller.address,
                                                                     health_score,
                                                                     account.value_borrowed, self.config)
