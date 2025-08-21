@@ -47,7 +47,7 @@ global:
   # Interval for reporting low health accounts
   LOW_HEALTH_REPORT_INTERVAL: 86400 # 24 hours
   SLACK_REPORT_HEALTH_SCORE: 1.05
-  BORROW_VALUE_THRESHOLD: 5000 # $1000 minimum for reporting
+  BORROW_VALUE_THRESHOLD: 10000 # $1000 minimum for reporting
   # Threshold for excluding small positions from frequent notifications, in USD terms
   SMALL_POSITION_THRESHOLD: 1000000000000000000000 # 1000 USD
   SMALL_POSITION_REPORT_INTERVAL: 43200 # 2 hours
@@ -56,7 +56,7 @@ global:
 
   ## MONITORING PARAMETERS ##
   # Batch size for scanning blocks on startup
-  BATCH_SIZE: 10000
+  BATCH_SIZE: 9000
   BATCH_INTERVAL: 0.1
   # Time to wait between scanning on regular intervals
   SCAN_INTERVAL: 600 # 2 minutes
