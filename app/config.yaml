@@ -47,7 +47,7 @@ global:
   # Interval for reporting low health accounts
   LOW_HEALTH_REPORT_INTERVAL: 86400 # 24 hours
   SLACK_REPORT_HEALTH_SCORE: 1.05
-  BORROW_VALUE_THRESHOLD: 10000 # $1000 minimum for reporting
+  BORROW_VALUE_THRESHOLD: 5000 # $1000 minimum for reporting
   # Threshold for excluding small positions from frequent notifications, in USD terms
   SMALL_POSITION_THRESHOLD: 1000000000000000000000 # 1000 USD
   SMALL_POSITION_REPORT_INTERVAL: 43200 # 2 hours
