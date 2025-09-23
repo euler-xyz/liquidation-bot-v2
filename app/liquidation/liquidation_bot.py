@@ -75,7 +75,7 @@ class Vault:
         except Exception as ex: # pylint: disable=broad-except
             logger.error("Vault: Failed to get balance for account %s: %s",
                          account_address, ex, exc_info=True)
-            return (0, 0, 0)
+            return (0, 0, -1)
 
         try:            
             if time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
@@ -93,10 +93,11 @@ class Vault:
                     True
                 ).call()
         except Exception as ex: # pylint: disable=broad-except
-            if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708":
+            if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708": # E_NoLiability and E_NotController
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
                             account_address, ex)
+                return (balance, 0, -1)
             return (balance, 0, 0)
 
         return (balance, collateral_value, liability_value)
@@ -215,7 +216,12 @@ class Account:
 
             logger.info("Account: value borrowed: %s", self.value_borrowed)
 
-        # Special case for 0 values on balance or liability
+        # Special case for -1 liability: Failure when reading balance or account liquidity
+        if liability_value == -1:
+            self.current_health_score = None
+            return self.current_health_score
+
+        # Special case for 0 liability: No borrow
         if liability_value == 0:
             self.current_health_score = math.inf
             return self.current_health_score
@@ -235,6 +241,11 @@ class Account:
         Returns:
             float: The timestamp of the next scheduled update.
         """
+        # Special case for None health score
+        if self.current_health_score == None:
+            self.time_of_next_update = time.time() + 60 * random.uniform(0.9, 1.1)
+            return self.time_of_next_update
+
         # Special case for infinite health score
         if self.current_health_score == math.inf:
             self.time_of_next_update = -1
