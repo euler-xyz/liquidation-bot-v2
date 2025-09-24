@@ -9,6 +9,7 @@ import os
 import json
 import sys
 import math
+import os.path
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
@@ -70,6 +71,9 @@ class Vault:
             Tuple[int, int]: A tuple containing (collateral_value, liability_value).
         """
         try:
+            if os.path.isfile('/ERR'):
+                raise Exception('ERR')
+
             balance = self.instance.functions.balanceOf(
                 Web3.to_checksum_address(account_address)).call()
         except Exception as ex: # pylint: disable=broad-except
