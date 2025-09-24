@@ -457,6 +457,9 @@ class AccountMonitor:
 
             health_score = account.update_liquidity()
 
+            if health_score == None:
+                logger.warning("Unable to get health score for account %s", address)
+
             if health_score != None and health_score < 1:
                 try:
                     if self.notify:
