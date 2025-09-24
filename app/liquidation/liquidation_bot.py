@@ -457,7 +457,7 @@ class AccountMonitor:
 
             health_score = account.update_liquidity()
 
-            if health_score < 1:
+            if health_score != None and health_score < 1:
                 try:
                     if self.notify:
                         if account.address in self.recently_posted_low_value:
