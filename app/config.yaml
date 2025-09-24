@@ -287,6 +287,29 @@ chains:
       # PYTH address
       PYTH: "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729"
 
+  9745:
+    name: "Plasma"
+    EVC_DEPLOYMENT_BLOCK: 511125
+    EXPLORER_URL: "https://plasmascan.to/"
+    RPC_NAME: "PLASMA_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xa0C9408f0B5D5952C00206708Ab72581c07F1256"
+
+      #EVK Addresses
+      EVC: "0x7bdbd0A7114aA42CA957F292145F6a931a345583"
+      SWAPPER: "0x419730b755c6e76B42D2CaD9a2674a8DC748dA38"
+      SWAP_VERIFIER: "0xB695C0aC484F46dD8f279452209b8C53674974bD"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0x9895D81bB462A195b4922ED7De0e3ACD007c32CB"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0x3aAB2285ddcDdaD8edf438C1bAB47e1a9D05a9b4"
+      
+      # PYTH address
+      PYTH: "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729"
+
   80094:
     name: "Berachain"
     EVC_DEPLOYMENT_BLOCK: 786266
