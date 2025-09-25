@@ -103,7 +103,7 @@ chains:
 
     # Deployed contract addresses
     contracts:
-      LIQUIDATOR_CONTRACT: "0x35c6D87F8C26c00D31c17f14F46Fb437522E3a08"
+      LIQUIDATOR_CONTRACT: "0xAAF93d5475d092EA68a748137eE19D8130918392"
 
       #EVK Addresses
       EVC: "0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383"
@@ -331,6 +331,7 @@ chains:
       
       # PYTH address
       PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+<<<<<<< HEAD
 
   43114:
     name: "Avalanche"

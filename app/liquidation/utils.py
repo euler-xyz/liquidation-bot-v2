@@ -336,7 +336,7 @@ def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None
             if i >= 50:
                 break
 
-        message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` larger than `{config.BORROW_VALUE_THRESHOLD}`: `{len(low_health_accounts)}`"
+        message += f"\nTotal accounts with health score below `{config.SLACK_REPORT_HEALTH_SCORE}` larger than `${config.BORROW_VALUE_THRESHOLD:,.2f}`: `{len(low_health_accounts)}`"
     message += f"\nTotal borrow amount in USD: `${total_value:,.2f}`"
 
     RISK_DASHBOARD_URL = config.RISK_DASHBOARD_URL

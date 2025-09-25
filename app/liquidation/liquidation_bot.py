@@ -16,6 +16,7 @@ from typing import Tuple, Dict, Any, Optional
 from web3 import Web3
 from web3.logs import DISCARD
 
+
 from app.liquidation.utils import (setup_logger,
                    create_contract_instance,
                    make_api_request,
@@ -97,6 +98,7 @@ class Vault:
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s: Contract error - %s",
                             account_address, ex)
+                # return (balance, 100, 100)
             return (balance, 0, 0)
 
         return (balance, collateral_value, liability_value)
@@ -764,8 +766,6 @@ class PullOracleHandler:
             })
         return result[0], result[1]
 
-
-
     @staticmethod
     def get_feed_ids(vault, config: ChainConfig):
         try:
@@ -1222,7 +1222,7 @@ class Liquidator:
                     "leftover_borrow: %s", seized_collateral_assets, amount_out,
                     leftover_borrow_in_eth)
 
-        leftover_borrow_in_eth = 1
+        # leftover_borrow_in_eth = 1
         if leftover_borrow_in_eth < 0:
             logger.warning("Liquidator: Negative leftover borrow value, aborting liquidation")
             return ({"profit": 0}, None)
@@ -1241,8 +1241,8 @@ class Liquidator:
                 config.PROFIT_RECEIVER
         )
 
-
-        logger.info("Liquidator: Liquidation details: %s", params)
+        logger.info("Liquidator: Liquidation params for account %s: %s", violator_address, params)
+        logger.info("Liquidator: Liquidation swap_data for account %s: %s", violator_address, swap_data)
 
         pyth_feed_ids = vault.pyth_feed_ids
 
@@ -1277,7 +1277,11 @@ class Liquidator:
 
         net_profit = leftover_borrow_in_eth - (
             config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
-        net_profit = 1
+
+        if config.CHAIN_ID != 1:
+            ## On non-mainnet chains, assume gas cost is negligible
+            net_profit = 1
+
         logger.info("Net profit: %s", net_profit)
 
         return ({
@@ -1300,14 +1304,6 @@ class Liquidator:
         try:
             logger.info("Liquidator: Executing liquidation transaction %s...",
                         liquidation_transaction)
-            # flashbots_provider = "https://rpc.flashbots.net"
-            # flashbots_relay = "https://relay.flashbots.net"
-            # flashbots_w3 = Web3(Web3.HTTPProvider(flashbots_provider))
-
-            # signed_tx = flashbots_w3.eth.account.sign_transaction(liquidation_transaction,
-            #                                             config.LIQUIDATOR_EOA_PRIVATE_KEY)
-            # tx_hash = flashbots_w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            # tx_receipt = flashbots_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
             signed_tx = config.w3.eth.account.sign_transaction(liquidation_transaction,
                                                         config.LIQUIDATOR_EOA_PRIVATE_KEY)

@@ -172,6 +172,7 @@ contract Liquidator {
 
         IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](7);
 
+        // Update Pyth oracles
         IPyth(PYTH).updatePriceFeeds{value: msg.value}(pythUpdateData);
 
         // Step 1: enable controller
@@ -252,8 +253,6 @@ contract Liquidator {
 
         return true;
     }
-
-    
 
     // 2nd liquidation option: seize liquidated position without swapping/repaying, can only be done with existing collateral position
     // TODO: implement this as an operator so debt can be seized directly by whitelisted liquidators
