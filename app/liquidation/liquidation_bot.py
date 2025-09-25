@@ -204,6 +204,11 @@ class Account:
         balance, collateral_value, liability_value = self.controller.get_account_liquidity(
             self.address)
 
+        # Special case for -1 liability: Failure when reading balance or account liquidity
+        if liability_value == -1:
+            self.current_health_score = None
+            return self.current_health_score
+
         self.balance = balance
 
         self.value_borrowed = liability_value
@@ -219,11 +224,6 @@ class Account:
             self.value_borrowed = get_btc_usd_quote(liability_value, self.config)
 
             logger.info("Account: value borrowed: %s", self.value_borrowed)
-
-        # Special case for -1 liability: Failure when reading balance or account liquidity
-        if liability_value == -1:
-            self.current_health_score = None
-            return self.current_health_score
 
         # Special case for 0 liability: No borrow
         if liability_value == 0:
