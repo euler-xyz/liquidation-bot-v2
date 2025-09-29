@@ -684,8 +684,10 @@ class AccountMonitor:
         Returns:
             List[Account]: A list of accounts sorted by health score.
         """
+        accts = [x for x in self.accounts.values() if x.current_health_score != None]
+
         sorted_accounts = sorted(
-            self.accounts.values(),
+            accts,
             key = lambda account: account.current_health_score
         )
 
