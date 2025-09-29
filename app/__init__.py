@@ -34,6 +34,7 @@ def create_app():
     monitor_thread.start()
 
     # Register the rewards blueprint after starting the monitor
-    app.register_blueprint(liquidation, url_prefix="/liquidation")
+    # Include dynamic chain_id in the URL prefix, e.g. /1/liquidation
+    app.register_blueprint(liquidation, url_prefix="/<int:chain_id>/liquidation")
 
     return app

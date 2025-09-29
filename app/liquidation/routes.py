@@ -22,8 +22,16 @@ def start_monitor(chain_ids=None):
     return chain_manager
 
 @liquidation.route("/allPositions", methods=["GET"])
-def get_all_positions():
-    chain_id = int(request.args.get("chainId", 1))  # Default to mainnet if not specified
+def get_all_positions(chain_id):
+    # Prefer query param if provided; otherwise use path param
+    chain_id_param = request.args.get("chainId")
+    if chain_id_param is not None:
+        try:
+            chain_id = int(chain_id_param)
+        except ValueError:
+            return jsonify({"error": "Invalid chainId query parameter"}), 400
+    else:
+        chain_id = int(chain_id)
     
     if not chain_manager or chain_id not in chain_manager.monitors:
         return jsonify({"error": f"Monitor not initialized for chain {chain_id}"}), 500
