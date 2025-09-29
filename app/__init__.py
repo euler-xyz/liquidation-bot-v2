@@ -4,6 +4,10 @@ Creates and returns main flask app
 from flask import Flask, jsonify
 from flask_cors import CORS
 import threading
+import os
+import logging
+logging.basicConfig(level=logging.INFO)
+
 from .liquidation.routes import liquidation, start_monitor
 
 def create_app():
@@ -16,7 +20,15 @@ def create_app():
         return jsonify({"status": "healthy"}), 200
 
     #chain_ids = [1, 1923, 8453, 146, 60808, 80094, 43114, 56, 130, 42161, 239, 59144, 9745]
-    chain_ids = []
+    chain_ids = None
+    chain_id_env = os.environ.get("CHAIN_ID")
+    if chain_id_env:
+        try:
+            chain_ids = [int(chain_id_env)]
+            logging.info(f"Starting monitor for chain ID: {chain_ids}")
+        except ValueError:
+            chain_ids = None
+            logging.info(f"Starting monitor with default chain id")
 
     monitor_thread = threading.Thread(target=start_monitor, args=(chain_ids,))
     monitor_thread.start()
