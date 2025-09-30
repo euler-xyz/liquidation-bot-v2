@@ -79,7 +79,7 @@ class Vault:
             return (0, 0, -1)
 
         try:            
-            if time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
+            if self.pyth_feed_ids is None or time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
                 self.pyth_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
                 self.last_pyth_feed_ids_update = time.time()
             if len(self.pyth_feed_ids) > 0:
@@ -96,8 +96,8 @@ class Vault:
         except Exception as ex: # pylint: disable=broad-except
             if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708": # E_NoLiability and E_NotController
                 logger.error("Vault: Failed to get account liquidity"
-                            " for account %s: Contract error - %s",
-                            account_address, ex)
+                            " for account %s, controller %s: Contract error - %s",
+                            account_address, self.address, ex)
                 return (balance, 0, -1)
             return (balance, 0, 0)
 
@@ -198,6 +198,11 @@ class Account:
         Returns:
             float: The current health score of the account.
         """
+        # If there is no controller, health score is infinite
+        if self.controller is None:
+            self.current_health_score = math.inf
+            return self.current_health_score
+
         balance, collateral_value, liability_value = self.controller.get_account_liquidity(
             self.address)
 
@@ -242,14 +247,16 @@ class Account:
         Returns:
             float: The timestamp of the next scheduled update.
         """
-        # Special case for None health score
-        if self.current_health_score == None:
-            self.time_of_next_update = time.time() + 60 * random.uniform(0.9, 1.1)
+        # Special case for unknown health score: check again in a couple minutes
+        if self.current_health_score is None:
+            logger.warning("Account: unknown health score, re-scheduling for future: %s", self.address)
+            self.time_of_next_update = time.time() + 120 * random.uniform(0.5, 2)
             return self.time_of_next_update
 
-        # Special case for infinite health score
+        # Special case for infinite health score: check again in a day or so. Don't drop
+        # it completely in case there is some race condition or other issue
         if self.current_health_score == math.inf:
-            self.time_of_next_update = -1
+            self.time_of_next_update = time.time() + 86400 * random.uniform(0.9, 1.1)
             return self.time_of_next_update
 
         # Determine size category
@@ -290,8 +297,6 @@ class Account:
         if not(self.time_of_next_update < time_of_next_update and self.time_of_next_update > time.time()):
             self.time_of_next_update = time_of_next_update
 
-        logger.info("Account: %s next update scheduled for %s", self.address,
-                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.time_of_next_update)))
         return self.time_of_next_update
 
 
@@ -313,9 +318,13 @@ class Account:
         Returns:
             Dict[str, Any]: A dictionary representation of the account.
         """
+        controller = None
+        if self.controller:
+            controller = self.controller.address
+
         return {
             "address": self.address,
-            "controller_address": self.controller.address,
+            "controller_address": controller,
             "time_of_next_update": self.time_of_next_update,
             "current_health_score": self.current_health_score
         }
@@ -397,14 +406,24 @@ class AccountMonitor:
                                 " skipping and removing from queue", address)
                     continue
 
+                # if the time from queue does not match the time_of_next_update in the
+                # account object, a more recent update must've been scheduled, so this
+                # one can be dropped
+                account = self.accounts.get(address)
+                if account and next_update_time != account.time_of_next_update:
+                    logger.info("AccountMonitor: skipping stale update for %s", address)
+                    continue
+
+                # if it's not time for the next item, put it back and wait until it is
                 current_time = time.time()
                 if next_update_time > current_time:
                     self.update_queue.put((next_update_time, address))
                     self.condition.wait(next_update_time - current_time)
                     continue
 
+                # otherwise, process this address.
+                # update_account_liquidity must put the address back into the queue
                 self.executor.submit(self.update_account_liquidity, address)
-
 
     def update_account_on_status_check_event(self, address: str, vault_address: str) -> None:
         """
@@ -414,29 +433,42 @@ class AccountMonitor:
             address (str): The address of the account to update.
             vault_address (str): The address of the vault associated with the account.
         """
+        vault = self.track_new_vault(vault_address)
 
-        # If the vault is not already tracked in the list, create it
-        if vault_address not in self.vaults:
-            self.vaults[vault_address] = Vault(vault_address, self.config)
-            logger.info("AccountMonitor: Vault %s added to vault list.", vault_address)
-
-        vault = self.vaults[vault_address]
-
-        # If the account is not in the list or the controller has changed, add it to the list
-        if (address not in self.accounts or
-            self.accounts[address].controller.address != vault_address):
-            account = Account(address, vault, self.config)
-            self.accounts[address] = account
-
+        # If the account is not in the list, add it to the list
+        if address not in self.accounts:
+            self.accounts[address] = Account(address, vault, self.config)
             logger.info("AccountMonitor: Adding %s to account list with controller %s.",
                         address,
                         vault.address)
         else:
-            logger.info("AccountMonitor: %s already in list with controller %s.",
-                        address,
-                        vault.address)
+            logger.info("AccountMonitor: Account %s already in list.", address)
+
+        account = self.accounts[address]
+
+        # If the controller has changed, update it
+        if (self.accounts[address].controller != None and self.accounts[address].controller.address != vault_address):
+            logger.info("Updating controller for account %s from %s to %s", address, account.controller.address, vault.address)
+            account.controller = vault
 
         self.update_account_liquidity(address)
+
+    def track_new_vault(self, vault_address):
+        # If the vault is not already tracked in the list, create it
+        if vault_address not in self.vaults:
+            self.vaults[vault_address] = Vault(vault_address, self.config)
+            logger.info("AccountMonitor: Vault %s added to vault list.", vault_address)
+        return self.vaults[vault_address]
+
+    def update_account_controller(self, account):
+        if account.controller is None:
+            controller_list = self.config.evc.functions.getControllers(account.address).call()
+            if len(controller_list) == 1:
+                controller = controller_list[0]
+                logger.info("AccountMonitor: Installed new controller for account %s: %s", account.address, controller)
+                account.controller = self.track_new_vault(controller)
+            elif len(controller_list) == 0:
+                logger.info("AccountMonitor: No controller found for account %s", account.address)
 
     def update_account_liquidity(self, address: str) -> None:
         """
@@ -454,12 +486,19 @@ class AccountMonitor:
                 return
 
             logger.info("AccountMonitor: Updating %s liquidity.", address)
-            prev_scheduled_time = account.time_of_next_update
 
-            health_score = account.update_liquidity()
+            try:
+                self.update_account_controller(account)
+                account.update_liquidity()
+            except Exception as ex: # pylint: disable=broad-except
+                logger.warning("Unable to get health score for account %s", address, ex, exc_info=True)
 
-            if health_score == None:
-                logger.warning("Unable to get health score for account %s", address)
+            health_score = account.current_health_score
+
+            if health_score is None:
+                ## Erase controller, to force reloading it on next check
+                account.controller = None
+                logger.info("Erasing controller for account %s", address)
 
             if health_score != None and health_score < 1:
                 try:
@@ -554,17 +593,15 @@ class AccountMonitor:
                                  "Exception simulating liquidation for account %s: %s",
                                  address, ex, exc_info=True)
 
-            next_update_time = account.time_of_next_update
+            if account.time_of_next_update != -1 and account.time_of_next_update <= time.time():
+                logger.info("AccountMonitor: %s next update time invalid (%s), scheduling for near future", address, account.time_of_next_update)
+                account.time_of_next_update = time.time() + 120 * random.uniform(0.5, 2)
 
-            # if next update hasn't changed, means we already have a check scheduled
-            if next_update_time == prev_scheduled_time:
-                logger.info("AccountMonitor: %s next update already scheduled for %s",
-                            address, time.strftime("%Y-%m-%d %H:%M:%S",
-                                                  time.localtime(next_update_time)))
-                return
+            logger.info("Account: %s next update scheduled for %s", account.address,
+                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(account.time_of_next_update)))
 
             with self.condition:
-                self.update_queue.put((next_update_time, address))
+                self.update_queue.put((account.time_of_next_update, address))
                 self.condition.notify()
 
         except Exception as ex: # pylint: disable=broad-except
@@ -612,7 +649,7 @@ class AccountMonitor:
         """
         try:
             if local_save and os.path.exists(save_path):
-                print(save_path)
+                print("SAVE PATH", save_path)
                 with open(save_path, "r", encoding="utf-8") as f:
                     state = json.load(f)
 
@@ -659,7 +696,7 @@ class AccountMonitor:
         self.update_queue = queue.PriorityQueue()
         for address, account in self.accounts.items():
             try:
-                health_score = account.update_liquidity()
+                account.update_liquidity()
 
                 if account.current_health_score == math.inf:
                     logger.info("AccountMonitor: %s has no borrow, skipping", address)
@@ -669,7 +706,7 @@ class AccountMonitor:
                 self.update_queue.put((next_update_time, address))
                 logger.info("AccountMonitor: %s added to queue"
                             " with health score %s, next update at %s",
-                            address, health_score, time.strftime("%Y-%m-%d %H:%M:%S",
+                            address, account.current_health_score, time.strftime("%Y-%m-%d %H:%M:%S",
                                                                  time.localtime(next_update_time)))
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
@@ -684,7 +721,7 @@ class AccountMonitor:
         Returns:
             List[Account]: A list of accounts sorted by health score.
         """
-        accts = [x for x in self.accounts.values() if x.current_health_score != None]
+        accts = [x for x in self.accounts.values() if x.current_health_score != None and x.controller != None]
 
         sorted_accounts = sorted(
             accts,
@@ -821,6 +858,7 @@ class PullOracleHandler:
 
         except Exception as ex: # pylint: disable=broad-except
             logger.error("PullOracleHandler: Error calling contract: %s", ex, exc_info=True)
+            return None
 
     @staticmethod
     def resolve_cross_oracle(cross_oracle, config):
@@ -932,8 +970,8 @@ class EVCListener:
                     #if we've seen the account already and the status
                     # check is not due to changing controller
                     if account_address in seen_accounts:
-                        same_controller = self.account_monitor.accounts.get(
-                            account_address).controller.address == Web3.to_checksum_address(
+                        account = self.account_monitor.accounts.get(account_address)
+                        same_controller = account != None and account.controller != None and account.controller.address == Web3.to_checksum_address(
                                 vault_address)
 
                         if same_controller and startup_mode:
