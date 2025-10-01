@@ -31,6 +31,9 @@ def setup_logger() -> logging.Logger:
     logger = logging.getLogger("liquidation_bot")
     logger.setLevel(logging.DEBUG)
 
+    logger.propagate = False
+    logger.handlers.clear()
+
     console_handler = logging.StreamHandler()
     file_handler = logging.FileHandler(LOGS_PATH, mode="a")
 
