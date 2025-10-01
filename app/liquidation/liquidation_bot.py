@@ -741,10 +741,10 @@ class AccountMonitor:
             try:
                 sorted_accounts = self.get_accounts_by_health_score()
                 post_low_health_account_report(sorted_accounts, self.config)
-                time.sleep(self.config.LOW_HEALTH_REPORT_INTERVAL)
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("AccountMonitor: Failed to post low health account report: %s", ex,
                               exc_info=True)
+            time.sleep(self.config.LOW_HEALTH_REPORT_INTERVAL)
 
     @staticmethod
     def create_from_save_state(chain_id: int, config: ChainConfig, save_path: str, local_save: bool = True) -> "AccountMonitor":
