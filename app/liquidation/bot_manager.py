@@ -47,7 +47,9 @@ class ChainManager:
         with ThreadPoolExecutor(max_workers=len(self.chain_ids)*2) as executor:
             # First batch process historical logs
             for chain_id in self.chain_ids:
-                self.evc_listeners[chain_id].batch_account_logs_on_startup()
+                if not self.evc_listeners[chain_id].rapid_bootstrap():
+                    logger.warning("Rapid bootstrap failed, falling back to loading EVC logs")
+                    self.evc_listeners[chain_id].batch_account_logs_on_startup()
 
             # Start monitors
             monitor_futures = [

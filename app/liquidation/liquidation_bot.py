@@ -433,22 +433,24 @@ class AccountMonitor:
             address (str): The address of the account to update.
             vault_address (str): The address of the vault associated with the account.
         """
-        vault = self.track_new_vault(vault_address)
+        vault = None
+        if vault_address != None:
+            vault = self.track_new_vault(vault_address)
 
         # If the account is not in the list, add it to the list
         if address not in self.accounts:
             self.accounts[address] = Account(address, vault, self.config)
             logger.info("AccountMonitor: Adding %s to account list with controller %s.",
                         address,
-                        vault.address)
+                        vault_address)
         else:
             logger.info("AccountMonitor: Account %s already in list.", address)
 
         account = self.accounts[address]
 
         # If the controller has changed, update it
-        if (self.accounts[address].controller != None and self.accounts[address].controller.address != vault_address):
-            logger.info("Updating controller for account %s from %s to %s", address, account.controller.address, vault.address)
+        if (vault_address != None and self.accounts[address].controller != None and self.accounts[address].controller.address != vault_address):
+            logger.info("Updating controller for account %s from %s to %s", address, account.controller.address, vault_address)
             account.controller = vault
 
         self.update_account_liquidity(address)
@@ -912,10 +914,7 @@ class EVCListener:
         self.config = config
         self.w3 = config.w3
         self.account_monitor = account_monitor
-
         self.evc_instance = config.evc
-
-        self.scanned_blocks = set()
 
     def start_event_monitoring(self) -> None:
         """
@@ -926,11 +925,12 @@ class EVCListener:
         while True:
             try:
                 current_block = self.w3.eth.block_number - 1
+                end_block = min(self.account_monitor.latest_block + self.config.BATCH_SIZE, current_block)
 
                 if self.account_monitor.latest_block < current_block:
                     self.scan_block_range_for_account_status_check(
                         self.account_monitor.latest_block,
-                        current_block)
+                        end_block)
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Unexpected exception in event monitoring: %s",
                              ex, exc_info=True)
@@ -1021,6 +1021,7 @@ class EVCListener:
             # assume it has been loaded from that and start from the last saved block
             start_block = max(int(self.config.EVC_DEPLOYMENT_BLOCK),
                               self.account_monitor.last_saved_block)
+            orig_start_block = start_block
 
             current_block = self.w3.eth.block_number
 
@@ -1046,12 +1047,65 @@ class EVCListener:
 
             logger.info("EVCListener: "
                         "Finished batch scan of AccountStatusCheck events from block %s to %s.",
-                        start_block, current_block)
+                        orig_start_block, current_block)
 
         except Exception as ex: # pylint: disable=broad-except
             logger.error("EVCListener: "
                          "Unexpected exception in batch scanning account logs on startup: %s",
                          ex, exc_info=True)
+
+
+    def rapid_bootstrap(self):
+        try:
+            start_time = time.time()
+            current_block = self.w3.eth.block_number
+            seen_addresses = set()
+
+            vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 2**256 - 1).call()
+            logger.info("Bootstrap found %s vaults from factory", len(vault_list))
+
+            for i, vault_address in enumerate(vault_list):
+                url = "https://golang-proxy-development.up.railway.app/v1/vault/borrowers"
+                params = {
+                    "chainId": self.config.CHAIN_ID,
+                    "vault": vault_address,
+                }
+                response = make_api_request(url, headers={}, params=params)
+
+                if not response:
+                    logger.error("Unable to get borrowers from euler API")
+                    return False
+
+                for vault_address in response["borrowers"]:
+                    seen_addresses.add(vault_address)
+
+                if i % 10 == 0:
+                    logger.info("Bootstrap progress: %s/%s vaults. %s accounts seen so far", i, len(vault_list), len(seen_addresses))
+
+            logger.info("Vault enumeration complete: %s unique accounts found", i)
+
+            try:
+                for i, account_address in enumerate(seen_addresses):
+                    self.account_monitor.update_account_on_status_check_event(Web3.to_checksum_address(account_address), None)
+                    if i % 10 == 0:
+                        logger.info("Bootstrap loading account %s/%s", i, len(seen_addresses))
+            except Exception as ex: # pylint: disable=broad-except
+                logger.error("EVCListener: Exception updating account %s in rapid bootstrap: %s",
+                             account_address, ex, exc_info=True)
+                return False
+
+            logger.info("Bootstrap complete. %s vaults, %s accounts, %s seconds",
+                        len(vault_list), len(seen_addresses), time.time() - start_time)
+
+            self.account_monitor.latest_block = max(current_block - self.config.BATCH_SIZE, 1)
+            logger.info("Starting account monitor from block %s", self.account_monitor.latest_block)
+
+            return True
+        except Exception as ex: # pylint: disable=broad-except
+            logger.error("EVCListener: "
+                         "Unexpected exception in rapid_bootstrap: %s",
+                         ex, exc_info=True)
+            return False
 
     @staticmethod
     def get_account_owner_and_subaccount_number(account, config):

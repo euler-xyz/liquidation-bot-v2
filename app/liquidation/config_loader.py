@@ -79,6 +79,12 @@ class ChainConfig:
 
         self.evc = self.w3.eth.contract(address=self.EVC, abi=abi)
 
+        with open(self._global["GENERICFACTORY_ABI_PATH"], "r", encoding="utf-8") as file:
+            interface = json.load(file)
+        abi = interface["abi"]
+
+        self.evault_factory = self.w3.eth.contract(address=self.EVAULT_FACTORY, abi=abi)
+
         with open(self._global["ORACLE_ABI_PATH"], "r", encoding="utf-8") as file:
             interface = json.load(file)
         abi = interface["abi"]
