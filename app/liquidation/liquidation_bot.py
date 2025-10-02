@@ -1067,7 +1067,7 @@ class EVCListener:
             for i, vault_address in enumerate(vault_list):
                 url = "https://golang-proxy-development.up.railway.app/v1/vault/borrowers"
                 params = {
-                    "chainId": 1923,
+                    "chainId": self.config.CHAIN_ID,
                     "vault": vault_address,
                 }
                 response = make_api_request(url, headers={}, params=params)
