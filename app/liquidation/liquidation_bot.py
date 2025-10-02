@@ -1057,6 +1057,7 @@ class EVCListener:
 
     def rapid_bootstrap(self):
         try:
+            start_time = time.time()
             current_block = self.w3.eth.block_number
             seen_addresses = set()
 
@@ -1093,8 +1094,11 @@ class EVCListener:
                              account_address, ex, exc_info=True)
                 return False
 
+            logger.info("Bootstrap complete. %s vaults, %s accounts, %s seconds",
+                        len(vault_list), len(seen_addresses), time.time() - start_time)
+
             self.account_monitor.latest_block = max(current_block - self.config.BATCH_SIZE, 1)
-            logger.info("Bootstrap complete. Scanning from block %s", self.account_monitor.latest_block)
+            logger.info("Starting account monitor from block %s", self.account_monitor.latest_block)
 
             return True
         except Exception as ex: # pylint: disable=broad-except
