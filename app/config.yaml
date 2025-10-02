@@ -64,6 +64,7 @@ global:
   ## PATHS ##
   EVAULT_ABI_PATH: "contracts/EVault.json"
   EVC_ABI_PATH: "contracts/EthereumVaultConnector.json"
+  GENERICFACTORY_ABI_PATH: "contracts/GenericFactory.json"
   LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
   ORACLE_ABI_PATH: "contracts/IOracle.json"
   PYTH_ABI_PATH: "contracts/IPyth.json"
@@ -182,6 +183,7 @@ chains:
 
       #EVK Addresses
       EVC: "0x08739CBede6E28E387685ba20e6409bD16969Cde"
+      EVAULT_FACTORY: "0x238bF86bb451ec3CA69BB855f91BDA001aB118b9"
       SWAPPER: "0x05Eb1A647265D974a1B0A57206048312604Ac6C3"
       SWAP_VERIFIER: "0x392C1570b3Bf29B113944b759cAa9a9282DA12Fe"
       
