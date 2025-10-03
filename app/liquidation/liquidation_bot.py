@@ -1065,7 +1065,7 @@ class EVCListener:
             logger.info("Bootstrap found %s vaults from factory", len(vault_list))
 
             for i, vault_address in enumerate(vault_list):
-                url = "https://golang-proxy-development.up.railway.app/v1/vault/borrowers"
+                url = "https://indexer-main.euler.finance/v1/vault/borrowers"
                 params = {
                     "chainId": self.config.CHAIN_ID,
                     "vault": vault_address,
