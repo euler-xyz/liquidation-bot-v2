@@ -97,7 +97,7 @@ class Vault:
             if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708": # E_NoLiability and E_NotController
                 logger.error("Vault: Failed to get account liquidity"
                             " for account %s, controller %s: Contract error - %s",
-                            account_address, self.address, ex)
+                            account_address, self.address, ex, exc_info=True)
                 return (balance, 0, -1)
             return (balance, 0, 0)
 
