@@ -82,7 +82,7 @@ class Vault:
             if self.pyth_feed_ids is None or time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
                 self.pyth_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
                 self.last_pyth_feed_ids_update = time.time()
-            if len(self.pyth_feed_ids) > 0:
+            if self.pyth_feed_ids != None and len(self.pyth_feed_ids) > 0:
                 logger.info("Vault: Pyth Oracle found for vault %s, "
                             "getting account liquidity through simulation", self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_batch_simulation(
@@ -829,9 +829,13 @@ class PullOracleHandler:
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            asset_list = [Vault(collateral_vault, config).underlying_asset_address
-                          for collateral_vault in collateral_vault_list]
-            asset_list.append(vault.underlying_asset_address)
+
+            asset_list = [vault.underlying_asset_address]
+            for collateral_vault in collateral_vault_list:
+                try:
+                    asset_list.append(Vault(collateral_vault, config).underlying_asset_address)
+                except Exception as ex:
+                    pass ## Misconfigured LTV list. Probably contains a non-EVK contract
 
             pyth_feed_ids = set()
 
@@ -859,7 +863,7 @@ class PullOracleHandler:
             return list(pyth_feed_ids)
 
         except Exception as ex: # pylint: disable=broad-except
-            logger.error("PullOracleHandler: Error calling contract: %s", ex, exc_info=True)
+            logger.error("PullOracleHandler: Error getting feed ids for vault %s: %s", vault.address, ex, exc_info=True)
             return None
 
     @staticmethod
@@ -1180,7 +1184,13 @@ class Liquidator:
         }
         max_profit_params = None
 
-        collateral_vaults = {collateral: Vault(collateral, config) for collateral in collateral_list}
+        collateral_vaults = {}
+        for collateral in collateral_list:
+            try:
+                ## FIXME: Should cache these Vaults, since constructor does a bunch of reads from contract
+                collateral_vaults[collateral] = Vault(collateral, config)
+            except Exception as ex:
+                pass ## Misconfigured LTV list. Probably contains a non-EVK contract
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
