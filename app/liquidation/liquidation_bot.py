@@ -1194,6 +1194,10 @@ class Liquidator:
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
+                if vault.address == collateral:
+                    logger.info("Liquidator: Skipping collateral %s because it is same as controller", collateral)
+                    continue
+
                 logger.info("Liquidator: Checking liquidation for "
                             "account %s, borrowed asset %s, collateral asset %s",
                             violator_address, borrowed_asset, collateral)
@@ -1210,6 +1214,10 @@ class Liquidator:
                     max_profit_data = profit_data
                     max_profit_params = params
             except Exception as ex: # pylint: disable=broad-except
+                if ex.args[0] == "0x9b314d55": # E_BadCollateral
+                    logger.info("Liquidator: Skipping collateral %s because E_BadCollateral", collateral)
+                    continue
+
                 message = ("Exception simulating liquidation "
                              f"for account {violator_address} with collateral {collateral}: {ex}")
 
