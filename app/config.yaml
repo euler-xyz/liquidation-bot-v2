@@ -64,6 +64,7 @@ global:
   ## PATHS ##
   EVAULT_ABI_PATH: "contracts/EVault.json"
   EVC_ABI_PATH: "contracts/EthereumVaultConnector.json"
+  MAGLEVLENS_ABI_PATH: "contracts/MaglevLens.json"
   GENERICFACTORY_ABI_PATH: "contracts/GenericFactory.json"
   LIQUIDATOR_ABI_PATH: "out/Liquidator.sol/Liquidator.json"
   ORACLE_ABI_PATH: "contracts/IOracle.json"
@@ -137,6 +138,7 @@ chains:
       EVAULT_FACTORY: "0x7F321498A801A191a93C840750ed637149dDf8D0"
       SWAPPER: "0x0D3d0F97eD816Ca3350D627AD8e57B6AD41774df"
       SWAP_VERIFIER: "0x30660764A7a05B84608812C8AFC0Cb4845439EEe"
+      MAGLEV_LENS: "0xDB001f61Ea433a9BCB33E4ce875Be7e187DaFC71"
       
       # Other relevant contracts & Units of Account
       WETH: "0x4200000000000000000000000000000000000006"

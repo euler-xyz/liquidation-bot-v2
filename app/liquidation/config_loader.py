@@ -79,6 +79,15 @@ class ChainConfig:
 
         self.evc = self.w3.eth.contract(address=self.EVC, abi=abi)
 
+        with open(self._global["MAGLEVLENS_ABI_PATH"], "r", encoding="utf-8") as file:
+            interface = json.load(file)
+        abi = interface["abi"]
+
+        try:
+            self.maglev_lens = self.w3.eth.contract(address=self.MAGLEV_LENS, abi=abi)
+        except:
+            self.maglev_lens = None
+
         with open(self._global["GENERICFACTORY_ABI_PATH"], "r", encoding="utf-8") as file:
             interface = json.load(file)
         abi = interface["abi"]

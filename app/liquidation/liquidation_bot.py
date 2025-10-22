@@ -16,7 +16,6 @@ from typing import Tuple, Dict, Any, Optional
 from web3 import Web3
 from web3.logs import DISCARD
 
-
 from app.liquidation.utils import (setup_logger,
                    create_contract_instance,
                    make_api_request,
@@ -167,15 +166,20 @@ class Account:
     liquidation simulations, and scheduling of updates. It also provides
     methods for serialization and deserialization of account data.
     """
-    def __init__(self, address, controller: Vault, config: ChainConfig):
+    def __init__(self, address, controller: Vault, config: ChainConfig, subaccount_number=None):
         self.config = config
         self.address = address
-        self.owner, self.subaccount_number = EVCListener.get_account_owner_and_subaccount_number(self.address, config)
         self.controller = controller
         self.time_of_next_update = time.time()
         self.current_health_score = math.inf
         self.balance = 0
         self.value_borrowed = 0
+
+        if subaccount_number == None:
+            self.owner, self.subaccount_number = EVCListener.get_account_owner_and_subaccount_number(self.address, config)
+        else:
+            self.subaccount_number = subaccount_number
+            self.owner = Web3.to_checksum_address('0x' + format(int(address, 16) ^ subaccount_number, "040x"))
 
 
     def update_liquidity(self) -> float:
@@ -425,6 +429,27 @@ class AccountMonitor:
                 # update_account_liquidity must put the address back into the queue
                 self.executor.submit(self.update_account_liquidity, address)
 
+    def insert_account_direct(self, address, subaccount_number, controller_address, health_score):
+        # If the account is not in the list, add it to the list
+        if address in self.accounts:
+            logger.info("AccountMonitor: Account %s already in list, skipping direct insert.", address)
+            return
+
+        controller = None
+        if controller_address != None:
+            controller = self.track_new_vault(controller_address)
+
+        account = Account(address, controller, self.config, subaccount_number=subaccount_number)
+        self.accounts[address] = account
+        logger.info("AccountMonitor: Direct adding %s to account list with controller %s, health_score=%s",
+                    address,
+                    controller,
+                    health_score)
+
+        account.current_health_score = health_score
+        account.get_time_of_next_update()
+        self.enqueue_account(account)
+
     def update_account_on_status_check_event(self, address: str, vault_address: str) -> None:
         """
         Update an account based on a status check event.
@@ -471,6 +496,18 @@ class AccountMonitor:
                 account.controller = self.track_new_vault(controller)
             elif len(controller_list) == 0:
                 logger.info("AccountMonitor: No controller found for account %s", account.address)
+
+    def enqueue_account(self, account):
+        if account.time_of_next_update != -1 and account.time_of_next_update <= time.time():
+            logger.info("AccountMonitor: %s next update time invalid (%s), scheduling for near future", account.address, account.time_of_next_update)
+            account.time_of_next_update = time.time() + 120 * random.uniform(0.5, 2)
+
+        logger.info("Account: %s next update scheduled for %s", account.address,
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(account.time_of_next_update)))
+
+        with self.condition:
+            self.update_queue.put((account.time_of_next_update, account.address))
+            self.condition.notify()
 
     def update_account_liquidity(self, address: str) -> None:
         """
@@ -595,17 +632,7 @@ class AccountMonitor:
                                  "Exception simulating liquidation for account %s: %s",
                                  address, ex, exc_info=True)
 
-            if account.time_of_next_update != -1 and account.time_of_next_update <= time.time():
-                logger.info("AccountMonitor: %s next update time invalid (%s), scheduling for near future", address, account.time_of_next_update)
-                account.time_of_next_update = time.time() + 120 * random.uniform(0.5, 2)
-
-            logger.info("Account: %s next update scheduled for %s", account.address,
-                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(account.time_of_next_update)))
-
-            with self.condition:
-                self.update_queue.put((account.time_of_next_update, address))
-                self.condition.notify()
-
+            self.enqueue_account(account)
         except Exception as ex: # pylint: disable=broad-except
             logger.error("AccountMonitor: Exception updating account %s: %s",
                          address, ex, exc_info=True)
@@ -1065,7 +1092,8 @@ class EVCListener:
             current_block = self.w3.eth.block_number
             seen_addresses = set()
 
-            vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 2**256 - 1).call()
+            #vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 2**256 - 1).call()
+            vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 1).call() #FIXME
             logger.info("Bootstrap found %s vaults from factory", len(vault_list))
 
             for i, vault_address in enumerate(vault_list):
@@ -1080,23 +1108,46 @@ class EVCListener:
                     logger.error("Unable to get borrowers from euler API")
                     return False
 
-                for vault_address in response["borrowers"]:
-                    seen_addresses.add(vault_address)
+                for borrower_address in response["borrowers"]:
+                    seen_addresses.add(Web3.to_checksum_address(borrower_address))
 
                 if i % 10 == 0:
                     logger.info("Bootstrap progress: %s/%s vaults. %s accounts seen so far", i, len(vault_list), len(seen_addresses))
 
-            logger.info("Vault enumeration complete: %s unique accounts found", i)
+            logger.info("Vault enumeration complete: %s unique accounts found", len(seen_addresses))
 
-            try:
-                for i, account_address in enumerate(seen_addresses):
-                    self.account_monitor.update_account_on_status_check_event(Web3.to_checksum_address(account_address), None)
-                    if i % 10 == 0:
-                        logger.info("Bootstrap loading account %s/%s", i, len(seen_addresses))
-            except Exception as ex: # pylint: disable=broad-except
-                logger.error("EVCListener: Exception updating account %s in rapid bootstrap: %s",
-                             account_address, ex, exc_info=True)
-                return False
+            seen_addresses_list = list(seen_addresses)
+
+            if self.config.maglev_lens != None:
+                logger.info("Boostrap: Using health check batch query path")
+
+                orig_seen_addresses_size = len(seen_addresses_list)
+
+                while len(seen_addresses_list) > 0:
+                    query_size = 100
+                    addrs = seen_addresses_list[:query_size]
+                    seen_addresses_list = seen_addresses_list[query_size:]
+                    logger.info("Bootstrap loading account %s/%s", orig_seen_addresses_size - len(seen_addresses_list), orig_seen_addresses_size)
+
+                    healths = self.batch_query_health_scores(addrs)
+                    for h in healths:
+                        if h["error"]:
+                            logger.info("Bootstrap error for account %s, falling back to status check", h["addr"])
+                            self.account_monitor.update_account_on_status_check_event(Web3.to_checksum_address(h["addr"]), None)
+                        else:
+                            self.account_monitor.insert_account_direct(h["addr"], h["subAccountId"], h["controller"], h["health"])
+            else:
+                logger.info("Boostrap: Using legacy status check path")
+
+                try:
+                    for i, account_address in enumerate(seen_addresses):
+                        self.account_monitor.update_account_on_status_check_event(Web3.to_checksum_address(account_address), None)
+                        if i % 10 == 0:
+                            logger.info("Bootstrap loading account %s/%s", i, len(seen_addresses))
+                except Exception as ex: # pylint: disable=broad-except
+                    logger.error("EVCListener: Exception updating account %s in rapid bootstrap: %s",
+                                 account_address, ex, exc_info=True)
+                    return False
 
             logger.info("Bootstrap complete. %s vaults, %s accounts, %s seconds",
                         len(vault_list), len(seen_addresses), time.time() - start_time)
@@ -1110,6 +1161,35 @@ class EVCListener:
                          "Unexpected exception in rapid_bootstrap: %s",
                          ex, exc_info=True)
             return False
+
+    def batch_query_health_scores(self, addrs):
+        result = self.config.evc.functions.batchSimulation([(
+            Web3.to_checksum_address(self.config.MAGLEV_LENS),
+            Web3.to_checksum_address("0x0000000000000000000000000000000000000000"),
+            0,
+            self.config.maglev_lens.encode_abi("getHealthScores", args=[self.config.EVC, addrs])
+        )]).call()
+
+        ## self.config.maglev_lens.get_function_by_name("getHealthScores").abi["outputs"]
+        decoded = self.config.w3.codec.decode(["uint256[]"], result[0][0][1])
+
+        output = []
+
+        for i, r in enumerate(decoded[0]):
+            controller_address = Web3.to_checksum_address('0x' + format((r >> 48) & (2**160-1), "040x"))
+            if controller_address == "0x0000000000000000000000000000000000000000":
+                controller_address = None
+
+            output.append({
+                "addr": addrs[i],
+                "error": (r & 0xFF) != 0,
+                "health": ((r >> 8) & (2**32-1)) / 1e6,
+                "subAccountId": (r >> 40) & 0xFF,
+                "controller": controller_address
+            })
+
+        return output
+
 
     @staticmethod
     def get_account_owner_and_subaccount_number(account, config):
