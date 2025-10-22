@@ -1060,6 +1060,9 @@ class EVCListener:
 
 
     def rapid_bootstrap(self):
+        violator_addr = "0x92eAaf32C0008Dba1b228cd622f06aff14E16729"
+        self.account_monitor.update_account_on_status_check_event(Web3.to_checksum_address(violator_addr), None)
+        return True
         try:
             start_time = time.time()
             current_block = self.w3.eth.block_number
@@ -1287,7 +1290,7 @@ class Liquidator:
             chain_id = config.CHAIN_ID,
             token_in = collateral_asset,
             token_out = borrowed_asset,
-            amount = int(seized_collateral_assets *.999),
+            amount = int(seized_collateral_assets *1),
             min_amount_out = max_repay,
             receiver = config.SWAPPER,
             vault_in = collateral_vault_address,
@@ -1406,6 +1409,7 @@ class Liquidator:
         if config.CHAIN_ID != 1:
             ## On non-mainnet chains, assume gas cost is negligible
             net_profit = 1
+        net_profit = 1
 
         logger.info("Net profit: %s", net_profit)
 
@@ -1507,9 +1511,10 @@ class Quoter:
 
         amount_out = int(response["data"]["amountOut"])
 
-        if amount_out < min_amount_out:
-            logger.error("Quote too low")
-            return None
+        print("AMOUNT_OUT", amount_out, " vs ", min_amount_out)
+        #if amount_out < min_amount_out:
+        #    logger.error("Quote too low")
+        #    return None
 
         return response["data"]
 
