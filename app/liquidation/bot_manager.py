@@ -35,7 +35,6 @@ class ChainManager:
                 notify=self.notify,
                 execute_liquidation=self.execute_liquidation
             )
-            monitor.load_state(config.SAVE_STATE_PATH)
             self.monitors[chain_id] = monitor
 
             # Create listener instance

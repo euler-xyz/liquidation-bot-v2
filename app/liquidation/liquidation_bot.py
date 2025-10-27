@@ -378,7 +378,6 @@ class AccountMonitor:
         self.executor = ThreadPoolExecutor(max_workers=32)
         self.running = True
         self.latest_block = 0
-        self.last_saved_block = 0
         self.notify = notify
         self.execute_liquidation = execute_liquidation
 
@@ -389,10 +388,6 @@ class AccountMonitor:
         Start monitoring the account update queue.
         This is the main entry point for the account monitor.
         """
-        save_thread = threading.Thread(target=self.periodic_save)
-        save_thread.start()
-
-        logger.info("AccountMonitor: Save thread started.")
 
         if self.notify:
             low_health_report_thread = threading.Thread(target=
@@ -642,112 +637,6 @@ class AccountMonitor:
             logger.error("AccountMonitor: Exception updating account %s: %s",
                          address, ex, exc_info=True)
 
-    def save_state(self, local_save: bool = True) -> None:
-        """
-        Save the current state of the account monitor.
-
-        Args:
-            local_save (bool, optional): Whether to save the state locally. Defaults to True.
-        """
-        try:
-            state = {
-                "accounts": {address: account.to_dict()
-                             for address, account in self.accounts.items()},
-                "vaults": {address: vault.address for address, vault in self.vaults.items()},
-                "queue": list(self.update_queue.queue),
-                "last_saved_block": self.latest_block,
-            }
-
-            if local_save:
-                with open(self.config.SAVE_STATE_PATH, "w", encoding="utf-8") as f:
-                    json.dump(state, f)
-            else:
-                # Save to remote location
-                pass
-
-            self.last_saved_block = self.latest_block
-
-            logger.info("AccountMonitor: State saved at time %s up to block %s",
-                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                        self.latest_block)
-        except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to save state: %s", ex, exc_info=True)
-
-    def load_state(self, save_path: str, local_save: bool = True) -> None:
-        """
-        Load the state of the account monitor from a file.
-
-        Args:
-            save_path (str): The path to the saved state file.
-            local_save (bool, optional): Whether the state is saved locally. Defaults to True.
-        """
-        try:
-            if local_save and os.path.exists(save_path):
-                print("SAVE PATH", save_path)
-                with open(save_path, "r", encoding="utf-8") as f:
-                    state = json.load(f)
-
-                self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
-                logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
-
-                self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
-                                 for address, data in state["accounts"].items()}
-                logger.info("Loaded %s accounts:", len(self.accounts))
-
-                for address, account in self.accounts.items():
-                    logger.info("  Account %s: Controller: %s, "
-                                "Health Score: %s, "
-                                "Next Update: %s",
-                                address,
-                                account.controller.address,
-                                account.current_health_score,
-                                time.strftime("%Y-%m-%d %H:%M:%S",
-                                time.localtime(account.time_of_next_update)))
-
-                self.rebuild_queue()
-
-                self.last_saved_block = state["last_saved_block"]
-                self.latest_block = self.last_saved_block
-                logger.info("AccountMonitor: State loaded from save"
-                            " file %s from block %s to block %s",
-                            save_path,
-                            self.config.EVC_DEPLOYMENT_BLOCK,
-                            self.latest_block)
-            elif not local_save:
-                # Load from remote location
-                pass
-            else:
-                logger.info("AccountMonitor: No saved state found.")
-        except Exception as ex: # pylint: disable=broad-except
-            logger.error("AccountMonitor: Failed to load state: %s", ex, exc_info=True)
-
-    def rebuild_queue(self):
-        """
-        Rebuild queue based on current account health
-        """
-        logger.info("Rebuilding queue based on current account health")
-
-        self.update_queue = queue.PriorityQueue()
-        for address, account in self.accounts.items():
-            try:
-                account.update_liquidity(self)
-
-                if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor: %s has no borrow, skipping", address)
-                    continue
-
-                next_update_time = account.time_of_next_update
-                self.update_queue.put((next_update_time, address))
-                logger.info("AccountMonitor: %s added to queue"
-                            " with health score %s, next update at %s",
-                            address, account.current_health_score, time.strftime("%Y-%m-%d %H:%M:%S",
-                                                                 time.localtime(next_update_time)))
-            except Exception as ex: # pylint: disable=broad-except
-                logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
-                             address, ex, exc_info=True)
-
-        logger.info("AccountMonitor: Queue rebuilt with %s acccounts", self.update_queue.qsize())
-
     def get_accounts_by_health_score(self):
         """
         Get a list of accounts sorted by health score.
@@ -780,40 +669,14 @@ class AccountMonitor:
                               exc_info=True)
             time.sleep(self.config.LOW_HEALTH_REPORT_INTERVAL)
 
-    @staticmethod
-    def create_from_save_state(chain_id: int, config: ChainConfig, save_path: str, local_save: bool = True) -> "AccountMonitor":
-        """
-        Create an AccountMonitor instance from a saved state.
-
-        Args:
-            save_path (str): The path to the saved state file.
-            local_save (bool, optional): Whether the state is saved locally. Defaults to True.
-
-        Returns:
-            AccountMonitor: An AccountMonitor instance initialized from the saved state.
-        """
-        monitor = AccountMonitor(chain_id=chain_id, config=config)
-        monitor.load_state(save_path, local_save)
-        return monitor
-
-    def periodic_save(self) -> None:
-        """
-        Periodically save the state of the account monitor.
-        Should be run in a standalone thread.
-        """
-        while self.running:
-            time.sleep(self.config.SAVE_INTERVAL)
-            self.save_state()
-
     def stop(self) -> None:
         """
-        Stop the account monitor and save its current state.
+        Stop the account monitor
         """
         self.running = False
         with self.condition:
             self.condition.notify_all()
         self.executor.shutdown(wait=True)
-        self.save_state()
 
 class PullOracleHandler:
     """
@@ -1054,10 +917,7 @@ class EVCListener:
         Goes in reverse order to build smallest queue possible with most up to date info
         """
         try:
-            # If the account monitor has a saved state,
-            # assume it has been loaded from that and start from the last saved block
-            start_block = max(int(self.config.EVC_DEPLOYMENT_BLOCK),
-                              self.account_monitor.last_saved_block)
+            start_block = int(self.config.EVC_DEPLOYMENT_BLOCK)
             orig_start_block = start_block
 
             current_block = self.w3.eth.block_number
@@ -1076,8 +936,6 @@ class EVCListener:
                 self.scan_block_range_for_account_status_check(start_block, end_block,
                                                                seen_accounts=seen_accounts,
                                                                startup_mode=True)
-                self.account_monitor.save_state()
-
                 start_block = end_block + 1
 
                 time.sleep(self.config.BATCH_INTERVAL) # Sleep in between batches to avoid rate limiting

@@ -71,7 +71,6 @@ class ChainConfig:
 
         # Set chain-specific paths
         self.LOGS_PATH = f"{self._global["LOGS_PATH"]}/{self._chain["name"]}_monitor.log"
-        self.SAVE_STATE_PATH = f"{self._global["SAVE_STATE_PATH"]}/{self._chain["name"]}_state.json"
 
         with open(self._global["EVC_ABI_PATH"], "r", encoding="utf-8") as file:
             interface = json.load(file)

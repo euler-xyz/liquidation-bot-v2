@@ -72,8 +72,6 @@ global:
   ERC20_ABI_PATH: "out/IERC20.sol/IERC20.json"
   ROUTER_ABI_PATH: "contracts/EulerRouter.json"
   LOGS_PATH: "logs/account_monitor_logs.log"
-  SAVE_STATE_PATH: "state"
-  SAVE_INTERVAL: 1800 # 30 minutes
 
   ## API CALL PARAMETERS ##
   # API Retry
