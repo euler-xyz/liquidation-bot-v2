@@ -44,6 +44,7 @@ class Vault:
     This does not need to be serialized as it does not store any state
     """
     def __init__(self, address, config: ChainConfig):
+        logger.info("CREATING VAULT FOR %s", address)
         self.config = config
         
         self.address = address
@@ -59,7 +60,7 @@ class Vault:
         self.pyth_feed_ids = []
         self.last_pyth_feed_ids_update = 0
 
-    def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
+    def get_account_liquidity(self, account_address: str, account_monitor) -> Tuple[int, int]:
         """
         Get liquidity metrics for a given account.
 
@@ -77,10 +78,9 @@ class Vault:
                          account_address, ex, exc_info=True)
             return (0, 0, -1)
 
-        try:            
-            if self.pyth_feed_ids is None or time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
-                self.pyth_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
-                self.last_pyth_feed_ids_update = time.time()
+        self.refresh_pyth_feed_ids(account_monitor)
+
+        try:
             if self.pyth_feed_ids != None and len(self.pyth_feed_ids) > 0:
                 logger.info("Vault: Pyth Oracle found for vault %s, "
                             "getting account liquidity through simulation", self.address)
@@ -101,6 +101,11 @@ class Vault:
             return (balance, 0, 0)
 
         return (balance, collateral_value, liability_value)
+
+    def refresh_pyth_feed_ids(self, account_monitor):
+        if self.pyth_feed_ids is None or time.time() - self.last_pyth_feed_ids_update > self.config.PYTH_CACHE_REFRESH:
+            self.pyth_feed_ids = PullOracleHandler.get_feed_ids(self, self.config, account_monitor)
+            self.last_pyth_feed_ids_update = time.time()
 
     def check_liquidation(self,
                           borower_address: str,
@@ -182,20 +187,20 @@ class Account:
             self.owner = Web3.to_checksum_address('0x' + format(int(address, 16) ^ subaccount_number, "040x"))
 
 
-    def update_liquidity(self) -> float:
+    def update_liquidity(self, account_monitor) -> float:
         """
         Update account's liquidity & next scheduled update and return the current health score.
 
         Returns:
             float: The updated health score of the account.
         """
-        self.get_health_score()
+        self.get_health_score(account_monitor)
         self.get_time_of_next_update()
 
         return self.current_health_score
 
 
-    def get_health_score(self) -> float:
+    def get_health_score(self, account_monitor) -> float:
         """
         Calculate and return the current health score of the account.
 
@@ -208,7 +213,7 @@ class Account:
             return self.current_health_score
 
         balance, collateral_value, liability_value = self.controller.get_account_liquidity(
-            self.address)
+            self.address, account_monitor)
 
         # Special case for -1 liability: Failure when reading balance or account liquidity
         if liability_value == -1:
@@ -528,7 +533,7 @@ class AccountMonitor:
 
             try:
                 self.update_account_controller(account)
-                account.update_liquidity()
+                account.update_liquidity(self)
             except Exception as ex: # pylint: disable=broad-except
                 logger.warning("Unable to get health score for account %s", address, ex, exc_info=True)
 
@@ -618,7 +623,7 @@ class AccountMonitor:
                                 # Update account health score after liquidation
                                 # Need to know how healthy the account is after liquidation
                                 # and if we need to liquidate again
-                                account.update_liquidity()
+                                account.update_liquidity(self)
                             except Exception as ex: # pylint: disable=broad-except
                                 logger.error("AccountMonitor: "
                                              "Failed to execute liquidation for account %s: %s",
@@ -725,7 +730,7 @@ class AccountMonitor:
         self.update_queue = queue.PriorityQueue()
         for address, account in self.accounts.items():
             try:
-                account.update_liquidity()
+                account.update_liquidity(self)
 
                 if account.current_health_score == math.inf:
                     logger.info("AccountMonitor: %s has no borrow, skipping", address)
@@ -848,7 +853,7 @@ class PullOracleHandler:
         return result[0], result[1]
 
     @staticmethod
-    def get_feed_ids(vault, config: ChainConfig):
+    def get_feed_ids(vault, config: ChainConfig, account_monitor):
         try:
             oracle_address = vault.oracle_address
             oracle = create_contract_instance(oracle_address, config.ORACLE_ABI_PATH, config)
@@ -860,7 +865,8 @@ class PullOracleHandler:
             asset_list = [vault.underlying_asset_address]
             for collateral_vault in collateral_vault_list:
                 try:
-                    asset_list.append(Vault(collateral_vault, config).underlying_asset_address)
+                    vault = account_monitor.track_new_vault(collateral_vault)
+                    asset_list.append(vault.underlying_asset_address)
                 except Exception as ex:
                     pass ## Misconfigured LTV list. Probably contains a non-EVK contract
 
@@ -1091,9 +1097,9 @@ class EVCListener:
             start_time = time.time()
             current_block = self.w3.eth.block_number
             seen_addresses = set()
+            vaults_with_borrowers = set()
 
-            #vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 2**256 - 1).call()
-            vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 1).call() #FIXME
+            vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 2**256 - 1).call()
             logger.info("Bootstrap found %s vaults from factory", len(vault_list))
 
             for i, vault_address in enumerate(vault_list):
@@ -1111,15 +1117,37 @@ class EVCListener:
                 for borrower_address in response["borrowers"]:
                     seen_addresses.add(Web3.to_checksum_address(borrower_address))
 
+                if len(response["borrowers"]) > 0:
+                    vaults_with_borrowers.add(Web3.to_checksum_address(vault_address))
+
                 if i % 10 == 0:
                     logger.info("Bootstrap progress: %s/%s vaults. %s accounts seen so far", i, len(vault_list), len(seen_addresses))
 
-            logger.info("Vault enumeration complete: %s unique accounts found", len(seen_addresses))
+            logger.info("Bootstrap vault enumeration complete: %s unique accounts found", len(seen_addresses))
+
+            logger.info("Bootstrap populating pyth oracles for %s vaults", len(vaults_with_borrowers));
+
+            full_pyth_feed_list = set()
+
+            for i, vault_address in enumerate(vaults_with_borrowers):
+                vault = self.account_monitor.track_new_vault(vault_address)
+                vault.refresh_pyth_feed_ids(self.account_monitor)
+
+                if vault.pyth_feed_ids:
+                    for feed_id in vault.pyth_feed_ids:
+                        full_pyth_feed_list.add(feed_id)
+
+                if i % 10 == 0:
+                    logger.info("Bootstrap pyth population progress: %s/%s", i, len(vaults_with_borrowers))
+
+            logger.info("FULL PYTH FEED IDS: %s - %s", len(full_pyth_feed_list), full_pyth_feed_list)
+            full_pyth_update_data = PullOracleHandler.get_pyth_update_data(full_pyth_feed_list)
+            logger.info("FULL PYTH UPDATE DATA: %s - %s", len(full_pyth_update_data), full_pyth_update_data)
 
             seen_addresses_list = list(seen_addresses)
 
             if self.config.maglev_lens != None:
-                logger.info("Boostrap: Using health check batch query path")
+                logger.info("Bootstrap: Using health check batch query path")
 
                 orig_seen_addresses_size = len(seen_addresses_list)
 
@@ -1137,7 +1165,7 @@ class EVCListener:
                         else:
                             self.account_monitor.insert_account_direct(h["addr"], h["subAccountId"], h["controller"], h["health"])
             else:
-                logger.info("Boostrap: Using legacy status check path")
+                logger.info("Bootstrap: Using legacy status check path")
 
                 try:
                     for i, account_address in enumerate(seen_addresses):
