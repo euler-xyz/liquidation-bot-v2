@@ -443,7 +443,7 @@ class AccountMonitor:
         self.accounts[address] = account
         logger.info("AccountMonitor: Direct adding %s to account list with controller %s, health_score=%s",
                     address,
-                    controller,
+                    controller_address,
                     health_score)
 
         account.current_health_score = health_score
