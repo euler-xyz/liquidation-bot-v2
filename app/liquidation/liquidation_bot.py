@@ -800,7 +800,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_pyth_update_fee(update_data, config):
-        logger.info("PullOracleHandler: Getting update fee for data: %s", update_data)
+        logger.info("PullOracleHandler: Getting update fee")
         pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH, config)
         return pyth.functions.getUpdateFee([update_data]).call()
 
@@ -998,9 +998,14 @@ class EVCListener:
                 if i % 10 == 0:
                     logger.info("Bootstrap pyth population progress: %s/%s", i, len(vaults_with_borrowers))
 
-            logger.info("FULL PYTH FEED IDS: %s - %s", len(full_pyth_feed_list), full_pyth_feed_list)
-            full_pyth_update_data = PullOracleHandler.get_pyth_update_data(full_pyth_feed_list)
-            logger.info("FULL PYTH UPDATE DATA: %s - %s", len(full_pyth_update_data), full_pyth_update_data)
+            last_pyth_update_fetch = 0
+            pyth_update_data = None
+
+            #FIXME
+            #full_pyth_update_data = PullOracleHandler.get_pyth_update_data(full_pyth_feed_list)
+            #full_pyth_update_fee = PullOracleHandler.get_pyth_update_fee(full_pyth_update_data, self.config)
+            #logger.info("FULL PYTH FEED IDS: %s - %s", len(full_pyth_feed_list), full_pyth_feed_list)
+            #logger.info("FULL PYTH UPDATE DATA: %s - %s", len(full_pyth_update_data), full_pyth_update_data)
 
             seen_addresses_list = list(seen_addresses)
 
