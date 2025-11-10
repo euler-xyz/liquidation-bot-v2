@@ -1,1 +1,3 @@
 forge-std/=lib/forge-std/src/
+ethereum-vault-connector/=lib/evk-periphery/lib/ethereum-vault-connector/src/
+openzeppelin-contracts/=lib/evk-periphery/lib/openzeppelin-contracts/contracts/
