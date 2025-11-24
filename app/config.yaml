@@ -411,3 +411,27 @@ chains:
       
       # PYTH address
       PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+  
+  143:
+    name: "Monad"
+    EVC_DEPLOYMENT_BLOCK: 37722807
+    EXPLORER_URL: "https://monad.socialscan.io/"
+    RPC_NAME: "MONAD_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x0Fea16517f670bc1e1e26b38C6d9d2502Fa6AFf6"
+
+      #EVK Addresses
+      EVC: "0x7a9324E8f270413fa2E458f5831226d99C7477CD"
+      EVAULT_FACTORY: "0xba4Dd672062dE8FeeDb665DD4410658864483f1E"
+      SWAPPER: "0xB6D7194fD09F27890279caB08d565A6424fb525D"
+      SWAP_VERIFIER: "0x65bF068c88e0f006f76b871396B4DB1150dd9EAD"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xEE8c0E9f1BFFb4Eb878d8f15f368A02a35481242"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+    
+      # PYTH address
+      PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
