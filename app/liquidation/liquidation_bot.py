@@ -1355,7 +1355,7 @@ class Quoter:
             "skipSweepDepositOut": str(skip_sweep_deposit_out),
         }
 
-        response = make_api_request(config.SWAP_API_URL, headers={}, params=params)
+        response = make_gluex_api_request(config.GLUEX_API_URL, params)
 
         if not response or not response["success"]:
             logger.error("Unable to get quote from swap api")

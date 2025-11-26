@@ -162,8 +162,7 @@ def make_gluex_api_request(url: str,
         return None
     
     headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json"
+        "x-api-key": api_key
     }
     
     response = requests.post(url, headers=headers, json=data, timeout=10)
