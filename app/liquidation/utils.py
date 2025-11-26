@@ -143,6 +143,33 @@ def make_api_request(url: str,
     response.raise_for_status()
     return response.json()
 
+@retry_request(logging.getLogger("liquidation_bot"))
+def make_gluex_api_request(url: str,
+                           data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Make a POST API request to GlueX with retry functionality and API key authentication.
+
+    Args:
+        url (str): The URL for the API request.
+        data (Dict[str, Any]): JSON data to send in the request body.
+
+    Returns:
+        Optional[Dict[str, Any]]: JSON response if successful, None otherwise.
+    """
+    api_key = os.getenv("GLUEX_API_KEY")
+    if not api_key:
+        logging.getLogger("liquidation_bot").error("GLUEX_API_KEY environment variable not set")
+        return None
+    
+    headers = {
+        "x-api-key": api_key,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, headers=headers, json=data, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
 def get_eth_usd_quote(amount: int = 10**18, config: ChainConfig = None):
     return config.eth_oracle.functions.getQuote(amount, config.MAINNET_ETH_ADDRESS, config.USD).call()
 
