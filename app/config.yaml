@@ -117,6 +117,7 @@ chains:
       
       # PYTH address
       PYTH: "0xe9d69CdD6Fe41e7B621B4A688C5D1a68cB5c8ADc"
+  
   # ETH Mainnet
   1:
     # Config
