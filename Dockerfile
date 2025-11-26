@@ -1,26 +1,57 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_VERSION=3.12.5
-FROM 310118226683.dkr.ecr.eu-west-1.amazonaws.com/python:${PYTHON_VERSION} as base
+FROM debian:trixie-slim AS build
+
+ARG GIT_REPO_URL
+ENV GIT_REPO_URL=${GIT_REPO_URL}
+ARG GIT_BRANCH
+ENV GIT_BRANCH=${GIT_BRANCH}
+
+RUN echo "GIT_REPO_URL: ${GIT_REPO_URL}"
+RUN echo "GIT_BRANCH: ${GIT_BRANCH}"
 
 # Copy the project files
-COPY . .
+RUN apt-get update && apt-get install -y curl git bash
 
-RUN apt-get update && apt-get install -y nodejs npm
+RUN git clone --depth=1 --single-branch --branch ${GIT_BRANCH} ${GIT_REPO_URL}
 
-# Initialize git repository
-RUN git init && \
-    git add -A && \
-    git commit -m "Initial commit"
+# # Initialize git repository
+# RUN git init && \
+#     git add -A && \
+#     git commit -m "Initial commit"
 
 # Manually clone submodules
 RUN mkdir -p lib/forge-std && \
     git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
 
+RUN ls mewler-liquidation-bot
+WORKDIR mewler-liquidation-bot
+
+# Install Foundry
+RUN curl -L https://foundry.paradigm.xyz | bash
+RUN /root/.foundry/bin/foundryup --install nightly
+
 # Run Forge commands
-RUN forge install --no-commit
-RUN forge update
-RUN forge build
+RUN /root/.foundry/bin/forge install
+RUN /root/.foundry/bin/forge update
+RUN /root/.foundry/bin/forge build
+
+FROM debian:trixie AS runtime
+
+RUN apt-get update && apt-get install -y build-essential python3-gunicorn python3-dev adduser nodejs npm python3-full python3.13-venv virtualenv pip && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /mewler-liquidation-bot /app
+
+RUN mkdir -p /app/logs /app/state
+
+WORKDIR /app
+
+RUN ls -la
+
+# Install Python dependencies
+RUN virtualenv .venv
+RUN ./.venv/bin/pip install --upgrade pip setuptools wheel
+RUN ./.venv/bin/pip install -r requirements.txt
 
 # Create a non-privileged user
 ARG UID=10001
@@ -33,12 +64,6 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
-RUN mkdir -p /app/logs /app/state
-
-# Install Python dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
 
 # Set correct permissions
 RUN chown -R appuser:appuser /app && \
@@ -51,4 +76,4 @@ EXPOSE 8080
 
 # CMD ["python", "python/liquidation_bot.py"]
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "application:application"]
+CMD [".venv/bin/gunicorn", "--bind", "0.0.0.0:8080", "application:application"]

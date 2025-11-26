@@ -1,0 +1,12 @@
+{
+    "$schema": "./schema/railway.schema.json",
+    "build": {
+      "builder": "DOCKERFILE"
+    },
+    "deploy": {
+      "healthcheckPath": "/health",
+      "healthcheckTimeout": 600,
+      "restartPolicyType": "ALWAYS"
+    }
+  }
+  

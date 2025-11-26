@@ -1,0 +1,1319 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "properties": {
+      "$schema": {
+        "type": "string"
+      },
+      "build": {
+        "type": "object",
+        "properties": {
+          "builder": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["NIXPACKS", "DOCKERFILE", "RAILPACK", "HEROKU", "PAKETO"],
+                    "description": "Set the builder for the deployment"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watchPatterns": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "Array of patterns used to conditionally trigger a deploys"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buildCommand": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Build command to pass to the Nixpacks builder"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buildEnvironment": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "const": "V2",
+                    "description": "Build environment to be used for the build process"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dockerfilePath": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Location of non-standard Dockerfile"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nixpacksConfigPath": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Location of a non-standard Nixpacks config file"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nixpacksPlan": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "providers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "phases": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "dependsOn": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "cmds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "nixPkgs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "nixLibs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "aptPkgs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "nixOverlays": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "nixPkgsArchive": {
+                              "type": "string"
+                            },
+                            "includedFiles": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "cacheDirectories": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "paths": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Single Nixpacks phase"
+                        }
+                      }
+                    },
+                    "additionalProperties": true,
+                    "description": "Full nixpacks plan. See https://nixpacks.com/docs/configuration/file for more info"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nixpacksVersion": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Version of Nixpacks to use. Must be a valid Nixpacks version. EXPERIMENTAL: USE AT YOUR OWN RISK!"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Configuration for the build step"
+      },
+      "deploy": {
+        "type": "object",
+        "properties": {
+          "startCommand": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "The command to run when starting the container"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preDeployCommand": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "not": {}
+                          },
+                          {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "maxItems": 1
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "numReplicas": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "The number of instances to run for the deployment"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stackerAssignment": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "$ref": "#/properties/deploy/properties/numReplicas/anyOf/0/anyOf/1"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "healthcheckPath": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Path to check after starting your deployment to ensure it is healthy"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "healthcheckTimeout": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "number",
+                    "description": "Number of seconds to wait for the healthcheck path to become healthy"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sleepApplication": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "Should application be stopped when inactive"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runtime": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["UNSPECIFIED", "LEGACY", "V2"],
+                    "description": "Runtime to use for the deployment"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "registryCredentials": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "username": {
+                        "type": "string"
+                      },
+                      "password": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "Private Docker registry credentials. Only available for Pro plan deployments."
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restartPolicyType": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "enum": ["ON_FAILURE", "ALWAYS", "NEVER"],
+                    "description": "How to handle the deployment crashing"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "restartPolicyMaxRetries": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 1
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cronSchedule": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Cron schedule to run the deployment on"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Region to deploy to. Only available for Pro plan deploys"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "multiRegionConfig": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "numReplicas": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "not": {}
+                                    },
+                                    {
+                                      "$ref": "#/properties/deploy/properties/numReplicas/anyOf/0/anyOf/1"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "stackerAssignment": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "not": {}
+                                    },
+                                    {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "pattern": "^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+                                          "description": "IP of the stacker to assign the deployment to"
+                                        },
+                                        {
+                                          "type": "string",
+                                          "const": "ALL_STACKERS",
+                                          "description": "Assign to all stackers in the region"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "description": "Multi-region deployment configuration"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limitOverride": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "containers": {
+                        "anyOf": [
+                          {
+                            "anyOf": [
+                              {
+                                "not": {}
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "cpu": {
+                                    "anyOf": [
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "not": {}
+                                          },
+                                          {
+                                            "type": "number",
+                                            "description": "cpus available to the instance"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "memoryBytes": {
+                                    "anyOf": [
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "not": {}
+                                          },
+                                          {
+                                            "type": "number",
+                                            "description": "bytes of RAM available to the instance"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "diskBytes": {
+                                    "anyOf": [
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "not": {}
+                                          },
+                                          {
+                                            "type": "number",
+                                            "description": "bytes of disk available to the instance"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Container limits"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "additionalProperties": false,
+                    "description": "Resource limits available"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requiredMountPath": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "string",
+                    "description": "Required mount path for the deployment"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overlapSeconds": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Time in seconds that the previous deploy will overlap with the newest one being deployed"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "drainingSeconds": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {}
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "The time in seconds between when the previous deploy is sent a SIGTERM to the time it is sent a SIGKILL"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "description": "Configuration for the deploy step"
+      },
+      "environments": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "build": {
+              "type": "object",
+              "properties": {
+                "builder": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/build/properties/builder/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "watchPatterns": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/properties/build/properties/watchPatterns/anyOf/0/anyOf/1/items"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "buildCommand": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/build/properties/buildCommand/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "buildEnvironment": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/build/properties/buildEnvironment/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "dockerfilePath": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/build/properties/dockerfilePath/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "nixpacksConfigPath": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/build/properties/nixpacksConfigPath/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "nixpacksPlan": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "providers": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/properties/build/properties/nixpacksPlan/anyOf/0/anyOf/1/properties/providers/items"
+                              }
+                            },
+                            "phases": {
+                              "$ref": "#/properties/build/properties/nixpacksPlan/anyOf/0/anyOf/1/properties/phases"
+                            }
+                          },
+                          "additionalProperties": true,
+                          "description": "Full nixpacks plan. See https://nixpacks.com/docs/configuration/file for more info"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "nixpacksVersion": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/build/properties/nixpacksVersion/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "description": "Configuration for the build step"
+            },
+            "deploy": {
+              "type": "object",
+              "properties": {
+                "startCommand": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/startCommand/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "preDeployCommand": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/preDeployCommand/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "numReplicas": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/numReplicas/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "stackerAssignment": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/numReplicas/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "healthcheckPath": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/healthcheckPath/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "healthcheckTimeout": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/healthcheckTimeout/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sleepApplication": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/sleepApplication/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "runtime": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/runtime/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "registryCredentials": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "username": {
+                              "$ref": "#/properties/deploy/properties/registryCredentials/anyOf/0/anyOf/1/properties/username"
+                            },
+                            "password": {
+                              "$ref": "#/properties/deploy/properties/registryCredentials/anyOf/0/anyOf/1/properties/password"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Private Docker registry credentials. Only available for Pro plan deployments."
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "restartPolicyType": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/restartPolicyType/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "restartPolicyMaxRetries": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/restartPolicyMaxRetries/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cronSchedule": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/cronSchedule/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "region": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/region/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "multiRegionConfig": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/multiRegionConfig/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "limitOverride": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "containers": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "not": {}
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "cpu": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "not": {}
+                                                },
+                                                {
+                                                  "$ref": "#/properties/deploy/properties/limitOverride/anyOf/0/anyOf/1/properties/containers/anyOf/0/anyOf/1/properties/cpu/anyOf/0/anyOf/1"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "memoryBytes": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "not": {}
+                                                },
+                                                {
+                                                  "$ref": "#/properties/deploy/properties/limitOverride/anyOf/0/anyOf/1/properties/containers/anyOf/0/anyOf/1/properties/memoryBytes/anyOf/0/anyOf/1"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "diskBytes": {
+                                          "anyOf": [
+                                            {
+                                              "anyOf": [
+                                                {
+                                                  "not": {}
+                                                },
+                                                {
+                                                  "$ref": "#/properties/deploy/properties/limitOverride/anyOf/0/anyOf/1/properties/containers/anyOf/0/anyOf/1/properties/diskBytes/anyOf/0/anyOf/1"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "additionalProperties": false,
+                                      "description": "Container limits"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Resource limits available"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "requiredMountPath": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/requiredMountPath/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "overlapSeconds": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/overlapSeconds/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "drainingSeconds": {
+                  "anyOf": [
+                    {
+                      "anyOf": [
+                        {
+                          "not": {}
+                        },
+                        {
+                          "$ref": "#/properties/deploy/properties/drainingSeconds/anyOf/0/anyOf/1"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false,
+              "description": "Configuration for the deploy step"
+            }
+          },
+          "additionalProperties": false
+        },
+        "description": "Override service manifest for different environments"
+      }
+    },
+    "additionalProperties": false
+  }
+  
