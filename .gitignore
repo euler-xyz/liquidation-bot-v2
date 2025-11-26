@@ -31,4 +31,6 @@ __pycache__/
 *.pyo
 *.pyd
 
-/redstone_script/node_modules
+/redstone_script/node_modulescdk.out/
+cdk.context.json
+cdk.out

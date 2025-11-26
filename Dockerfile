@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
-FROM debian:trixie-slim AS build
+ARG PLATFORM=linux/amd64
+FROM --platform=${PLATFORM} debian:trixie-slim AS build
 
 ARG GIT_REPO_URL
 ENV GIT_REPO_URL=${GIT_REPO_URL}
@@ -31,7 +32,7 @@ RUN /root/.foundry/bin/forge install
 RUN /root/.foundry/bin/forge update
 RUN /root/.foundry/bin/forge build
 
-FROM debian:trixie-slim AS runtime
+FROM --platform=${PLATFORM} debian:trixie-slim AS runtime
 
 RUN apt-get update && apt-get install -y adduser python3-full virtualenv && rm -rf /var/lib/apt/lists/*
 
