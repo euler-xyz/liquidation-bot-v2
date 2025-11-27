@@ -1287,7 +1287,7 @@ class Liquidator:
                         liquidation_transaction)
 
             signed_tx = config.w3.eth.account.sign_transaction(liquidation_transaction,
-                                                        config.LIQUIDATOR_EOA_PRIVATE_KEY)
+                                                        config.LIQUIDATOR_PRIVATE_KEY)
             tx_hash = config.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             tx_receipt = config.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
