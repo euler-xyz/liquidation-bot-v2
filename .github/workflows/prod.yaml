@@ -2,8 +2,9 @@ name: Deploy to Production
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
@@ -16,9 +17,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy_backend:
-    name: Deploy | Backend
+  deploy:
+    name: Deploy | Production
     uses: ./.github/workflows/deploy.yaml
     with:
-      account: "730335381248"
-      region: ap-northeast-1
+      account: ${{ inputs.account }}
+      region: ${{ inputs.region }}
