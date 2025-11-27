@@ -6,8 +6,6 @@ on:
 
   pull_request:
     branches: [main]
-    
-  workflow_dispatch: {}
 
 permissions:
   id-token: write
@@ -20,7 +18,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push'
     name: Deploy | Production
     uses: ./.github/workflows/deploy.yaml
     with:
@@ -29,8 +27,20 @@ jobs:
 
   synth:
     if: github.event_name == 'pull_request'
-    name: Dry Run | Production
-    uses: ./.github/workflows/synth.yaml
+    name: Dry run | Test
+    uses: ./.github/workflows/test.yaml
     with:
       account: "730335381248"
       region: "ap-northeast-1"
+
+  build:
+    if: github.event_name == 'pull_request'
+    name: Build container | Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Docker Image
+        run: docker build -t mewler-liquidation-bot .

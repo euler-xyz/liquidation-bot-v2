@@ -1,5 +1,5 @@
-name: Deploy CDK Stack
-description: Deploys individual CDK Stacks defined in `cdk/app.py` using Python CDK
+name: Cdk synth
+description: Synthesizes the CDK stacks defined in `cdk/app.py` using Python CDK
 
 inputs:
   account:
@@ -17,10 +17,6 @@ inputs:
     required: false
     description: An optional working directory where the CDK code is located
     default: ./
-  deploy-parameters:
-    required: false
-    description: Optional additional parameters for 'cdk-deploy'
-    default: ""
   python-version:
     description: The Python version to use
     required: false
@@ -45,16 +41,10 @@ runs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@master
-      with:
-        role-to-assume: arn:aws:iam::${{ inputs.account }}:role/github-actions
-        aws-region: ${{ inputs.region }}
-
     - name: Deploy | cdk
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
         CDK_DEPLOY_ACCOUNT: ${{ inputs.account }}
         CDK_DEPLOY_REGION: ${{ inputs.region }}
-      run: cdk synth --exclusively ${{ inputs.stacks }} --require-approval never ${{ inputs.deploy-parameters }}
+      run: cdk synth --exclusively ${{ inputs.stacks }}
