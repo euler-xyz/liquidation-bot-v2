@@ -20,7 +20,9 @@ lcov.info
 
 # Virtual env
 python-venv/
-venv/ 
+venv/
+.venv/
+cdk/.venv/ 
 
 # Logs and save state
 logs/
