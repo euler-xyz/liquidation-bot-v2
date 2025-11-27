@@ -55,8 +55,10 @@ class ChainConfig:
 
         # Load global EOA settings
         self.LIQUIDATOR_EOA = os.getenv("LIQUIDATOR_EOA")
-        self.LIQUIDATOR_EOA_PRIVATE_KEY = os.getenv("LIQUIDATOR_PRIVATE_KEY")
-        self.SWAP_API_URL = os.getenv("SWAP_API_URL")
+        self.LIQUIDATOR_PRIVATE_KEY = os.getenv("LIQUIDATOR_PRIVATE_KEY")
+        self.GLUEX_API_URL = os.getenv("GLUEX_API_URL")
+        self.GLUEX_API_KEY = os.getenv("GLUEX_API_KEY")
+        self.GLUEX_UNIQUE_PID = os.getenv("GLUEX_UNIQUE_PID")
         self.SLACK_URL = os.getenv("SLACK_WEBHOOK_URL")
         self.RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
 

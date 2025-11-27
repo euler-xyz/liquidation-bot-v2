@@ -3,25 +3,11 @@
 ARG PLATFORM=linux/amd64
 FROM --platform=${PLATFORM} debian:trixie-slim AS build
 
-ARG GIT_REPO_URL
-ENV GIT_REPO_URL=${GIT_REPO_URL}
-ARG GIT_BRANCH
-ENV GIT_BRANCH=${GIT_BRANCH}
-
-RUN echo "GIT_REPO_URL: ${GIT_REPO_URL}"
-RUN echo "GIT_BRANCH: ${GIT_BRANCH}"
-
-# Copy the project files
 RUN apt-get update && apt-get install -y curl git bash 
 
-RUN git clone --depth=1 --single-branch --branch ${GIT_BRANCH} ${GIT_REPO_URL}
+COPY . /app
+WORKDIR /app
 
-# Manually clone submodules
-RUN mkdir -p lib/forge-std && \
-    git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
-
-RUN ls mewler-liquidation-bot
-WORKDIR mewler-liquidation-bot
 
 # Install Foundry
 RUN curl -L https://foundry.paradigm.xyz | bash
@@ -36,7 +22,9 @@ FROM --platform=${PLATFORM} debian:trixie-slim AS runtime
 
 RUN apt-get update && apt-get install -y adduser python3-full virtualenv && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /mewler-liquidation-bot /app
+COPY --from=build /app /app
+
+RUN ls -la /app
 
 RUN mkdir -p /app/logs /app/state
 

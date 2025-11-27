@@ -36,7 +36,7 @@ lru-dict==1.2.0
 MarkupSafe==2.1.5
 mccabe==0.7.0
 multidict==6.0.5
-numpy==2.0.0
+numpy==2.3.5
 packaging==23.2
 parsimonious==0.10.0
 platformdirs==4.2.2
@@ -47,13 +47,13 @@ pycparser==2.22
 pycryptodome==3.20.0
 pylint==3.2.5
 python-dotenv==1.0.1
-pyunormalize==15.1.0
+pyunormalize==17.0.0
 PyYAML==6.0.1
 referencing==0.35.1
 regex==2024.5.15
 requests==2.32.3
 rlp==4.0.1
-rpds-py==0.18.1
+rpds-py==0.29.0
 solc-select==1.0.4
 tomlkit==0.13.0
 toolz==0.12.1

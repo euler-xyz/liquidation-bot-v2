@@ -1,0 +1,29 @@
+name: Workflow | Deploy backend
+
+on:
+    workflow_call:
+        inputs:
+          account:
+            required: true
+            type: string
+            default: "730335381248"
+          region:
+            required: true
+            type: string
+            default: "ap-northeast-1"
+
+jobs:
+  liquidator-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - uses: ./.github/actions/cdk-synth
+        with:
+          account: ${{ inputs.account }}
+          region: ${{ inputs.region }}
+          stacks: MewlerLiquidationBotStack

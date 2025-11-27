@@ -20,7 +20,9 @@ lcov.info
 
 # Virtual env
 python-venv/
-venv/ 
+venv/
+.venv/
+cdk/.venv/ 
 
 # Logs and save state
 logs/
@@ -31,4 +33,6 @@ __pycache__/
 *.pyo
 *.pyd
 
-/redstone_script/node_modules
+/redstone_script/node_modulescdk.out/
+cdk.context.json
+cdk.out

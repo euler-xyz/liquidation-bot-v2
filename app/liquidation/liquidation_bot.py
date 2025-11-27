@@ -20,6 +20,7 @@ from web3.logs import DISCARD
 from app.liquidation.utils import (setup_logger,
                    create_contract_instance,
                    make_api_request,
+                   make_gluex_api_request,
                    global_exception_handler,
                    post_liquidation_opportunity_on_slack,
                    post_liquidation_result_on_slack,
@@ -1145,7 +1146,7 @@ class Liquidator:
                         max_repay, seized_collateral_shares)
             return ({"profit": 0}, None)
 
-        swap_api_response = Quoter.get_swap_api_quote(
+        swap_api_response = GluexQuoter.get_swap_api_quote(
             chain_id = config.CHAIN_ID,
             token_in = collateral_asset,
             token_out = borrowed_asset,
@@ -1172,7 +1173,7 @@ class Liquidator:
         leftover_borrow = amount_out - max_repay
 
         if borrowed_asset != config.WETH:
-            borrow_to_eth_response = Quoter.get_swap_api_quote(
+            borrow_to_eth_response = GluexQuoter.get_swap_api_quote(
                 chain_id = config.CHAIN_ID,
                 token_in = borrowed_asset,
                 token_out = config.WETH,
@@ -1286,7 +1287,7 @@ class Liquidator:
                         liquidation_transaction)
 
             signed_tx = config.w3.eth.account.sign_transaction(liquidation_transaction,
-                                                        config.LIQUIDATOR_EOA_PRIVATE_KEY)
+                                                        config.LIQUIDATOR_PRIVATE_KEY)
             tx_hash = config.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
             tx_receipt = config.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
 
@@ -1354,7 +1355,7 @@ class Quoter:
             "skipSweepDepositOut": str(skip_sweep_deposit_out),
         }
 
-        response = make_api_request(config.SWAP_API_URL, headers={}, params=params)
+        response = make_gluex_api_request(config.GLUEX_API_URL, params)
 
         if not response or not response["success"]:
             logger.error("Unable to get quote from swap api")
@@ -1367,6 +1368,149 @@ class Quoter:
             return None
 
         return response["data"]
+
+class GluexQuoter:
+    """
+    Provides access to GlueX API for quotes and swap data generation
+    """
+    
+    # Chain ID mapping from numeric to GlueX chain identifiers
+    CHAIN_ID_MAPPING = {
+        999: "hyperevm"
+        # Add more chain mappings as needed
+    }
+    
+    def __init__(self):
+        pass
+    
+    @staticmethod
+    def get_swap_api_quote(
+        chain_id: int,
+        token_in: str,
+        token_out: str,
+        amount: int,
+        min_amount_out: int,
+        receiver: str,
+        vault_in: str,
+        account_in: str,
+        account_out: str,
+        swapper_mode: str,
+        slippage: float,  # in percent 1 = 1%
+        deadline: int,
+        is_repay: bool,
+        current_debt: int,
+        target_debt: int,
+        skip_sweep_deposit_out: bool,
+        config
+    ):
+        """
+        Get swap quote from GlueX API
+        
+        Args:
+            Same as original Quoter.get_swap_api_quote
+            
+        Returns:
+            Dict with swap data compatible with liquidation flow
+        """
+        
+        # Map chain ID to GlueX format
+        gluex_chain_id = GluexQuoter.CHAIN_ID_MAPPING.get(chain_id)
+        if not gluex_chain_id:
+            logger.error("GlueX: Unsupported chain_id %s", chain_id)
+            return None
+        
+        # Convert slippage from percentage to basis points (1% = 100 basis points)
+        slippage_bps = int(slippage * 100)
+        
+        # Get unique PID from environment variable
+        unique_pid = os.getenv("GLUEX_UNIQUE_PID")
+        if not unique_pid:
+            logger.error("GlueX: GLUEX_UNIQUE_PID environment variable not set")
+            return None
+        
+        # Build GlueX request body
+        request_body = {
+            "inputToken": token_in,
+            "outputToken": token_out,
+            "inputAmount": str(amount),
+            "userAddress": account_in,
+            "outputReceiver": receiver,
+            "chainID": gluex_chain_id,
+            "uniquePID": unique_pid,
+            "surgeProtection": True,
+            "computeStable": True,
+            "activateSurplusFee": True,
+            "partnerAddress": "0xe5FE403dB2577B05678a11cEea4a6f89FD15E304",
+            "partnerFee": 0,
+            "computeEstimate": False,
+            "slippage": slippage_bps
+        }
+        
+        logger.info("GlueX: Requesting quote for %s -> %s, amount: %s, chain: %s",
+                   token_in, token_out, amount, gluex_chain_id)
+        
+        # Get GlueX API URL from config
+        gluex_api_url = os.getenv("GLUEX_API_URL")
+        if not gluex_api_url:
+            logger.error("GlueX: GLUEX_API_URL environment variable not set")
+            return None
+        
+        response = make_gluex_api_request(gluex_api_url, request_body)
+        
+        if not response:
+            logger.error("GlueX: Unable to get quote from GlueX API")
+            return None
+        
+        # Check status code in response body
+        status_code = response.get("statusCode")
+        if status_code != 200:
+            logger.warning("GlueX: Received non-200 status code: %s", status_code)
+            return None
+        
+        # Parse GlueX response
+        try:
+            result = response.get("result")
+            if not result:
+                logger.error("GlueX: No 'result' field in response")
+                return None
+            
+            # Use minOutputAmount which includes slippage protection
+            min_output_amount = int(result.get("minOutputAmount", 0))
+            output_amount = int(result.get("outputAmount", 0))
+            
+            if min_output_amount < min_amount_out:
+                logger.error("GlueX: Quote too low. Expected: %s, Got: %s", 
+                           min_amount_out, min_output_amount)
+                return None
+            
+            # Transform GlueX response to match expected format
+            # The calldata from GlueX is a single hex string that we need to wrap
+            # in the multicallItems structure expected by the liquidation flow
+            calldata = result.get("calldata", "")
+            block_number = result.get("blockNumber", "unknown")
+            
+            logger.info("GlueX: Quote received - Output amount: %s, Min output amount: %s, "
+                       "Router: %s, Estimated net surplus: %s, Block number: %s",
+                       output_amount, min_output_amount, result.get("router"), 
+                       result.get("estimatedNetSurplus"), block_number)
+            logger.info("GlueX: Calldata: %s", calldata)
+            
+            normalized_response = {
+                "amountOut": str(output_amount),
+                "swap": {
+                    "multicallItems": [
+                        {
+                            "data": calldata
+                        }
+                    ] if calldata else []
+                }
+            }
+            
+            return normalized_response
+            
+        except (KeyError, ValueError, TypeError) as ex:
+            logger.error("GlueX: Error parsing response: %s", ex, exc_info=True)
+            return None
 
 if __name__ == "__main__":
     try:
