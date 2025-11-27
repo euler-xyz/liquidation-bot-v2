@@ -1,0 +1,64 @@
+# syntax=docker/dockerfile:1
+
+ARG PLATFORM=linux/amd64
+FROM --platform=${PLATFORM} debian:trixie-slim AS build
+
+RUN apt-get update && apt-get install -y curl git bash 
+
+COPY . /app
+WORKDIR /app
+
+RUN ls -la /app
+
+# Install Foundry
+RUN curl -L https://foundry.paradigm.xyz | bash
+RUN /root/.foundry/bin/foundryup --install nightly
+
+# Run Forge commands
+RUN /root/.foundry/bin/forge install
+RUN /root/.foundry/bin/forge update
+RUN /root/.foundry/bin/forge build
+
+FROM --platform=${PLATFORM} debian:trixie-slim AS runtime
+
+RUN apt-get update && apt-get install -y adduser python3-full virtualenv && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app /app
+
+RUN ls -la /app
+
+RUN mkdir -p /app/logs /app/state
+
+WORKDIR /app
+
+RUN ls -la
+
+# Install Python dependencies
+RUN virtualenv .venv
+RUN ./.venv/bin/pip install --upgrade pip setuptools wheel
+RUN ./.venv/bin/pip install -r requirements.txt
+
+# Create a non-privileged user
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+
+
+# Set correct permissions
+RUN chown -R appuser:appuser /app && \
+    chmod -R 755 /app && \
+    chmod 777 /app/logs /app/state
+
+USER appuser
+
+EXPOSE 8080
+
+# CMD ["python", "python/liquidation_bot.py"]
+# Run the application
+CMD [".venv/bin/gunicorn", "--bind", "0.0.0.0:8080", "application:application"]

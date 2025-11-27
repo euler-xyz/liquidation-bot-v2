@@ -1,6 +1,7 @@
 """
 CDK Stack for deploying mewler-liquidation-bot to ECS Fargate
 """
+
 import os
 from typing import Dict, Optional
 from aws_cdk import (
@@ -28,14 +29,12 @@ class MewlerLiquidationBotStack(Stack):
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # Import existing VPC
         vpc = ec2.Vpc.from_lookup(
             self,
             "ImportedVPC",
             vpc_id=vpc_id,
         )
 
-        # Import existing ECS cluster
         cluster = ecs.Cluster.from_cluster_attributes(
             self,
             "ImportedCluster",
@@ -44,16 +43,12 @@ class MewlerLiquidationBotStack(Stack):
             security_groups=[],
         )
 
-        # Import or create secret if secret_name is provided
-        secret = None
-        if secret_name:
-            secret = secretsmanager.Secret.from_secret_name_v2(
-                self,
-                "AppSecret",
-                secret_name=secret_name,
-            )
+        secret = secretsmanager.Secret.from_secret_name_v2(
+            self,
+            "AppSecret",
+            secret_name=secret_name,
+        )
 
-        # Create task execution role
         task_execution_role = iam.Role(
             self,
             "TaskExecutionRole",
@@ -65,92 +60,53 @@ class MewlerLiquidationBotStack(Stack):
             ],
         )
 
-        # Create task role
         task_role = iam.Role(
             self,
             "TaskRole",
             assumed_by=iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
         )
 
-        # Add permissions to access secrets if secret is provided
-        if secret:
-            task_execution_role.add_to_policy(
-                iam.PolicyStatement(
-                    actions=["secretsmanager:GetSecretValue"],
-                    resources=[secret.secret_arn],
-                )
+        task_execution_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["secretsmanager:GetSecretValue"],
+                resources=[secret.secret_arn],
             )
-            task_role.add_to_policy(
-                iam.PolicyStatement(
-                    actions=["secretsmanager:GetSecretValue"],
-                    resources=[secret.secret_arn],
-                )
+        )
+        task_role.add_to_policy(
+            iam.PolicyStatement(
+                actions=["secretsmanager:GetSecretValue"],
+                resources=[secret.secret_arn],
             )
+        )
 
-        # Create task definition
         task_definition = ecs.FargateTaskDefinition(
             self,
             "TaskDefinition",
             family="mewler-liquidation-bot",
-            cpu=1024,  # 1 vCPU
-            memory_limit_mib=2048,  # 2 GB
+            cpu=2048,  # 2 vCPU
+            memory_limit_mib=4096,  # 4 GB
             execution_role=task_execution_role,
             task_role=task_role,
         )
 
-        # Build Docker image from Dockerfile
-        # Get the project root directory (parent of cdk directory)
+        # AWK: For AWS we can provide a different Dockerfile that doesn't need to checkout the repo.
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         image = ecs.ContainerImage.from_asset(
             project_root,
-            file="Dockerfile",
-            build_args={
-                "GIT_REPO_URL": os.getenv("GIT_REPO_URL", ""),
-                "GIT_BRANCH": os.getenv("GIT_BRANCH", "main"),
-            },
+            file="Dockerfile.aws",
         )
 
-        # Prepare environment variables
-        # Start with any provided container_environment
         env_vars = container_environment.copy() if container_environment else {}
-        
-        # Add environment variables from os.getenv for non-sensitive values
-        # These can be set at CDK deploy time
-        optional_env_vars = [
-            "GLUEX_API_URL",
-            "SLACK_WEBHOOK_URL",
-            "RISK_DASHBOARD_URL",
-            "LIQUIDATOR_EOA",
-        ]
-        for env_var in optional_env_vars:
-            value = os.getenv(env_var)
-            if value:
-                env_vars[env_var] = value
 
-        # Prepare secrets mapping
         secrets = {}
-        if secret:
-            # Map common secret keys that might be in Secrets Manager
-            # Users can customize these based on their secret structure
-            secret_keys = [
-                "LIQUIDATOR_EOA_PRIVATE_KEY",
-                "MAINNET_RPC_URL",
-                "BASE_RPC_URL",
-                "SWELL_RPC_URL",
-                "SONIC_RPC_URL",
-                "BOB_RPC_URL",
-                "BERA_RPC_URL",
-                "GLUEX_API_KEY",
-                "GLUEX_UNIQUE_PID",
-                "SLACK_WEBHOOK_URL",  # Can be in secrets or env
-            ]
-            
-            for key in secret_keys:
-                # Only add if not already in env_vars (env vars take precedence)
-                if key not in env_vars:
-                    secrets[key] = ecs.Secret.from_secrets_manager(secret, key)
+        required_secret_keys = [
+            "LIQUIDATOR_EOA",
+            "LIQUIDATOR_PRIVATE_KEY",
+        ]
 
-        # Add container to task definition
+        for key in required_secret_keys:
+            secrets[key] = ecs.Secret.from_secrets_manager(secret, key)
+
         container = task_definition.add_container(
             "mewler-liquidation-bot",
             image=image,
@@ -161,9 +117,18 @@ class MewlerLiquidationBotStack(Stack):
                 stream_prefix="mewler-liquidation-bot",
                 log_retention=logs.RetentionDays.THREE_DAYS,
             ),
+            health_check=ecs.HealthCheck(
+                command=[
+                    "CMD-SHELL",
+                    "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health').read()\" || exit 1",
+                ],
+                interval=Duration.seconds(30),
+                timeout=Duration.seconds(5),
+                retries=3,
+                start_period=Duration.seconds(60),  # Allow time for app to start
+            ),
         )
 
-        # Expose port 8080
         container.add_port_mappings(
             ecs.PortMapping(
                 container_port=8080,
@@ -171,7 +136,6 @@ class MewlerLiquidationBotStack(Stack):
             )
         )
 
-        # Create Fargate service
         service = ecs.FargateService(
             self,
             "Service",
@@ -182,8 +146,3 @@ class MewlerLiquidationBotStack(Stack):
             min_healthy_percent=0,
             max_healthy_percent=200,
         )
-
-        # Add health check (optional, but good practice)
-        # Note: ECS will use the container's health check if configured
-        # For now, we rely on the /health endpoint in the Flask app
-

@@ -43,11 +43,13 @@ cdk deploy --app "python3 cdk/app.py"
 
 The application requires several environment variables at runtime. You can provide them in two ways:
 
-#### Option 1: AWS Secrets Manager (Recommended for sensitive values)
+#### Option 1: AWS Secrets Manager (Required for sensitive values)
 
 1. Create a secret in AWS Secrets Manager (e.g., `mewler-liquidation-bot/config`)
-2. Add the following keys to the secret:
-   - `LIQUIDATOR_EOA_PRIVATE_KEY` - Private key for the liquidator EOA
+2. Add the following **required** keys to the secret:
+   - `LIQUIDATOR_EOA` - Public address of the liquidator EOA (required)
+   - `LIQUIDATOR_PRIVATE_KEY` - Private key for the liquidator EOA (required)
+3. Add the following **optional** keys to the secret:
    - `MAINNET_RPC_URL` - Mainnet RPC endpoint
    - `BASE_RPC_URL` - Base chain RPC endpoint (if using Base)
    - `SWELL_RPC_URL` - Swell chain RPC endpoint (if using Swell)
@@ -58,11 +60,13 @@ The application requires several environment variables at runtime. You can provi
    - `GLUEX_UNIQUE_PID` - Gluex unique PID
    - `SLACK_WEBHOOK_URL` - Slack webhook URL (optional)
 
-3. Set the secret name when deploying:
+3. Set the secret name when deploying (required):
 ```bash
 export SECRET_NAME="mewler-liquidation-bot/config"
 cdk deploy --app "python3 cdk/app.py"
 ```
+
+**Note:** `LIQUIDATOR_EOA` and `LIQUIDATOR_PRIVATE_KEY` must be in Secrets Manager. They cannot be provided via environment variables.
 
 #### Option 2: Environment Variables (for non-sensitive values)
 
@@ -94,9 +98,13 @@ The stack uses:
 ### Required Environment Variables
 
 The application needs these environment variables (from config_loader.py):
+
+**Must be in AWS Secrets Manager (cannot be provided via environment variables):**
 - `LIQUIDATOR_EOA` - Public address of the liquidator EOA
-- `LIQUIDATOR_EOA_PRIVATE_KEY` - Private key (use Secrets Manager)
-- `MAINNET_RPC_URL` - Mainnet RPC endpoint (use Secrets Manager)
+- `LIQUIDATOR_PRIVATE_KEY` - Private key for the liquidator EOA
+
+**Can be in Secrets Manager or environment variables:**
+- `MAINNET_RPC_URL` - Mainnet RPC endpoint
 - `{CHAIN}_RPC_URL` - Chain-specific RPC (e.g., `BASE_RPC_URL`, `SWELL_RPC_URL`, etc.)
 
 ### Optional Environment Variables
