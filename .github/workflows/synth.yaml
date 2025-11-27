@@ -22,7 +22,7 @@ jobs:
         with:
           submodules: "recursive"
 
-      - uses: ./.github/actions/deploy-cdk-stack
+      - uses: ./.github/actions/cdk-synth
         with:
           account: ${{ inputs.account }}
           region: ${{ inputs.region }}

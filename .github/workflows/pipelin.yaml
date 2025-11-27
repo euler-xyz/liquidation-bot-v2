@@ -3,8 +3,10 @@ name: Deploy to Production
 on:
   push:
     branches: [main]
+
   pull_request:
     branches: [main]
+    
   workflow_dispatch: {}
 
 permissions:
@@ -18,8 +20,17 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     name: Deploy | Production
     uses: ./.github/workflows/deploy.yaml
     with:
-      account: ${{ inputs.account }}
-      region: ${{ inputs.region }}
+      account: "730335381248"
+      region: "ap-northeast-1"
+
+  synth:
+    if: github.event_name == 'pull_request'
+    name: Dry Run | Production
+    uses: ./.github/workflows/synth.yaml
+    with:
+      account: "730335381248"
+      region: "ap-northeast-1"

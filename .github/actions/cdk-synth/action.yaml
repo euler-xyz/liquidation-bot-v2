@@ -1,13 +1,15 @@
 name: Deploy CDK Stack
-description: Deploys individual CDK Stacks defined in `infrastructure/index.ts`
+description: Deploys individual CDK Stacks defined in `cdk/app.py` using Python CDK
 
 inputs:
   account:
     description: The AWS account id to deploy to
-    required: true
+    required: false
+    default: "730335381248"
   region:
     description: The AWS region to deploy to
-    required: true
+    required: false
+    default: "ap-northeast-1"
   stacks:
     description: The stacks to deploy, separated by ' '
     required: true
@@ -21,7 +23,7 @@ inputs:
     default: ""
   python-version:
     description: The Python version to use
-    required: true
+    required: false
     default: "3.13"
 
 runs:
@@ -32,23 +34,27 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Set up Python virtual environment
-      working-directory: ./cdk
+    - name: Install CDK CLI
+      shell: bash
+      run: npm install -g aws-cdk
+
+    - name: Install Python dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}/cdk
       run: |
-        python -m venv .venv
-        source .venv/bin/activate
-        pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: configure aws credentials
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@master
       with:
         role-to-assume: arn:aws:iam::${{ inputs.account }}:role/github-actions
         aws-region: ${{ inputs.region }}
 
     - name: Deploy | cdk
-      uses: scottbrenner/aws-cdk-action@v1.6.0
-      with:
-        args: deploy --exclusively ${{ inputs.stacks }} --require-approval never ${{ inputs.deploy-parameters }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        CDK_DEPLOY_ACCOUNT: ${{ inputs.account }}
+        CDK_DEPLOY_REGION: ${{ inputs.region }}
+      run: cdk synth --exclusively ${{ inputs.stacks }} --require-approval never ${{ inputs.deploy-parameters }}
