@@ -1,0 +1,54 @@
+name: Deploy CDK Stack
+description: Deploys individual CDK Stacks defined in `infrastructure/index.ts`
+
+inputs:
+  account:
+    description: The AWS account id to deploy to
+    required: true
+  region:
+    description: The AWS region to deploy to
+    required: true
+  stacks:
+    description: The stacks to deploy, separated by ' '
+    required: true
+  working-directory:
+    required: false
+    description: An optional working directory where the CDK code is located
+    default: ./
+  deploy-parameters:
+    required: false
+    description: Optional additional parameters for 'cdk-deploy'
+    default: ""
+  python-version:
+    description: The Python version to use
+    required: true
+    default: "3.13"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Set up Python virtual environment
+      working-directory: ./cdk
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: configure aws credentials
+      uses: aws-actions/configure-aws-credentials@master
+      with:
+        role-to-assume: arn:aws:iam::${{ inputs.account }}:role/github-actions
+        aws-region: ${{ inputs.region }}
+
+    - name: Deploy | cdk
+      uses: scottbrenner/aws-cdk-action@v1.6.0
+      with:
+        args: deploy --exclusively ${{ inputs.stacks }} --require-approval never ${{ inputs.deploy-parameters }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}

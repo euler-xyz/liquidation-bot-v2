@@ -1,0 +1,27 @@
+name: Workflow | Deploy
+
+on:
+  workflow_call:
+    inputs:
+      account:
+        required: true
+        type: string
+      region:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
+      - uses: ./.github/actions/deploy-cdk-stack
+        with:
+          account: ${{ inputs.account }}
+          region: ${{ inputs.region }}
+          stacks: mewler-liquidation-bot
