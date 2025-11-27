@@ -93,6 +93,31 @@ global:
   MAINNET_BTC_ADAPTER: "0x0484Df76f561443d93548D86740b5C4A826e5A33"
 
 chains:
+  # HyperEVM Mainnet
+  999:
+    # Config
+    name: "HyperEVM"
+    EVC_DEPLOYMENT_BLOCK: 1980586
+    EXPLORER_URL: "https://hyperevmscan.io"
+    RPC_NAME: "HYPEREVM_MAINNET_RPC_URL"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0x7D1c33cfD2637b3112893F058Ca2bEaDEad0a9F4"
+
+      #EVK Addresses
+      EVC: "0xceAA7cdCD7dDBee8601127a9Abb17A974d613db4"
+      SWAPPER: "0x7Ad9b79921D949C6dD6bA1384fE6884F9dFaFe09"
+      SWAP_VERIFIER: "0x7B3cBc937D5c84B5F863Ddb3a71c5a1740A8E9E1"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xBe6727B535545C67d5cAa73dEa54865B92CF7907" # UETH
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0x9FDBdA0A5e284c32744D2f17Ee5c74B284993463" # UBTC
+      
+      # PYTH address
+      PYTH: "0xe9d69CdD6Fe41e7B621B4A688C5D1a68cB5c8ADc"
+  
   # ETH Mainnet
   1:
     # Config
