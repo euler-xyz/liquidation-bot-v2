@@ -29,6 +29,7 @@ MewlerLiquidationBotStack(
         # Non-sensitive configuration values
         # RPC URLs (can be overridden by secrets)
         "MAINNET_RPC_URL": "https://eth-mainnet.g.alchemy.com/v2/FDD0XfX77DTxUk3qykJ3U",
+        "HYPEREVM_MAINNET_RPC_URL": "https://eth-mainnet.g.alchemy.com/v2/FDD0XfX77DTxUk3qykJ3U",
         "BASE_RPC_URL": "https://eth-mainnet.g.alchemy.com/v2/FDD0XfX77DTxUk3qykJ3U",
         "ARBITRUM_RPC_URL": "https://eth-mainnet.g.alchemy.com/v2/FDD0XfX77DTxUk3qykJ3U",
         # GlueX API Configuration (can be overridden by secrets)
