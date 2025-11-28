@@ -12,6 +12,8 @@ on:
             type: string
             default: "ap-northeast-1"
 
+    workflow_dispatch: {}
+
 jobs:
   liquidator-backend:
     runs-on: ubuntu-latest
