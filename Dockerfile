@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.12.5
-FROM 310118226683.dkr.ecr.eu-west-1.amazonaws.com/python:${PYTHON_VERSION} as base
+FROM ${IMAGE_LINK}:${PYTHON_VERSION} as base
 
 # Copy the project files
 COPY . .

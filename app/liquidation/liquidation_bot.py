@@ -1258,6 +1258,8 @@ class Liquidator:
         logger.info("Leftover borrow in eth: %s", leftover_borrow_in_eth)
         logger.info("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
         logger.info("Suggested gas price: %s", suggested_gas_price)
+        logger.info("Liquidator: Liquidation params for account %s: %s", violator_address, params)
+        logger.info("Liquidator: Liquidation swap_data for account %s: %s", violator_address, swap_data)
 
         net_profit = leftover_borrow_in_eth - (
             config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
