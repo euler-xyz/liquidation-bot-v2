@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.12.5
+ARG IMAGE_LINK=python
 FROM ${IMAGE_LINK}:${PYTHON_VERSION} as base
 
 # Copy the project files
