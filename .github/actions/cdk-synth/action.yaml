@@ -17,6 +17,10 @@ inputs:
     required: false
     description: An optional working directory where the CDK code is located
     default: ./
+  deploy-parameters:
+    required: false
+    description: Optional additional parameters for 'cdk-deploy'
+    default: ""
   python-version:
     description: The Python version to use
     required: false
@@ -53,4 +57,4 @@ runs:
       env:
         CDK_DEPLOY_ACCOUNT: ${{ inputs.account }}
         CDK_DEPLOY_REGION: ${{ inputs.region }}
-      run: cdk synth --exclusively ${{ inputs.stacks }}
+      run: cdk synth --exclusively ${{ inputs.stacks }} --require-approval never ${{ inputs.deploy-parameters }}

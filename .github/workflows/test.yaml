@@ -4,11 +4,11 @@ on:
     workflow_call:
         inputs:
           account:
-            required: true
+            required: false
             type: string
             default: "730335381248"
           region:
-            required: true
+            required: false
             type: string
             default: "ap-northeast-1"
 

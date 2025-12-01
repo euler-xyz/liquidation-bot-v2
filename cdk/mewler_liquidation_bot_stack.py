@@ -98,21 +98,17 @@ class MewlerLiquidationBotStack(Stack):
 
         env_vars = container_environment.copy() if container_environment else {}
 
-        secrets = {}
-        required_secret_keys = [
-            "LIQUIDATOR_EOA",
-            "LIQUIDATOR_PRIVATE_KEY",
-        ]
 
-        for key in required_secret_keys:
-            secrets[key] = ecs.Secret.from_secrets_manager(secret, key)
+        doppler_token = ecs.Secret.from_secrets_manager(secret, "DOPPLER_TOKEN")
 
         container = task_definition.add_container(
             "mewler-liquidation-bot",
             image=image,
             memory_limit_mib=2048,
             environment=env_vars if env_vars else None,
-            secrets=secrets if secrets else None,
+            secrets={
+                "DOPPLER_TOKEN": doppler_token,
+            },
             logging=ecs.LogDriver.aws_logs(
                 stream_prefix="mewler-liquidation-bot",
                 log_retention=logs.RetentionDays.THREE_DAYS,
