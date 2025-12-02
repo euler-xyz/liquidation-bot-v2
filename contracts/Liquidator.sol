@@ -23,7 +23,9 @@ contract Liquidator {
 
     error Unauthorized();
     error LessThanExpectedCollateralReceived();
+    error EmptyError();
 
+    /// @dev If _owner == address(0), the contract is not owned (callable by anyone)
     constructor(address _owner, address _swapperAddress, address _swapVerifierAddress, address _evcAddress, address _pythAddress) {
         owner = _owner;
         swapperAddress = _swapperAddress;
@@ -36,7 +38,7 @@ contract Liquidator {
     }
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Unauthorized");
+        require(owner == address(0) || msg.sender == owner, "Unauthorized");
         _;
     }
 
@@ -60,7 +62,7 @@ contract Liquidator {
         uint256 amountCollaterallSeized
     );
 
-    function liquidateSingleCollateral(LiquidationParams calldata params, bytes[] calldata swapperData) external returns (bool success) {
+    function liquidateSingleCollateral(LiquidationParams calldata params, bytes[] calldata swapperData) external onlyOwner returns (bool success) {
         bytes[] memory multicallItems = new bytes[](swapperData.length + 2);
 
         for (uint256 i = 0; i < swapperData.length; i++){
@@ -156,7 +158,7 @@ contract Liquidator {
         return true;
     }
 
-    function liquidateSingleCollateralWithPythOracle(LiquidationParams calldata params, bytes[] calldata swapperData, bytes[] calldata pythUpdateData) external payable returns (bool success) {
+    function liquidateSingleCollateralWithPythOracle(LiquidationParams calldata params, bytes[] calldata swapperData, bytes[] calldata pythUpdateData) external payable onlyOwner returns (bool success) {
         bytes[] memory multicallItems = new bytes[](swapperData.length + 2);
 
         for (uint256 i = 0; i < swapperData.length; i++){
@@ -260,6 +262,7 @@ contract Liquidator {
     // TODO: implement this as an operator so debt can be seized directly by whitelisted liquidators
     function liquidateFromExistingCollateralPosition(LiquidationParams calldata params)
         external
+        onlyOwner
         returns (bool success)
     {
         IEVC.BatchItem[] memory batchItems = new IEVC.BatchItem[](3);
@@ -358,5 +361,22 @@ contract Liquidator {
         (maxRepay, seizedCollateral) = abi.decode(batchItemsResult[1].result, (uint256, uint256));
 
         return (maxRepay, seizedCollateral);
+    }
+
+    /// @dev Allow arbitrary call when the Liquidator is owned. Can be used to e.g. sweep from owned Swapper
+    function ownerCall(address target, bytes calldata payload) external payable onlyOwner {
+        if (owner != address(0)) {
+            (bool success, bytes memory data) = target.call{value: msg.value}(payload);
+            if (!success) revertBytes(data);
+        }
+    }
+
+    function revertBytes(bytes memory errMsg) internal pure {
+        if (errMsg.length != 0) {
+            assembly {
+                revert(add(32, errMsg), mload(errMsg))
+            }
+        }
+        revert EmptyError();
     }
 }
