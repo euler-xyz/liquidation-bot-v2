@@ -1,34 +1,33 @@
-# Compiler files
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Foundry
 cache/
 out/
-
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/**/dry-run/
 broadcast/
 
-# Docs
-docs/
-
-# Dotenv file
+# Environment
 .env
-.env_local
-.copy_env
-.vscode
+.env.local
+.env.*.local
+
+# Logs and state
+logs/
+state/*.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Coverage
+coverage/
 lcov.info
 
-# Virtual env
-python-venv/
-venv/ 
-
-# Logs and save state
-logs/
-
-# Python cache files
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-/redstone_script/node_modules
+# Misc
+*.log

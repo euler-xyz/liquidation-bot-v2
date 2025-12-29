@@ -1,55 +1,83 @@
-# syntax=docker/dockerfile:1
+# Stage 1: Build Solidity contracts
+FROM ghcr.io/foundry-rs/foundry:latest AS foundry-builder
 
-ARG PYTHON_VERSION=3.12.5
-ARG IMAGE_LINK=python
-FROM ${IMAGE_LINK}:${PYTHON_VERSION} as base
+WORKDIR /app
 
-# Copy the project files
-COPY . .
+# Copy Solidity files
+COPY foundry.toml ./
+COPY contracts/ ./contracts/
+COPY lib/ ./lib/
+COPY remappings.txt ./
 
-RUN apt-get update && apt-get install -y nodejs npm
-
-# Initialize git repository
-RUN git init && \
-    git add -A && \
-    git commit -m "Initial commit"
-
-# Manually clone submodules
-RUN mkdir -p lib/forge-std && \
-    git clone https://github.com/foundry-rs/forge-std.git lib/forge-std
-
-# Run Forge commands
-RUN forge install --no-commit
-RUN forge update
+# Build contracts
 RUN forge build
 
-# Create a non-privileged user
-ARG UID=10001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    appuser
+# Stage 2: Build TypeScript application
+FROM oven/bun:1 AS builder
 
-RUN mkdir -p /app/logs /app/state
+WORKDIR /app
 
-# Install Python dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    python -m pip install -r requirements.txt
+# Copy package files
+COPY package.json bun.lockb* ./
 
-# Set correct permissions
-RUN chown -R appuser:appuser /app && \
-    chmod -R 755 /app && \
-    chmod 777 /app/logs /app/state
+# Install dependencies
+RUN bun install --frozen-lockfile
 
+# Copy source files
+COPY tsconfig.json ./
+COPY src/ ./src/
+
+# Copy built contract ABIs from foundry stage
+COPY --from=foundry-builder /app/out/ ./out/
+COPY --from=foundry-builder /app/contracts/*.json ./contracts/
+
+# Copy ABIs to blockchain/abi
+RUN mkdir -p src/blockchain/abi && \
+    cp contracts/*.json src/blockchain/abi/ && \
+    cp out/Liquidator.sol/Liquidator.json src/blockchain/abi/ && \
+    cp out/IERC20.sol/IERC20.json src/blockchain/abi/
+
+# Build application
+RUN bun build src/index.ts --outdir dist --target bun
+
+# Stage 3: Production image
+FROM oven/bun:1-slim
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/state && \
+    chown -R appuser:appgroup /app
+
+# Copy built files
+COPY --from=builder --chown=appuser:appgroup /app/dist/ ./dist/
+COPY --from=builder --chown=appuser:appgroup /app/node_modules/ ./node_modules/
+COPY --from=builder --chown=appuser:appgroup /app/src/blockchain/abi/ ./src/blockchain/abi/
+
+# Copy configuration
+COPY --chown=appuser:appgroup app/config.yaml ./app/config.yaml
+COPY --chown=appuser:appgroup contracts/*.json ./contracts/
+
+# Copy built contract ABIs
+COPY --from=foundry-builder --chown=appuser:appgroup /app/out/ ./out/
+
+# Switch to non-root user
 USER appuser
 
+# Expose port
 EXPOSE 8080
 
-# CMD ["python", "python/liquidation_bot.py"]
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "application:application"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Run application
+CMD ["bun", "run", "dist/index.js"]

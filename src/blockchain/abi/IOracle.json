@@ -1,0 +1,736 @@
+{
+  "abi": [
+    {
+      "type": "function",
+      "name": "STETH",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "WSTETH",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "base",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "cache",
+      "inputs": [],
+      "outputs": [
+        { "name": "", "type": "uint208", "internalType": "uint208" },
+        { "name": "", "type": "uint48", "internalType": "uint48" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "cross",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "description",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "string", "internalType": "string" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "fallbackOracle",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "fee",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint24", "internalType": "uint24" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "feed",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "feedDecimals",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint8", "internalType": "uint8" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "feedId",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "bytes32", "internalType": "bytes32" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getConfiguredOracle",
+      "inputs": [
+        { "name": "base", "type": "address", "internalType": "address" },
+        { "name": "quote", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getQuote",
+      "inputs": [
+        { "name": "inAmount", "type": "uint256", "internalType": "uint256" },
+        { "name": "base", "type": "address", "internalType": "address" },
+        { "name": "quote", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [
+        { "name": "outAmount", "type": "uint256", "internalType": "uint256" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getQuotes",
+      "inputs": [
+        { "name": "inAmount", "type": "uint256", "internalType": "uint256" },
+        { "name": "base", "type": "address", "internalType": "address" },
+        { "name": "quote", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [
+        {
+          "name": "bidOutAmount",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        { "name": "askOutAmount", "type": "uint256", "internalType": "uint256" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "governor",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "maxConfWidth",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "maxStaleness",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "name",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "string", "internalType": "string" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "oracleBaseCross",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "oracleCrossQuote",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "pool",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "pyth",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "quote",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "resolveOracle",
+      "inputs": [
+        { "name": "inAmount", "type": "uint256", "internalType": "uint256" },
+        { "name": "base", "type": "address", "internalType": "address" },
+        { "name": "quote", "type": "address", "internalType": "address" }
+      ],
+      "outputs": [
+        { "name": "", "type": "uint256", "internalType": "uint256" },
+        { "name": "", "type": "address", "internalType": "address" },
+        { "name": "", "type": "address", "internalType": "address" },
+        { "name": "", "type": "address", "internalType": "address" }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "resolvedVaults",
+      "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "tokenA",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "tokenB",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "twapWindow",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint32", "internalType": "uint32" }],
+      "stateMutability": "view"
+    }
+  ],
+  "bytecode": { "object": "0x", "sourceMap": "", "linkReferences": {} },
+  "deployedBytecode": { "object": "0x", "sourceMap": "", "linkReferences": {} },
+  "methodIdentifiers": {
+    "STETH()": "e00bfe50",
+    "WSTETH()": "d9fb643a",
+    "base()": "5001f3b5",
+    "cache()": "60c7d295",
+    "cross()": "fa074d03",
+    "description()": "7284e416",
+    "fallbackOracle()": "629838e5",
+    "fee()": "ddca3f43",
+    "feed()": "37a7b7d8",
+    "feedDecimals()": "c23953d0",
+    "feedId()": "4a643499",
+    "getConfiguredOracle(address,address)": "8aa77608",
+    "getQuote(uint256,address,address)": "ae68676c",
+    "getQuotes(uint256,address,address)": "0579e61f",
+    "governor()": "0c340a24",
+    "maxConfWidth()": "88df1eff",
+    "maxStaleness()": "87cf4696",
+    "name()": "06fdde03",
+    "oracleBaseCross()": "fd886700",
+    "oracleCrossQuote()": "6f612f9a",
+    "pool()": "16f0115b",
+    "pyth()": "f98d06f0",
+    "quote()": "999b93af",
+    "resolveOracle(uint256,address,address)": "8418e6f3",
+    "resolvedVaults(address)": "5ca40017",
+    "tokenA()": "0fc63d10",
+    "tokenB()": "5f64b55b",
+    "twapWindow()": "8107e133"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.24+commit.e11b9ed9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"STETH\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"WSTETH\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"base\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"cache\",\"outputs\":[{\"internalType\":\"uint208\",\"name\":\"\",\"type\":\"uint208\"},{\"internalType\":\"uint48\",\"name\":\"\",\"type\":\"uint48\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"cross\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"description\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"fallbackOracle\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"fee\",\"outputs\":[{\"internalType\":\"uint24\",\"name\":\"\",\"type\":\"uint24\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"feed\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"feedDecimals\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"feedId\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"base\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"quote\",\"type\":\"address\"}],\"name\":\"getConfiguredOracle\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"inAmount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"base\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"quote\",\"type\":\"address\"}],\"name\":\"getQuote\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"outAmount\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"inAmount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"base\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"quote\",\"type\":\"address\"}],\"name\":\"getQuotes\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"bidOutAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"askOutAmount\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"governor\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxConfWidth\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxStaleness\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"oracleBaseCross\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"oracleCrossQuote\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"pool\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"pyth\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"quote\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"inAmount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"base\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"quote\",\"type\":\"address\"}],\"name\":\"resolveOracle\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"resolvedVaults\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"tokenA\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"tokenB\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"twapWindow\",\"outputs\":[{\"internalType\":\"uint32\",\"name\":\"\",\"type\":\"uint32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"getQuote(uint256,address,address)\":{\"params\":{\"base\":\"The token that is being priced.\",\"inAmount\":\"The amount of `base` to convert.\",\"quote\":\"The token that is the unit of account.\"},\"returns\":{\"outAmount\":\"The amount of `quote` that is equivalent to `inAmount` of `base`.\"}},\"getQuotes(uint256,address,address)\":{\"params\":{\"base\":\"The token that is being priced.\",\"inAmount\":\"The amount of `base` to convert.\",\"quote\":\"The token that is the unit of account.\"},\"returns\":{\"askOutAmount\":\"The amount of `quote` you would spend for buying `inAmount` of `base`.\",\"bidOutAmount\":\"The amount of `quote` you would get for selling `inAmount` of `base`.\"}},\"name()\":{\"returns\":{\"_0\":\"The name of the oracle.\"}}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"getQuote(uint256,address,address)\":{\"notice\":\"One-sided price: How much quote token you would get for inAmount of base token, assuming no price spread.\"},\"getQuotes(uint256,address,address)\":{\"notice\":\"Two-sided price: How much quote token you would get/spend for selling/buying inAmount of base token.\"},\"name()\":{\"notice\":\"Get the name of the oracle.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"src/Lens/OracleLens.sol\":\"IOracle\"},\"evmVersion\":\"cancun\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":true,\"runs\":20000},\"remappings\":[\":@axiom-crypto/axiom-std/=lib/euler-price-oracle/lib/axiom-std/sr/\",\":@axiom-crypto/v2-periphery/=lib/euler-price-oracle/lib/axiom-v2-periphery/src/\",\":@openzeppelin/contracts/utils/math/=lib/euler-price-oracle/lib/openzeppelin-contracts/contracts/utils/math/\",\":@pyth/=lib/euler-price-oracle/lib/pyth-sdk-solidity/\",\":@redstone/evm-connector/=lib/euler-price-oracle/lib/redstone-oracles-monorepo/packages/evm-connector/contracts/\",\":@solady/=lib/euler-price-oracle/lib/solady/src/\",\":@uniswap/v3-core/=lib/euler-price-oracle/lib/v3-core/\",\":@uniswap/v3-periphery/=lib/euler-price-oracle/lib/v3-periphery/\",\":axiom-std/=lib/euler-price-oracle/lib/axiom-std/src/\",\":axiom-v2-periphery/=lib/euler-price-oracle/lib/axiom-v2-periphery/src/\",\":ds-test/=lib/ethereum-vault-connector/lib/forge-std/lib/ds-test/src/\",\":erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/\",\":ethereum-vault-connector/=lib/ethereum-vault-connector/src/\",\":euler-price-oracle-test/=lib/euler-price-oracle/test/\",\":euler-price-oracle/=lib/euler-price-oracle/src/\",\":euler-vault-kit/=lib/euler-vault-kit/src/\",\":evc/=lib/ethereum-vault-connector/src/\",\":evk-test/=lib/euler-vault-kit/test/\",\":evk/=lib/euler-vault-kit/src/\",\":fee-flow/=lib/fee-flow/src/\",\":forge-gas-snapshot/=lib/euler-vault-kit/lib/permit2/lib/forge-gas-snapshot/src/\",\":forge-std/=lib/forge-std/src/\",\":halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/\",\":openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/\",\":openzeppelin/=lib/ethereum-vault-connector/lib/openzeppelin-contracts/contracts/\",\":permit2/=lib/euler-vault-kit/lib/permit2/\",\":pyth-sdk-solidity/=lib/euler-price-oracle/lib/pyth-sdk-solidity/\",\":redstone-oracles-monorepo/=lib/euler-price-oracle/lib/\",\":reward-streams/=lib/reward-streams/src/\",\":solady/=lib/euler-price-oracle/lib/solady/src/\",\":solmate/=lib/fee-flow/lib/solmate/src/\",\":v3-core/=lib/euler-price-oracle/lib/v3-core/contracts/\",\":v3-periphery/=lib/euler-price-oracle/lib/v3-periphery/contracts/\"]},\"sources\":{\"lib/ethereum-vault-connector/src/interfaces/IVault.sol\":{\"keccak256\":\"0xb04fe66deccf8baa3e5c850f2ecf32e948393d7a42e78b59b037141b205edf42\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://11acaad66e9a42deec1f9328abe9f2662bfb109568baa20a79317ae707b94016\",\"dweb:/ipfs/QmQbAtvrk9cqXJJZgMRjdxrMDXiZPz37m6PGZYEpbtN8to\"]},\"lib/euler-price-oracle/src/interfaces/IPriceOracle.sol\":{\"keccak256\":\"0x03567dd4084dc74a9e2f9eeffce4d9047989b0d2122820716c3bc75891484308\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://23965a79475c85a0a8a3a137a76424f60debd9e592bc9127d463392fad7df30f\",\"dweb:/ipfs/QmPc1bV3kZ3ynLGTqG6xRbZ3E5AstYdfipXbysSqYGhJYA\"]},\"lib/euler-vault-kit/src/EVault/IEVault.sol\":{\"keccak256\":\"0x1e41f0fe57683c65b27afa6b725ee2c68128b540f682bba93e2dc135522ac6b3\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://86bb1872eb9073214b853663fb136157bea709bbcf626bb0a2bb2748a43f941d\",\"dweb:/ipfs/QmSWQPjHBBahLM3AsoVjHHYEBiBj8WbkQqCQLPNUJVMX1k\"]},\"lib/euler-vault-kit/src/EVault/shared/lib/RPow.sol\":{\"keccak256\":\"0xb471fd40087fc710f7a53eb3b559fa446b8cdc3f866644b0d5575995cec614c2\",\"license\":\"AGPL-3.0-or-later\",\"urls\":[\"bzz-raw://e54ae3486d6f7dcd8bc18251231836750d57e2c66e8f47836c19e2eedd9d45a8\",\"dweb:/ipfs/QmXNUPLE42A4Eiw3wrgPVWV9Qp7buvu4nzWNVdNUQ2MHGm\"]},\"lib/openzeppelin-contracts/contracts/access/Ownable.sol\":{\"keccak256\":\"0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6\",\"dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a\"]},\"lib/openzeppelin-contracts/contracts/utils/Context.sol\":{\"keccak256\":\"0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12\",\"dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF\"]},\"src/Lens/LensTypes.sol\":{\"keccak256\":\"0xd7893f48d1fa5ba6d44ee8c6620f49a7c9feb7db56e6384f4188675286956af9\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://0f635782d5f16d8f3afd07123e6d1f0e96b23da7051961108e56d4138cd512c0\",\"dweb:/ipfs/QmZtPpkfd5eKLDn5wLUYNWWLP8LSULm177ngJds82nYZSA\"]},\"src/Lens/OracleLens.sol\":{\"keccak256\":\"0xd622458da92aa88d69fb70a622c5808b10aee47579e03af3e4e45a92d6d01c0d\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://e1849e1339f78c96ee652323973e673003f5feb7b475244c44775e1fe1ddfd59\",\"dweb:/ipfs/QmbjdbE25Bq8FhTQDtyXr3pgq4CakKWnMf6zuvER4rdJ1j\"]},\"src/Lens/Utils.sol\":{\"keccak256\":\"0x3d6d9ca0feb93c47542b7cf399635734700971a02500d465afc94e1136660a40\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://280d5821c2d00f42e5ea1f88df9a345994da9593cc6130e3b626b5316e36f84f\",\"dweb:/ipfs/QmaXDq3Rv5MVShQFo5C8cnuhNhUw9NMqQv3Zn63YuFfcLq\"]},\"src/SnapshotRegistry/SnapshotRegistry.sol\":{\"keccak256\":\"0x20216f4473c0085110eec3a00e28a69f3b7377e0289e7d302c2e08c8ec32c64a\",\"license\":\"GPL-2.0-or-later\",\"urls\":[\"bzz-raw://d1b5cc9ae71f217d1bd974afe7ee73fff058215ecfb1a63eb1ba2194f00f8e23\",\"dweb:/ipfs/QmPU5mBq4AvPwH38HrK6j52vEctM1forJgPzshwoaGjHYC\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": { "version": "0.8.24+commit.e11b9ed9" },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "STETH",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "WSTETH",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "base",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "cache",
+          "outputs": [
+            { "internalType": "uint208", "name": "", "type": "uint208" },
+            { "internalType": "uint48", "name": "", "type": "uint48" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "cross",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "description",
+          "outputs": [
+            { "internalType": "string", "name": "", "type": "string" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "fallbackOracle",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "fee",
+          "outputs": [
+            { "internalType": "uint24", "name": "", "type": "uint24" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "feed",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "feedDecimals",
+          "outputs": [{ "internalType": "uint8", "name": "", "type": "uint8" }]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "feedId",
+          "outputs": [
+            { "internalType": "bytes32", "name": "", "type": "bytes32" }
+          ]
+        },
+        {
+          "inputs": [
+            { "internalType": "address", "name": "base", "type": "address" },
+            { "internalType": "address", "name": "quote", "type": "address" }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getConfiguredOracle",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "inAmount",
+              "type": "uint256"
+            },
+            { "internalType": "address", "name": "base", "type": "address" },
+            { "internalType": "address", "name": "quote", "type": "address" }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getQuote",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "outAmount",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "inAmount",
+              "type": "uint256"
+            },
+            { "internalType": "address", "name": "base", "type": "address" },
+            { "internalType": "address", "name": "quote", "type": "address" }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "getQuotes",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "bidOutAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "askOutAmount",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "governor",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxConfWidth",
+          "outputs": [
+            { "internalType": "uint256", "name": "", "type": "uint256" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "maxStaleness",
+          "outputs": [
+            { "internalType": "uint256", "name": "", "type": "uint256" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "name",
+          "outputs": [
+            { "internalType": "string", "name": "", "type": "string" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "oracleBaseCross",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "oracleCrossQuote",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "pool",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "pyth",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "quote",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "inAmount",
+              "type": "uint256"
+            },
+            { "internalType": "address", "name": "base", "type": "address" },
+            { "internalType": "address", "name": "quote", "type": "address" }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "resolveOracle",
+          "outputs": [
+            { "internalType": "uint256", "name": "", "type": "uint256" },
+            { "internalType": "address", "name": "", "type": "address" },
+            { "internalType": "address", "name": "", "type": "address" },
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "resolvedVaults",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "tokenA",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "tokenB",
+          "outputs": [
+            { "internalType": "address", "name": "", "type": "address" }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "twapWindow",
+          "outputs": [
+            { "internalType": "uint32", "name": "", "type": "uint32" }
+          ]
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {
+          "getQuote(uint256,address,address)": {
+            "params": {
+              "base": "The token that is being priced.",
+              "inAmount": "The amount of `base` to convert.",
+              "quote": "The token that is the unit of account."
+            },
+            "returns": {
+              "outAmount": "The amount of `quote` that is equivalent to `inAmount` of `base`."
+            }
+          },
+          "getQuotes(uint256,address,address)": {
+            "params": {
+              "base": "The token that is being priced.",
+              "inAmount": "The amount of `base` to convert.",
+              "quote": "The token that is the unit of account."
+            },
+            "returns": {
+              "askOutAmount": "The amount of `quote` you would spend for buying `inAmount` of `base`.",
+              "bidOutAmount": "The amount of `quote` you would get for selling `inAmount` of `base`."
+            }
+          },
+          "name()": { "returns": { "_0": "The name of the oracle." } }
+        },
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {
+          "getQuote(uint256,address,address)": {
+            "notice": "One-sided price: How much quote token you would get for inAmount of base token, assuming no price spread."
+          },
+          "getQuotes(uint256,address,address)": {
+            "notice": "Two-sided price: How much quote token you would get/spend for selling/buying inAmount of base token."
+          },
+          "name()": { "notice": "Get the name of the oracle." }
+        },
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        "@axiom-crypto/axiom-std/=lib/euler-price-oracle/lib/axiom-std/sr/",
+        "@axiom-crypto/v2-periphery/=lib/euler-price-oracle/lib/axiom-v2-periphery/src/",
+        "@openzeppelin/contracts/utils/math/=lib/euler-price-oracle/lib/openzeppelin-contracts/contracts/utils/math/",
+        "@pyth/=lib/euler-price-oracle/lib/pyth-sdk-solidity/",
+        "@redstone/evm-connector/=lib/euler-price-oracle/lib/redstone-oracles-monorepo/packages/evm-connector/contracts/",
+        "@solady/=lib/euler-price-oracle/lib/solady/src/",
+        "@uniswap/v3-core/=lib/euler-price-oracle/lib/v3-core/",
+        "@uniswap/v3-periphery/=lib/euler-price-oracle/lib/v3-periphery/",
+        "axiom-std/=lib/euler-price-oracle/lib/axiom-std/src/",
+        "axiom-v2-periphery/=lib/euler-price-oracle/lib/axiom-v2-periphery/src/",
+        "ds-test/=lib/ethereum-vault-connector/lib/forge-std/lib/ds-test/src/",
+        "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+        "ethereum-vault-connector/=lib/ethereum-vault-connector/src/",
+        "euler-price-oracle-test/=lib/euler-price-oracle/test/",
+        "euler-price-oracle/=lib/euler-price-oracle/src/",
+        "euler-vault-kit/=lib/euler-vault-kit/src/",
+        "evc/=lib/ethereum-vault-connector/src/",
+        "evk-test/=lib/euler-vault-kit/test/",
+        "evk/=lib/euler-vault-kit/src/",
+        "fee-flow/=lib/fee-flow/src/",
+        "forge-gas-snapshot/=lib/euler-vault-kit/lib/permit2/lib/forge-gas-snapshot/src/",
+        "forge-std/=lib/forge-std/src/",
+        "halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
+        "openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/",
+        "openzeppelin/=lib/ethereum-vault-connector/lib/openzeppelin-contracts/contracts/",
+        "permit2/=lib/euler-vault-kit/lib/permit2/",
+        "pyth-sdk-solidity/=lib/euler-price-oracle/lib/pyth-sdk-solidity/",
+        "redstone-oracles-monorepo/=lib/euler-price-oracle/lib/",
+        "reward-streams/=lib/reward-streams/src/",
+        "solady/=lib/euler-price-oracle/lib/solady/src/",
+        "solmate/=lib/fee-flow/lib/solmate/src/",
+        "v3-core/=lib/euler-price-oracle/lib/v3-core/contracts/",
+        "v3-periphery/=lib/euler-price-oracle/lib/v3-periphery/contracts/"
+      ],
+      "optimizer": { "enabled": true, "runs": 20000 },
+      "metadata": { "bytecodeHash": "ipfs" },
+      "compilationTarget": { "src/Lens/OracleLens.sol": "IOracle" },
+      "evmVersion": "cancun",
+      "libraries": {}
+    },
+    "sources": {
+      "lib/ethereum-vault-connector/src/interfaces/IVault.sol": {
+        "keccak256": "0xb04fe66deccf8baa3e5c850f2ecf32e948393d7a42e78b59b037141b205edf42",
+        "urls": [
+          "bzz-raw://11acaad66e9a42deec1f9328abe9f2662bfb109568baa20a79317ae707b94016",
+          "dweb:/ipfs/QmQbAtvrk9cqXJJZgMRjdxrMDXiZPz37m6PGZYEpbtN8to"
+        ],
+        "license": "GPL-2.0-or-later"
+      },
+      "lib/euler-price-oracle/src/interfaces/IPriceOracle.sol": {
+        "keccak256": "0x03567dd4084dc74a9e2f9eeffce4d9047989b0d2122820716c3bc75891484308",
+        "urls": [
+          "bzz-raw://23965a79475c85a0a8a3a137a76424f60debd9e592bc9127d463392fad7df30f",
+          "dweb:/ipfs/QmPc1bV3kZ3ynLGTqG6xRbZ3E5AstYdfipXbysSqYGhJYA"
+        ],
+        "license": "GPL-2.0-or-later"
+      },
+      "lib/euler-vault-kit/src/EVault/IEVault.sol": {
+        "keccak256": "0x1e41f0fe57683c65b27afa6b725ee2c68128b540f682bba93e2dc135522ac6b3",
+        "urls": [
+          "bzz-raw://86bb1872eb9073214b853663fb136157bea709bbcf626bb0a2bb2748a43f941d",
+          "dweb:/ipfs/QmSWQPjHBBahLM3AsoVjHHYEBiBj8WbkQqCQLPNUJVMX1k"
+        ],
+        "license": "GPL-2.0-or-later"
+      },
+      "lib/euler-vault-kit/src/EVault/shared/lib/RPow.sol": {
+        "keccak256": "0xb471fd40087fc710f7a53eb3b559fa446b8cdc3f866644b0d5575995cec614c2",
+        "urls": [
+          "bzz-raw://e54ae3486d6f7dcd8bc18251231836750d57e2c66e8f47836c19e2eedd9d45a8",
+          "dweb:/ipfs/QmXNUPLE42A4Eiw3wrgPVWV9Qp7buvu4nzWNVdNUQ2MHGm"
+        ],
+        "license": "AGPL-3.0-or-later"
+      },
+      "lib/openzeppelin-contracts/contracts/access/Ownable.sol": {
+        "keccak256": "0xff6d0bb2e285473e5311d9d3caacb525ae3538a80758c10649a4d61029b017bb",
+        "urls": [
+          "bzz-raw://8ed324d3920bb545059d66ab97d43e43ee85fd3bd52e03e401f020afb0b120f6",
+          "dweb:/ipfs/QmfEckWLmZkDDcoWrkEvMWhms66xwTLff9DDhegYpvHo1a"
+        ],
+        "license": "MIT"
+      },
+      "lib/openzeppelin-contracts/contracts/utils/Context.sol": {
+        "keccak256": "0x493033a8d1b176a037b2cc6a04dad01a5c157722049bbecf632ca876224dd4b2",
+        "urls": [
+          "bzz-raw://6a708e8a5bdb1011c2c381c9a5cfd8a9a956d7d0a9dc1bd8bcdaf52f76ef2f12",
+          "dweb:/ipfs/Qmax9WHBnVsZP46ZxEMNRQpLQnrdE4dK8LehML1Py8FowF"
+        ],
+        "license": "MIT"
+      },
+      "src/Lens/LensTypes.sol": {
+        "keccak256": "0xd7893f48d1fa5ba6d44ee8c6620f49a7c9feb7db56e6384f4188675286956af9",
+        "urls": [
+          "bzz-raw://0f635782d5f16d8f3afd07123e6d1f0e96b23da7051961108e56d4138cd512c0",
+          "dweb:/ipfs/QmZtPpkfd5eKLDn5wLUYNWWLP8LSULm177ngJds82nYZSA"
+        ],
+        "license": "GPL-2.0-or-later"
+      },
+      "src/Lens/OracleLens.sol": {
+        "keccak256": "0xd622458da92aa88d69fb70a622c5808b10aee47579e03af3e4e45a92d6d01c0d",
+        "urls": [
+          "bzz-raw://e1849e1339f78c96ee652323973e673003f5feb7b475244c44775e1fe1ddfd59",
+          "dweb:/ipfs/QmbjdbE25Bq8FhTQDtyXr3pgq4CakKWnMf6zuvER4rdJ1j"
+        ],
+        "license": "GPL-2.0-or-later"
+      },
+      "src/Lens/Utils.sol": {
+        "keccak256": "0x3d6d9ca0feb93c47542b7cf399635734700971a02500d465afc94e1136660a40",
+        "urls": [
+          "bzz-raw://280d5821c2d00f42e5ea1f88df9a345994da9593cc6130e3b626b5316e36f84f",
+          "dweb:/ipfs/QmaXDq3Rv5MVShQFo5C8cnuhNhUw9NMqQv3Zn63YuFfcLq"
+        ],
+        "license": "GPL-2.0-or-later"
+      },
+      "src/SnapshotRegistry/SnapshotRegistry.sol": {
+        "keccak256": "0x20216f4473c0085110eec3a00e28a69f3b7377e0289e7d302c2e08c8ec32c64a",
+        "urls": [
+          "bzz-raw://d1b5cc9ae71f217d1bd974afe7ee73fff058215ecfb1a63eb1ba2194f00f8e23",
+          "dweb:/ipfs/QmPU5mBq4AvPwH38HrK6j52vEctM1forJgPzshwoaGjHYC"
+        ],
+        "license": "GPL-2.0-or-later"
+      }
+    },
+    "version": 1
+  },
+  "id": 205
+}
