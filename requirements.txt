@@ -45,9 +45,10 @@ py-solc-x==2.0.3
 pycares==4.4.0
 pycparser==2.22
 pycryptodome==3.20.0
+psycopg2-binary==2.9.10
 pylint==3.2.5
 python-dotenv==1.0.1
-pyunormalize==15.1.0
+pyunormalize>=16.0.0
 PyYAML==6.0.1
 referencing==0.35.1
 regex==2024.5.15

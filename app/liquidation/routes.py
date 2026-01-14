@@ -4,6 +4,7 @@ import math
 
 from .liquidation_bot import logger
 from .bot_manager import ChainManager
+from .db import get_cache
 
 liquidation = Blueprint("liquidation", __name__)
 
@@ -47,3 +48,27 @@ def get_all_positions():
         })
 
     return make_response(jsonify(response))
+
+@liquidation.route("/cacheStats", methods=["GET"])
+def get_cache_stats():
+    """Get database cache statistics for a chain"""
+    chain_id = int(request.args.get("chainId", 1))
+    
+    if not chain_manager or chain_id not in chain_manager.monitors:
+        return jsonify({"error": f"Monitor not initialized for chain {chain_id}"}), 500
+
+    try:
+        config = chain_manager.monitors[chain_id].config
+        cache = get_cache(config.DB_PATH)
+        stats = cache.get_stats(chain_id)
+        
+        return make_response(jsonify({
+            "chain_id": chain_id,
+            "vault_count": stats['vault_count'],
+            "account_count": stats['account_count'],
+            "last_processed_block": stats['last_processed_block'],
+            "db_path": config.DB_PATH
+        }))
+    except Exception as ex:
+        logger.error("API: Failed to get cache stats: %s", ex)
+        return jsonify({"error": str(ex)}), 500

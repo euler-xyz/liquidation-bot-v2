@@ -29,6 +29,7 @@ from app.liquidation.utils import (setup_logger,
                    get_btc_usd_quote)
 
 from app.liquidation.config_loader import ChainConfig
+from app.liquidation.db import get_cache, BaseDatabaseCache
 
 ### ENVIRONMENT & CONFIG SETUP ###
 logger = setup_logger()
@@ -41,23 +42,58 @@ class Vault:
     """
     Represents a vault in the EVK System.
     This class provides methods to interact with a specific vault contract.
-    This does not need to be serialized as it does not store any state
+    Uses database cache to avoid redundant RPC calls for static metadata.
     """
-    def __init__(self, address, config: ChainConfig):
+    def __init__(self, address, config: ChainConfig, use_cache: bool = True):
         self.config = config
-        
         self.address = address
         self.instance = create_contract_instance(address, self.config.EVAULT_ABI_PATH, self.config)
 
-        self.underlying_asset_address = self.instance.functions.asset().call()
-        self.vault_name = self.instance.functions.name().call()
-        self.vault_symbol = self.instance.functions.symbol().call()
-
-        self.unit_of_account = self.instance.functions.unitOfAccount().call()
-        self.oracle_address = self.instance.functions.oracle().call()
-
         self.pyth_feed_ids = []
         self.last_pyth_feed_ids_update = 0
+        
+        # Try to load from cache first
+        loaded_from_cache = False
+        if use_cache:
+            try:
+                cache = get_cache(config.DB_PATH)
+                cached = cache.get_vault(address, config.CHAIN_ID)
+                if cached:
+                    self.underlying_asset_address = cached['underlying_asset_address']
+                    self.vault_name = cached['vault_name']
+                    self.vault_symbol = cached['vault_symbol']
+                    self.unit_of_account = cached['unit_of_account']
+                    self.oracle_address = cached['oracle_address']
+                    loaded_from_cache = True
+                    logger.info("Vault: Loaded %s (%s) metadata from cache", 
+                               self.vault_symbol, address)
+            except Exception as ex:
+                logger.warning("Vault: Failed to load from cache: %s", ex)
+        
+        # Fetch from chain if not cached
+        if not loaded_from_cache:
+            logger.info("Vault: Fetching %s metadata from chain...", address)
+            self.underlying_asset_address = self.instance.functions.asset().call()
+            self.vault_name = self.instance.functions.name().call()
+            self.vault_symbol = self.instance.functions.symbol().call()
+            self.unit_of_account = self.instance.functions.unitOfAccount().call()
+            self.oracle_address = self.instance.functions.oracle().call()
+            
+            # Save to cache for next time
+            if use_cache:
+                try:
+                    cache = get_cache(config.DB_PATH)
+                    cache.save_vault(
+                        address=address,
+                        chain_id=config.CHAIN_ID,
+                        underlying_asset_address=self.underlying_asset_address,
+                        vault_name=self.vault_name,
+                        vault_symbol=self.vault_symbol,
+                        unit_of_account=self.unit_of_account,
+                        oracle_address=self.oracle_address
+                    )
+                except Exception as ex:
+                    logger.warning("Vault: Failed to save to cache: %s", ex)
 
     def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
         """
@@ -322,7 +358,8 @@ class Account:
         """
         controller = vaults.get(data["controller_address"])
         if not controller:
-            controller = Vault(data["controller_address"], config)
+            # Use cache when creating vault from stored data
+            controller = Vault(data["controller_address"], config, use_cache=True)
             vaults[data["controller_address"]] = controller
         account = Account(address=data["address"], controller=controller, config=config)
         account.time_of_next_update = data["time_of_next_update"]
@@ -403,9 +440,9 @@ class AccountMonitor:
             vault_address (str): The address of the vault associated with the account.
         """
 
-        # If the vault is not already tracked in the list, create it
+        # If the vault is not already tracked in the list, create it (with cache)
         if vault_address not in self.vaults:
-            self.vaults[vault_address] = Vault(vault_address, self.config)
+            self.vaults[vault_address] = Vault(vault_address, self.config, use_cache=True)
             logger.info("AccountMonitor: Vault %s added to vault list.", vault_address)
 
         vault = self.vaults[vault_address]
@@ -558,30 +595,50 @@ class AccountMonitor:
 
     def save_state(self, local_save: bool = True) -> None:
         """
-        Save the current state of the account monitor.
+        Save the current state of the account monitor to database and optionally JSON.
 
         Args:
             local_save (bool, optional): Whether to save the state locally. Defaults to True.
         """
         try:
-            state = {
-                "accounts": {address: account.to_dict()
-                             for address, account in self.accounts.items()},
-                "vaults": {address: vault.address for address, vault in self.vaults.items()},
-                "queue": list(self.update_queue.queue),
-                "last_saved_block": self.latest_block,
-            }
-
+            # Save to database
+            cache = get_cache(self.config.DB_PATH)
+            
+            # Save accounts to DB
+            accounts_data = []
+            for address, account in self.accounts.items():
+                accounts_data.append({
+                    'address': address,
+                    'controller_address': account.controller.address,
+                    'time_of_next_update': account.time_of_next_update,
+                    'current_health_score': account.current_health_score,
+                    'balance': account.balance,
+                    'value_borrowed': account.value_borrowed,
+                    'owner': account.owner,
+                    'subaccount_number': account.subaccount_number
+                })
+            
+            if accounts_data:
+                cache.save_accounts_batch(accounts_data, self.chain_id)
+            
+            # Save last processed block
+            cache.save_last_processed_block(self.chain_id, self.latest_block)
+            
+            # Also save to JSON for backward compatibility
             if local_save:
+                state = {
+                    "accounts": {address: account.to_dict()
+                                 for address, account in self.accounts.items()},
+                    "vaults": {address: vault.address for address, vault in self.vaults.items()},
+                    "queue": list(self.update_queue.queue),
+                    "last_saved_block": self.latest_block,
+                }
                 with open(self.config.SAVE_STATE_PATH, "w", encoding="utf-8") as f:
                     json.dump(state, f)
-            else:
-                # Save to remote location
-                pass
 
             self.last_saved_block = self.latest_block
 
-            logger.info("AccountMonitor: State saved at time %s up to block %s",
+            logger.info("AccountMonitor: State saved to DB at time %s up to block %s",
                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
                         self.latest_block)
         except Exception as ex: # pylint: disable=broad-except
@@ -589,19 +646,74 @@ class AccountMonitor:
 
     def load_state(self, save_path: str, local_save: bool = True) -> None:
         """
-        Load the state of the account monitor from a file.
+        Load the state of the account monitor from database (preferred) or JSON file.
 
         Args:
-            save_path (str): The path to the saved state file.
+            save_path (str): The path to the saved state file (fallback).
             local_save (bool, optional): Whether the state is saved locally. Defaults to True.
         """
         try:
+            cache = get_cache(self.config.DB_PATH)
+            
+            # Try to load from database first
+            cached_accounts = cache.get_all_accounts(self.chain_id)
+            cached_vaults = cache.get_all_vaults(self.chain_id)
+            last_block = cache.get_last_processed_block(self.chain_id)
+            
+            if cached_accounts and cached_vaults and last_block:
+                logger.info("AccountMonitor: Loading state from database cache...")
+                
+                # Load vaults (metadata is cached, so this is fast)
+                self.vaults = {}
+                for vault_data in cached_vaults:
+                    address = vault_data['address']
+                    self.vaults[address] = Vault(address, self.config, use_cache=True)
+                logger.info("Loaded %s vaults from DB cache: %s", 
+                           len(self.vaults), list(self.vaults.keys()))
+                
+                # Load accounts
+                self.accounts = {}
+                for acc_data in cached_accounts:
+                    address = acc_data['address']
+                    controller_address = acc_data['controller_address']
+                    
+                    # Get or create vault
+                    if controller_address not in self.vaults:
+                        self.vaults[controller_address] = Vault(controller_address, self.config, use_cache=True)
+                    
+                    account = Account(address, self.vaults[controller_address], self.config)
+                    account.time_of_next_update = acc_data['time_of_next_update']
+                    account.current_health_score = acc_data['current_health_score']
+                    account.balance = acc_data.get('balance', 0)
+                    account.value_borrowed = acc_data.get('value_borrowed', 0)
+                    if acc_data.get('owner'):
+                        account.owner = acc_data['owner']
+                    if acc_data.get('subaccount_number') is not None:
+                        account.subaccount_number = acc_data['subaccount_number']
+                    
+                    self.accounts[address] = account
+                
+                logger.info("Loaded %s accounts from DB cache", len(self.accounts))
+                
+                self.last_saved_block = last_block
+                self.latest_block = last_block
+                
+                # Rebuild queue with fresh health scores
+                self.rebuild_queue()
+                
+                logger.info("AccountMonitor: State loaded from DB cache, "
+                           "last block: %s", self.latest_block)
+                return
+            
+            # Fallback to JSON file if DB is empty
+            logger.info("AccountMonitor: No DB cache found, trying JSON file...")
             if local_save and os.path.exists(save_path):
                 print(save_path)
                 with open(save_path, "r", encoding="utf-8") as f:
                     state = json.load(f)
 
-                self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
+                self.vaults = {address: Vault(address, self.config, use_cache=True) 
+                              for address in state["vaults"]}
                 logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
 
                 self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
@@ -627,6 +739,11 @@ class AccountMonitor:
                             save_path,
                             self.config.EVC_DEPLOYMENT_BLOCK,
                             self.latest_block)
+                
+                # Migrate JSON data to database for next restart
+                logger.info("AccountMonitor: Migrating JSON state to database...")
+                self.save_state(local_save=True)
+                
             elif not local_save:
                 # Load from remote location
                 pass
@@ -775,7 +892,7 @@ class PullOracleHandler:
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            asset_list = [Vault(collateral_vault, config).underlying_asset_address
+            asset_list = [Vault(collateral_vault, config, use_cache=True).underlying_asset_address
                           for collateral_vault in collateral_vault_list]
             asset_list.append(vault.underlying_asset_address)
 
@@ -869,7 +986,10 @@ class EVCListener:
         Start monitoring for EVC events.
         Scans from last scanned block stored by account monitor
         up to the current block number (minus 1 to try to account for reorgs).
+        Updates database with latest processed block.
         """
+        cache = get_cache(self.config.DB_PATH)
+        
         while True:
             try:
                 current_block = self.w3.eth.block_number - 1
@@ -878,6 +998,8 @@ class EVCListener:
                     self.scan_block_range_for_account_status_check(
                         self.account_monitor.latest_block,
                         current_block)
+                    # Update DB with latest block
+                    cache.save_last_processed_block(self.config.CHAIN_ID, current_block)
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Unexpected exception in event monitoring: %s",
                              ex, exc_info=True)
@@ -961,21 +1083,36 @@ class EVCListener:
     def batch_account_logs_on_startup(self) -> None:
         """
         Batch process account logs on startup.
-        Goes in reverse order to build smallest queue possible with most up to date info
+        Goes in reverse order to build smallest queue possible with most up to date info.
+        Uses database cache to track progress and skip already-processed blocks.
         """
         try:
-            # If the account monitor has a saved state,
-            # assume it has been loaded from that and start from the last saved block
-            start_block = max(int(self.config.EVC_DEPLOYMENT_BLOCK),
-                              self.account_monitor.last_saved_block)
+            # Check database for last processed block first
+            cache = get_cache(self.config.DB_PATH)
+            db_last_block = cache.get_last_processed_block(self.config.CHAIN_ID)
+            
+            # Use the most recent block from either DB or account monitor
+            start_block = max(
+                int(self.config.EVC_DEPLOYMENT_BLOCK),
+                self.account_monitor.last_saved_block,
+                db_last_block or 0
+            )
 
             current_block = self.w3.eth.block_number
+
+            # If we're already up to date, skip batch scanning
+            if start_block >= current_block - 1:
+                logger.info("EVCListener: Already up to date at block %s, skipping batch scan.",
+                           start_block)
+                return
 
             batch_block_size = self.config.BATCH_SIZE
 
             logger.info("EVCListener: "
-                        "Starting batch scan of AccountStatusCheck events from block %s to %s.",
-                        start_block, current_block)
+                        "Starting batch scan of AccountStatusCheck events from block %s to %s "
+                        "(skipped %s blocks from cache).",
+                        start_block, current_block,
+                        start_block - int(self.config.EVC_DEPLOYMENT_BLOCK))
 
             seen_accounts = set()
 
@@ -985,7 +1122,10 @@ class EVCListener:
                 self.scan_block_range_for_account_status_check(start_block, end_block,
                                                                seen_accounts=seen_accounts,
                                                                startup_mode=True)
+                
+                # Save state and update DB with progress
                 self.account_monitor.save_state()
+                cache.save_last_processed_block(self.config.CHAIN_ID, end_block)
 
                 start_block = end_block + 1
 
@@ -1073,7 +1213,7 @@ class Liquidator:
         }
         max_profit_params = None
 
-        collateral_vaults = {collateral: Vault(collateral, config) for collateral in collateral_list}
+        collateral_vaults = {collateral: Vault(collateral, config, use_cache=True) for collateral in collateral_list}
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
