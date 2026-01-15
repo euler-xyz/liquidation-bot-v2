@@ -1,7 +1,7 @@
 """
 Database cache for liquidation bot.
 Supports both PostgreSQL (production/RDS) and SQLite (local development).
-Caches vault metadata and account state to reduce RPC calls on restart.
+Caches account state to reduce RPC calls on restart.
 """
 import os
 import sqlite3
@@ -27,21 +27,6 @@ except ImportError:
 
 class BaseDatabaseCache(ABC):
     """Abstract base class for database cache implementations."""
-    
-    @abstractmethod
-    def get_vault(self, address: str, chain_id: int) -> Optional[Dict[str, Any]]:
-        pass
-    
-    @abstractmethod
-    def save_vault(self, address: str, chain_id: int, 
-                   underlying_asset_address: str,
-                   vault_name: str, vault_symbol: str,
-                   unit_of_account: str, oracle_address: str) -> None:
-        pass
-    
-    @abstractmethod
-    def get_all_vaults(self, chain_id: int) -> List[Dict[str, Any]]:
-        pass
     
     @abstractmethod
     def get_account(self, address: str, chain_id: int) -> Optional[Dict[str, Any]]:
@@ -126,20 +111,6 @@ class SQLiteDatabaseCache(BaseDatabaseCache):
         """Initialize database tables."""
         with self._cursor() as cursor:
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vaults (
-                    address TEXT PRIMARY KEY,
-                    chain_id INTEGER NOT NULL,
-                    underlying_asset_address TEXT,
-                    vault_name TEXT,
-                    vault_symbol TEXT,
-                    unit_of_account TEXT,
-                    oracle_address TEXT,
-                    created_at REAL DEFAULT (strftime('%s', 'now')),
-                    updated_at REAL DEFAULT (strftime('%s', 'now'))
-                )
-            """)
-            
-            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS accounts (
                     address TEXT PRIMARY KEY,
                     chain_id INTEGER NOT NULL,
@@ -163,10 +134,6 @@ class SQLiteDatabaseCache(BaseDatabaseCache):
             """)
             
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_vaults_chain 
-                ON vaults(chain_id)
-            """)
-            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_accounts_chain 
                 ON accounts(chain_id)
             """)
@@ -174,46 +141,6 @@ class SQLiteDatabaseCache(BaseDatabaseCache):
                 CREATE INDEX IF NOT EXISTS idx_accounts_controller 
                 ON accounts(controller_address)
             """)
-    
-    def get_vault(self, address: str, chain_id: int) -> Optional[Dict[str, Any]]:
-        with self._cursor() as cursor:
-            cursor.execute(
-                "SELECT * FROM vaults WHERE address = ? AND chain_id = ?",
-                (address, chain_id)
-            )
-            row = cursor.fetchone()
-            if row:
-                return dict(row)
-        return None
-    
-    def save_vault(self, address: str, chain_id: int, 
-                   underlying_asset_address: str,
-                   vault_name: str, vault_symbol: str,
-                   unit_of_account: str, oracle_address: str) -> None:
-        with self._cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO vaults (
-                    address, chain_id, underlying_asset_address, 
-                    vault_name, vault_symbol, unit_of_account, oracle_address, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(address) DO UPDATE SET
-                    underlying_asset_address = excluded.underlying_asset_address,
-                    vault_name = excluded.vault_name,
-                    vault_symbol = excluded.vault_symbol,
-                    unit_of_account = excluded.unit_of_account,
-                    oracle_address = excluded.oracle_address,
-                    updated_at = excluded.updated_at
-            """, (address, chain_id, underlying_asset_address, 
-                  vault_name, vault_symbol, unit_of_account, oracle_address, time.time()))
-        logger.info("DB: Saved vault %s metadata to cache", address)
-    
-    def get_all_vaults(self, chain_id: int) -> List[Dict[str, Any]]:
-        with self._cursor() as cursor:
-            cursor.execute(
-                "SELECT * FROM vaults WHERE chain_id = ?",
-                (chain_id,)
-            )
-            return [dict(row) for row in cursor.fetchall()]
     
     def get_account(self, address: str, chain_id: int) -> Optional[Dict[str, Any]]:
         with self._cursor() as cursor:
@@ -324,23 +251,18 @@ class SQLiteDatabaseCache(BaseDatabaseCache):
     
     def clear_chain_data(self, chain_id: int) -> None:
         with self._cursor() as cursor:
-            cursor.execute("DELETE FROM vaults WHERE chain_id = ?", (chain_id,))
             cursor.execute("DELETE FROM accounts WHERE chain_id = ?", (chain_id,))
             cursor.execute("DELETE FROM processed_blocks WHERE chain_id = ?", (chain_id,))
         logger.info("DB: Cleared all cached data for chain %d", chain_id)
     
     def get_stats(self, chain_id: int) -> Dict[str, Any]:
         with self._cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) as count FROM vaults WHERE chain_id = ?", (chain_id,))
-            vault_count = cursor.fetchone()['count']
-            
             cursor.execute("SELECT COUNT(*) as count FROM accounts WHERE chain_id = ?", (chain_id,))
             account_count = cursor.fetchone()['count']
             
             last_block = self.get_last_processed_block(chain_id)
             
             return {
-                'vault_count': vault_count,
                 'account_count': account_count,
                 'last_processed_block': last_block
             }
@@ -399,20 +321,6 @@ class PostgresDatabaseCache(BaseDatabaseCache):
         """Initialize database tables."""
         with self._cursor() as cursor:
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS vaults (
-                    address TEXT PRIMARY KEY,
-                    chain_id INTEGER NOT NULL,
-                    underlying_asset_address TEXT,
-                    vault_name TEXT,
-                    vault_symbol TEXT,
-                    unit_of_account TEXT,
-                    oracle_address TEXT,
-                    created_at DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW()),
-                    updated_at DOUBLE PRECISION DEFAULT EXTRACT(EPOCH FROM NOW())
-                )
-            """)
-            
-            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS accounts (
                     address TEXT PRIMARY KEY,
                     chain_id INTEGER NOT NULL,
@@ -437,10 +345,6 @@ class PostgresDatabaseCache(BaseDatabaseCache):
             
             # Create indexes (PostgreSQL will skip if exists)
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_vaults_chain 
-                ON vaults(chain_id)
-            """)
-            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_accounts_chain 
                 ON accounts(chain_id)
             """)
@@ -448,45 +352,6 @@ class PostgresDatabaseCache(BaseDatabaseCache):
                 CREATE INDEX IF NOT EXISTS idx_accounts_controller 
                 ON accounts(controller_address)
             """)
-    
-    def get_vault(self, address: str, chain_id: int) -> Optional[Dict[str, Any]]:
-        with self._cursor() as cursor:
-            cursor.execute(
-                "SELECT * FROM vaults WHERE address = %s AND chain_id = %s",
-                (address, chain_id)
-            )
-            row = cursor.fetchone()
-            return self._dict_from_row(cursor, row)
-    
-    def save_vault(self, address: str, chain_id: int, 
-                   underlying_asset_address: str,
-                   vault_name: str, vault_symbol: str,
-                   unit_of_account: str, oracle_address: str) -> None:
-        with self._cursor() as cursor:
-            cursor.execute("""
-                INSERT INTO vaults (
-                    address, chain_id, underlying_asset_address, 
-                    vault_name, vault_symbol, unit_of_account, oracle_address, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT(address) DO UPDATE SET
-                    underlying_asset_address = EXCLUDED.underlying_asset_address,
-                    vault_name = EXCLUDED.vault_name,
-                    vault_symbol = EXCLUDED.vault_symbol,
-                    unit_of_account = EXCLUDED.unit_of_account,
-                    oracle_address = EXCLUDED.oracle_address,
-                    updated_at = EXCLUDED.updated_at
-            """, (address, chain_id, underlying_asset_address, 
-                  vault_name, vault_symbol, unit_of_account, oracle_address, time.time()))
-        logger.info("DB: Saved vault %s metadata to cache", address)
-    
-    def get_all_vaults(self, chain_id: int) -> List[Dict[str, Any]]:
-        with self._cursor() as cursor:
-            cursor.execute(
-                "SELECT * FROM vaults WHERE chain_id = %s",
-                (chain_id,)
-            )
-            rows = cursor.fetchall()
-            return [self._dict_from_row(cursor, row) for row in rows]
     
     def get_account(self, address: str, chain_id: int) -> Optional[Dict[str, Any]]:
         with self._cursor() as cursor:
@@ -596,23 +461,18 @@ class PostgresDatabaseCache(BaseDatabaseCache):
     
     def clear_chain_data(self, chain_id: int) -> None:
         with self._cursor() as cursor:
-            cursor.execute("DELETE FROM vaults WHERE chain_id = %s", (chain_id,))
             cursor.execute("DELETE FROM accounts WHERE chain_id = %s", (chain_id,))
             cursor.execute("DELETE FROM processed_blocks WHERE chain_id = %s", (chain_id,))
         logger.info("DB: Cleared all cached data for chain %d", chain_id)
     
     def get_stats(self, chain_id: int) -> Dict[str, Any]:
         with self._cursor() as cursor:
-            cursor.execute("SELECT COUNT(*) FROM vaults WHERE chain_id = %s", (chain_id,))
-            vault_count = cursor.fetchone()[0]
-            
             cursor.execute("SELECT COUNT(*) FROM accounts WHERE chain_id = %s", (chain_id,))
             account_count = cursor.fetchone()[0]
             
             last_block = self.get_last_processed_block(chain_id)
             
             return {
-                'vault_count': vault_count,
                 'account_count': account_count,
                 'last_processed_block': last_block
             }
@@ -647,7 +507,9 @@ def get_cache(db_path: str = None) -> BaseDatabaseCache:
             if _cache_instance is None:
                 database_url = os.getenv("DATABASE_URL")
                 
+                # Strip any surrounding quotes (common issue with some secret managers)
                 if database_url:
+                    database_url = database_url.strip('"').strip("'")
                     # Use PostgreSQL
                     _cache_instance = PostgresDatabaseCache(database_url)
                 else:

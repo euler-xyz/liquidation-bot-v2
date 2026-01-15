@@ -42,9 +42,9 @@ class Vault:
     """
     Represents a vault in the EVK System.
     This class provides methods to interact with a specific vault contract.
-    Uses database cache to avoid redundant RPC calls for static metadata.
+    Fetches static metadata from chain on initialization (cached in memory).
     """
-    def __init__(self, address, config: ChainConfig, use_cache: bool = True):
+    def __init__(self, address, config: ChainConfig):
         self.config = config
         self.address = address
         self.instance = create_contract_instance(address, self.config.EVAULT_ABI_PATH, self.config)
@@ -52,48 +52,14 @@ class Vault:
         self.pyth_feed_ids = []
         self.last_pyth_feed_ids_update = 0
         
-        # Try to load from cache first
-        loaded_from_cache = False
-        if use_cache:
-            try:
-                cache = get_cache(config.DB_PATH)
-                cached = cache.get_vault(address, config.CHAIN_ID)
-                if cached:
-                    self.underlying_asset_address = cached['underlying_asset_address']
-                    self.vault_name = cached['vault_name']
-                    self.vault_symbol = cached['vault_symbol']
-                    self.unit_of_account = cached['unit_of_account']
-                    self.oracle_address = cached['oracle_address']
-                    loaded_from_cache = True
-                    logger.info("Vault: Loaded %s (%s) metadata from cache", 
-                               self.vault_symbol, address)
-            except Exception as ex:
-                logger.warning("Vault: Failed to load from cache: %s", ex)
-        
-        # Fetch from chain if not cached
-        if not loaded_from_cache:
-            logger.info("Vault: Fetching %s metadata from chain...", address)
-            self.underlying_asset_address = self.instance.functions.asset().call()
-            self.vault_name = self.instance.functions.name().call()
-            self.vault_symbol = self.instance.functions.symbol().call()
-            self.unit_of_account = self.instance.functions.unitOfAccount().call()
-            self.oracle_address = self.instance.functions.oracle().call()
-            
-            # Save to cache for next time
-            if use_cache:
-                try:
-                    cache = get_cache(config.DB_PATH)
-                    cache.save_vault(
-                        address=address,
-                        chain_id=config.CHAIN_ID,
-                        underlying_asset_address=self.underlying_asset_address,
-                        vault_name=self.vault_name,
-                        vault_symbol=self.vault_symbol,
-                        unit_of_account=self.unit_of_account,
-                        oracle_address=self.oracle_address
-                    )
-                except Exception as ex:
-                    logger.warning("Vault: Failed to save to cache: %s", ex)
+        # Fetch metadata from chain
+        logger.info("Vault: Fetching %s metadata from chain...", address)
+        self.underlying_asset_address = self.instance.functions.asset().call()
+        self.vault_name = self.instance.functions.name().call()
+        self.vault_symbol = self.instance.functions.symbol().call()
+        self.unit_of_account = self.instance.functions.unitOfAccount().call()
+        self.oracle_address = self.instance.functions.oracle().call()
+        logger.info("Vault: Loaded %s (%s)", self.vault_symbol, address)
 
     def get_account_liquidity(self, account_address: str) -> Tuple[int, int]:
         """
@@ -359,7 +325,7 @@ class Account:
         controller = vaults.get(data["controller_address"])
         if not controller:
             # Use cache when creating vault from stored data
-            controller = Vault(data["controller_address"], config, use_cache=True)
+            controller = Vault(data["controller_address"], config)
             vaults[data["controller_address"]] = controller
         account = Account(address=data["address"], controller=controller, config=config)
         account.time_of_next_update = data["time_of_next_update"]
@@ -442,7 +408,7 @@ class AccountMonitor:
 
         # If the vault is not already tracked in the list, create it (with cache)
         if vault_address not in self.vaults:
-            self.vaults[vault_address] = Vault(vault_address, self.config, use_cache=True)
+            self.vaults[vault_address] = Vault(vault_address, self.config)
             logger.info("AccountMonitor: Vault %s added to vault list.", vault_address)
 
         vault = self.vaults[vault_address]
@@ -482,6 +448,18 @@ class AccountMonitor:
             prev_scheduled_time = account.time_of_next_update
 
             health_score = account.update_liquidity()
+
+            # If account has no debt, remove from DB and memory
+            if health_score == math.inf:
+                logger.info("AccountMonitor: %s has no debt, removing from tracking.", address)
+                try:
+                    cache = get_cache(self.config.DB_PATH)
+                    cache.delete_account(address, self.chain_id)
+                except Exception as ex:
+                    logger.warning("AccountMonitor: Failed to delete account %s from cache: %s", 
+                                   address, ex)
+                del self.accounts[address]
+                return
 
             if health_score < 1:
                 try:
@@ -604,9 +582,11 @@ class AccountMonitor:
             # Save to database
             cache = get_cache(self.config.DB_PATH)
             
-            # Save accounts to DB
+            # Save accounts to DB (skip accounts with no debt / infinite health score)
             accounts_data = []
             for address, account in self.accounts.items():
+                if account.current_health_score == math.inf:
+                    continue  # Don't persist accounts with no debt
                 accounts_data.append({
                     'address': address,
                     'controller_address': account.controller.address,
@@ -628,7 +608,8 @@ class AccountMonitor:
             if local_save:
                 state = {
                     "accounts": {address: account.to_dict()
-                                 for address, account in self.accounts.items()},
+                                 for address, account in self.accounts.items()
+                                 if account.current_health_score != math.inf},
                     "vaults": {address: vault.address for address, vault in self.vaults.items()},
                     "queue": list(self.update_queue.queue),
                     "last_saved_block": self.latest_block,
@@ -657,29 +638,21 @@ class AccountMonitor:
             
             # Try to load from database first
             cached_accounts = cache.get_all_accounts(self.chain_id)
-            cached_vaults = cache.get_all_vaults(self.chain_id)
             last_block = cache.get_last_processed_block(self.chain_id)
             
-            if cached_accounts and cached_vaults and last_block:
+            if cached_accounts and last_block:
                 logger.info("AccountMonitor: Loading state from database cache...")
                 
-                # Load vaults (metadata is cached, so this is fast)
+                # Load accounts and create vaults from controller addresses
                 self.vaults = {}
-                for vault_data in cached_vaults:
-                    address = vault_data['address']
-                    self.vaults[address] = Vault(address, self.config, use_cache=True)
-                logger.info("Loaded %s vaults from DB cache: %s", 
-                           len(self.vaults), list(self.vaults.keys()))
-                
-                # Load accounts
                 self.accounts = {}
                 for acc_data in cached_accounts:
                     address = acc_data['address']
                     controller_address = acc_data['controller_address']
                     
-                    # Get or create vault
+                    # Get or create vault (fetches metadata from chain)
                     if controller_address not in self.vaults:
-                        self.vaults[controller_address] = Vault(controller_address, self.config, use_cache=True)
+                        self.vaults[controller_address] = Vault(controller_address, self.config)
                     
                     account = Account(address, self.vaults[controller_address], self.config)
                     account.time_of_next_update = acc_data['time_of_next_update']
@@ -693,7 +666,8 @@ class AccountMonitor:
                     
                     self.accounts[address] = account
                 
-                logger.info("Loaded %s accounts from DB cache", len(self.accounts))
+                logger.info("Loaded %s accounts from DB cache with %s vaults", 
+                           len(self.accounts), len(self.vaults))
                 
                 self.last_saved_block = last_block
                 self.latest_block = last_block
@@ -712,7 +686,7 @@ class AccountMonitor:
                 with open(save_path, "r", encoding="utf-8") as f:
                     state = json.load(f)
 
-                self.vaults = {address: Vault(address, self.config, use_cache=True) 
+                self.vaults = {address: Vault(address, self.config) 
                               for address in state["vaults"]}
                 logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
 
@@ -759,12 +733,15 @@ class AccountMonitor:
         logger.info("Rebuilding queue based on current account health")
 
         self.update_queue = queue.PriorityQueue()
+        accounts_to_remove = []  # Can't delete while iterating
+        
         for address, account in self.accounts.items():
             try:
                 health_score = account.update_liquidity()
 
                 if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor: %s has no borrow, skipping", address)
+                    logger.info("AccountMonitor: %s has no borrow, marking for removal", address)
+                    accounts_to_remove.append(address)
                     continue
 
                 next_update_time = account.time_of_next_update
@@ -777,7 +754,18 @@ class AccountMonitor:
                 logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
                              address, ex, exc_info=True)
 
-        logger.info("AccountMonitor: Queue rebuilt with %s acccounts", self.update_queue.qsize())
+        # Clean up accounts with no debt
+        if accounts_to_remove:
+            cache = get_cache(self.config.DB_PATH)
+            for address in accounts_to_remove:
+                try:
+                    cache.delete_account(address, self.chain_id)
+                    del self.accounts[address]
+                    logger.info("AccountMonitor: Removed no-debt account %s from tracking", address)
+                except Exception as ex:
+                    logger.warning("AccountMonitor: Failed to remove account %s: %s", address, ex)
+
+        logger.info("AccountMonitor: Queue rebuilt with %s accounts", self.update_queue.qsize())
 
     def get_accounts_by_health_score(self):
         """
@@ -892,7 +880,7 @@ class PullOracleHandler:
             unit_of_account = vault.unit_of_account
 
             collateral_vault_list = vault.get_ltv_list()
-            asset_list = [Vault(collateral_vault, config, use_cache=True).underlying_asset_address
+            asset_list = [Vault(collateral_vault, config).underlying_asset_address
                           for collateral_vault in collateral_vault_list]
             asset_list.append(vault.underlying_asset_address)
 
@@ -1213,7 +1201,7 @@ class Liquidator:
         }
         max_profit_params = None
 
-        collateral_vaults = {collateral: Vault(collateral, config, use_cache=True) for collateral in collateral_list}
+        collateral_vaults = {collateral: Vault(collateral, config) for collateral in collateral_list}
 
         for collateral, collateral_vault in collateral_vaults.items():
             try:
