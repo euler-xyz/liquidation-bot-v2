@@ -1,9 +1,11 @@
 from typing import Dict, List
 from concurrent.futures import ThreadPoolExecutor
+import os
 from web3 import Web3
 
 from .liquidation_bot import AccountMonitor, EVCListener, logger
 from .config_loader import load_chain_config, ChainConfig
+from .db_state import init_db_manager, get_db_manager
 
 class ChainManager:
     """Manages multiple chain instances of the liquidation bot"""
@@ -11,6 +13,17 @@ class ChainManager:
         self.chain_ids = chain_ids
         self.notify = notify
         self.execute_liquidation = execute_liquidation
+
+        # Initialize database manager for state persistence
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            try:
+                init_db_manager(database_url)
+                logger.info("ChainManager: PostgreSQL state persistence initialized")
+            except Exception as ex:
+                logger.warning("ChainManager: PostgreSQL not available, using local file storage: %s", ex)
+        else:
+            logger.info("ChainManager: DATABASE_URL not set, using local file storage for state")
 
         # Initialize configs, monitors, and evc_listeners for each chain
         self.configs: Dict[int, ChainConfig] = {}

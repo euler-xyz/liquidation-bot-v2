@@ -30,6 +30,7 @@ from app.liquidation.utils import (setup_logger,
                    get_btc_usd_quote)
 
 from app.liquidation.config_loader import ChainConfig
+from app.liquidation.db_state import get_db_manager, DatabaseStateManager
 
 ### ENVIRONMENT & CONFIG SETUP ###
 logger = setup_logger()
@@ -613,9 +614,10 @@ class AccountMonitor:
     def save_state(self, local_save: bool = True) -> None:
         """
         Save the current state of the account monitor.
+        Saves to PostgreSQL if available, falls back to local JSON file.
 
         Args:
-            local_save (bool, optional): Whether to save the state locally. Defaults to True.
+            local_save (bool, optional): Whether to save the state locally as fallback. Defaults to True.
         """
         try:
             state = {
@@ -626,66 +628,96 @@ class AccountMonitor:
                 "last_saved_block": self.latest_block,
             }
 
+            # Try PostgreSQL first
+            db_manager = get_db_manager()
+            db_saved = False
+            if db_manager:
+                db_saved = db_manager.save_state(
+                    chain_id=self.chain_id,
+                    chain_name=self.config.CHAIN_NAME,
+                    state=state
+                )
+                if db_saved:
+                    logger.info("AccountMonitor: State saved to PostgreSQL at time %s up to block %s",
+                                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                                self.latest_block)
+
+            # Also save locally as backup if configured
             if local_save:
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(self.config.SAVE_STATE_PATH), exist_ok=True)
                 with open(self.config.SAVE_STATE_PATH, "w", encoding="utf-8") as f:
                     json.dump(state, f)
-            else:
-                # Save to remote location
-                pass
+                if not db_saved:
+                    logger.info("AccountMonitor: State saved to local file at time %s up to block %s",
+                                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+                                self.latest_block)
 
             self.last_saved_block = self.latest_block
 
-            logger.info("AccountMonitor: State saved at time %s up to block %s",
-                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                        self.latest_block)
         except Exception as ex: # pylint: disable=broad-except
             logger.error("AccountMonitor: Failed to save state: %s", ex, exc_info=True)
 
     def load_state(self, save_path: str, local_save: bool = True) -> None:
         """
-        Load the state of the account monitor from a file.
+        Load the state of the account monitor.
+        Tries PostgreSQL first, falls back to local JSON file.
 
         Args:
-            save_path (str): The path to the saved state file.
-            local_save (bool, optional): Whether the state is saved locally. Defaults to True.
+            save_path (str): The path to the saved state file (fallback).
+            local_save (bool, optional): Whether to try local file as fallback. Defaults to True.
         """
         try:
-            if local_save and os.path.exists(save_path):
-                print("SAVE PATH", save_path)
+            state = None
+            source = None
+
+            # Try PostgreSQL first
+            db_manager = get_db_manager()
+            if db_manager:
+                state = db_manager.load_state(self.chain_id)
+                if state:
+                    source = "PostgreSQL"
+
+            # Fall back to local file if DB load failed
+            if state is None and local_save and os.path.exists(save_path):
+                logger.info("AccountMonitor: Loading state from local file %s", save_path)
                 with open(save_path, "r", encoding="utf-8") as f:
                     state = json.load(f)
+                source = f"local file {save_path}"
 
-                self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
-                logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
-
-                self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
-                                 for address, data in state["accounts"].items()}
-                logger.info("Loaded %s accounts:", len(self.accounts))
-
-                for address, account in self.accounts.items():
-                    logger.info("  Account %s: Controller: %s, "
-                                "Health Score: %s, "
-                                "Next Update: %s",
-                                address,
-                                account.controller.address,
-                                account.current_health_score,
-                                time.strftime("%Y-%m-%d %H:%M:%S",
-                                time.localtime(account.time_of_next_update)))
-
-                self.rebuild_queue()
-
-                self.last_saved_block = state["last_saved_block"]
-                self.latest_block = self.last_saved_block
-                logger.info("AccountMonitor: State loaded from save"
-                            " file %s from block %s to block %s",
-                            save_path,
-                            self.config.EVC_DEPLOYMENT_BLOCK,
-                            self.latest_block)
-            elif not local_save:
-                # Load from remote location
-                pass
-            else:
+            if state is None:
                 logger.info("AccountMonitor: No saved state found.")
+                return
+
+            # Load vaults
+            self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
+            logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
+
+            # Load accounts
+            self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
+                             for address, data in state["accounts"].items()}
+            logger.info("Loaded %s accounts:", len(self.accounts))
+
+            for address, account in self.accounts.items():
+                logger.info("  Account %s: Controller: %s, "
+                            "Health Score: %s, "
+                            "Next Update: %s",
+                            address,
+                            account.controller.address,
+                            account.current_health_score,
+                            time.strftime("%Y-%m-%d %H:%M:%S",
+                            time.localtime(account.time_of_next_update)))
+
+            self.rebuild_queue()
+
+            self.last_saved_block = state["last_saved_block"]
+            self.latest_block = self.last_saved_block
+            logger.info("AccountMonitor: State loaded from %s, "
+                        "from block %s to block %s",
+                        source,
+                        self.config.EVC_DEPLOYMENT_BLOCK,
+                        self.latest_block)
+
         except Exception as ex: # pylint: disable=broad-except
             logger.error("AccountMonitor: Failed to load state: %s", ex, exc_info=True)
 

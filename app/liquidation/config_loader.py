@@ -59,6 +59,7 @@ class ChainConfig:
         self.SWAP_API_URL = os.getenv("SWAP_API_URL")
         self.SLACK_URL = os.getenv("SLACK_WEBHOOK_URL")
         self.RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
+        self.DATABASE_URL = os.getenv("DATABASE_URL")
 
         # Load chain-specific RPC from env using RPC_NAME from config
         self.RPC_URL = os.getenv(self._chain["RPC_NAME"])
