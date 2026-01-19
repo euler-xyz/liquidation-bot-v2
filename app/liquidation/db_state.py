@@ -3,6 +3,7 @@ PostgreSQL State Persistence Module for Liquidation Bot
 """
 import os
 import json
+import math
 import time
 from typing import Dict, Any, Optional
 from contextlib import contextmanager
@@ -13,6 +14,24 @@ from psycopg2.extras import Json
 from app.liquidation.utils import setup_logger
 
 logger = setup_logger()
+
+
+def sanitize_for_json(obj: Any) -> Any:
+    """
+    Recursively sanitize an object for JSON serialization.
+    Converts Infinity, -Infinity, and NaN to None since JSON doesn't support them.
+    """
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    elif isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(sanitize_for_json(item) for item in obj)
+    return obj
 
 
 class DatabaseStateManager:
@@ -105,6 +124,9 @@ class DatabaseStateManager:
             bool: True if save was successful
         """
         try:
+            # Sanitize state to handle Infinity/NaN values that JSON doesn't support
+            sanitized_state = sanitize_for_json(state)
+            
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     # Upsert the main state
@@ -116,10 +138,10 @@ class DatabaseStateManager:
                             state_data = EXCLUDED.state_data,
                             last_saved_block = EXCLUDED.last_saved_block,
                             updated_at = CURRENT_TIMESTAMP
-                    """, (chain_id, chain_name, Json(state), state.get("last_saved_block", 0)))
+                    """, (chain_id, chain_name, Json(sanitized_state), sanitized_state.get("last_saved_block", 0)))
                     
                     # Also update individual accounts table for easier querying
-                    for address, account_data in state.get("accounts", {}).items():
+                    for address, account_data in sanitized_state.get("accounts", {}).items():
                         cur.execute("""
                             INSERT INTO accounts (chain_id, address, controller_address, 
                                                   current_health_score, time_of_next_update, updated_at)
@@ -139,7 +161,7 @@ class DatabaseStateManager:
                         ))
                     
                     # Update vaults table
-                    for vault_address in state.get("vaults", {}).keys():
+                    for vault_address in sanitized_state.get("vaults", {}).keys():
                         cur.execute("""
                             INSERT INTO vaults (chain_id, address, updated_at)
                             VALUES (%s, %s, CURRENT_TIMESTAMP)
@@ -150,7 +172,7 @@ class DatabaseStateManager:
                     conn.commit()
                     
             logger.info("DatabaseStateManager: State saved for chain %s at block %s",
-                       chain_id, state.get("last_saved_block", 0))
+                       chain_id, sanitized_state.get("last_saved_block", 0))
             return True
             
         except Exception as ex:
@@ -211,6 +233,11 @@ class DatabaseStateManager:
                       value_borrowed: float = 0) -> bool:
         """Update a single account in the database"""
         try:
+            # Sanitize float values that could be Infinity/NaN
+            safe_health_score = sanitize_for_json(health_score)
+            safe_next_update = sanitize_for_json(next_update)
+            safe_value_borrowed = sanitize_for_json(value_borrowed)
+            
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
@@ -225,8 +252,8 @@ class DatabaseStateManager:
                             time_of_next_update = EXCLUDED.time_of_next_update,
                             value_borrowed = EXCLUDED.value_borrowed,
                             updated_at = CURRENT_TIMESTAMP
-                    """, (chain_id, address, controller_address, health_score, 
-                          next_update, value_borrowed))
+                    """, (chain_id, address, controller_address, safe_health_score, 
+                          safe_next_update, safe_value_borrowed))
                     conn.commit()
             return True
         except Exception as ex:
