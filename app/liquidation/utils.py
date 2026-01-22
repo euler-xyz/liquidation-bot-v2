@@ -2,6 +2,7 @@
 Utility functions for the liquidation bot.
 """
 import logging
+from logging.handlers import RotatingFileHandler
 import json
 import functools
 import time
@@ -17,6 +18,8 @@ from urllib.parse import urlencode
 from .config_loader import ChainConfig
 
 LOGS_PATH = "logs/account_monitor_logs.log"
+LOG_MAX_BYTES = 100 * 1024 * 1024  # 100 MB per file
+LOG_BACKUP_COUNT = 30  # Keep 30 backup files (total ~3GB max)
 
 def setup_logger() -> logging.Logger:
     """
@@ -35,7 +38,12 @@ def setup_logger() -> logging.Logger:
     logger.handlers.clear()
 
     console_handler = logging.StreamHandler()
-    file_handler = logging.FileHandler(LOGS_PATH, mode="a")
+    file_handler = RotatingFileHandler(
+        LOGS_PATH,
+        mode="a",
+        maxBytes=LOG_MAX_BYTES,
+        backupCount=LOG_BACKUP_COUNT
+    )
 
     detailed_formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s\n%(exc_info)s")
