@@ -11,7 +11,7 @@ import sys
 import math
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Any, Optional, List
 
 from web3 import Web3
 from web3.logs import DISCARD
@@ -20,6 +20,7 @@ from web3.logs import DISCARD
 from app.liquidation.utils import (setup_logger,
                    create_contract_instance,
                    make_api_request,
+                   make_api_request_post,
                    global_exception_handler,
                    post_liquidation_opportunity_on_slack,
                    post_liquidation_result_on_slack,
@@ -1058,49 +1059,146 @@ class EVCListener:
                          "Unexpected exception in batch scanning account logs on startup: %s",
                          ex, exc_info=True)
 
+    def get_subgraph_latest_block(self, subgraph_url: str) -> Optional[int]:
+        """
+        Fetch the latest indexed block number from the subgraph via `_meta.block.number`.
+        
+        Args:
+            subgraph_url (str): The GraphQL endpoint URL.
+        
+        Returns:
+            Optional[int]: The block number if successful, None otherwise.
+        """
+        headers = {"Content-Type": "application/json"}
+        query = {
+            "query": "{ _meta { block { number } } }"
+        }
+        
+        try:
+            resp = make_api_request_post(subgraph_url, headers, query)
+        except Exception as ex:
+            logger.error("Failed to fetch block number from %s: %s", subgraph_url, ex, exc_info=True)
+            return None
+
+        if not resp:
+            logger.warning("Empty response when fetching block number.")
+            return None
+
+        try:
+            block_number = resp["data"]["_meta"]["block"]["number"]
+            logger.info(f"Latest indexed block: {block_number}")
+            return int(block_number)
+        except (KeyError, TypeError) as e:
+            logger.error(f"Unexpected response structure: {resp} — error: {e}")
+            return None
+
+    def get_subgraph_accounts_with_debt(self, current_block: int, subgraph_url: str) -> List[Dict[str, Any]]:
+        """
+        Fetch all `trackingVaultBalances` with debt > 0, pinned to `current_block`,
+        handling pagination automatically via `id_gt`.
+
+        Args:
+            current_block (int): The block number to pin all queries to (ensures consistent snapshot).
+            subgraph_url (str): GraphQL endpoint URL.
+
+        Returns:
+            List[Dict[str, Any]]: All matching vault balances.
+        """
+        # Common request setup
+        headers = {"Content-Type": "application/json"}
+
+        all_records: List[Dict[str, Any]] = []
+        last_id: str = ""
+        page = 0
+
+        while True:
+            page += 1
+
+            # Build the *raw GraphQL* `where` clause (no JSON, no quotes on field names)
+            if last_id:
+                where_str = f"debt_gt: \"0\", id_gt: \"{last_id}\""
+            else:
+                where_str = 'debt_gt: "0"'
+
+            query = {
+                "query": f"""
+                {{
+                  trackingVaultBalances(
+                    where: {{ {where_str} }}
+                    first: 1000
+                    orderBy: id
+                    orderDirection: asc
+                    block: {{ number: {current_block} }}
+                  ) {{
+                    id
+                    account
+                    vault
+                  }}
+                }}
+                """
+            }
+
+            try:
+                resp = make_api_request_post(subgraph_url, headers, query)
+            except Exception as ex:
+                logger.error("Subgraph request failed on page %s: %s", page, ex, exc_info=True)
+                return None
+
+            if not resp:
+                logger.warning(f"Empty response on page {page}")
+                break
+
+            data = resp.get("data", {}).get("trackingVaultBalances", [])
+            if not data:
+                logger.info(f"Page {page}: no more records — done.")
+                break
+
+            all_records.extend(data)
+            last_id = data[-1]["id"]
+            logger.debug(f"Page {page}: fetched {len(data)} records (last id: {last_id})")
+
+        logger.info(f"Retrieved {len(all_records)} vault balances from {page} page(s).")
+        return all_records
 
     def rapid_bootstrap(self):
         try:
             start_time = time.time()
-            current_block = self.w3.eth.block_number
-            seen_addresses = set()
 
-            vault_list = self.config.evault_factory.functions.getProxyListSlice(0, 2**256 - 1).call()
-            logger.info("Bootstrap found %s vaults from factory", len(vault_list))
+            latest_block = self.get_subgraph_latest_block(self.config.SUBGRAPH_URL)
+            if latest_block is None:
+                raise Exception("Couldn't retrieve latest block from subgraph")
 
-            for i, vault_address in enumerate(vault_list):
-                url = "https://indexer-main.euler.finance/v1/vault/borrowers"
-                params = {
-                    "chainId": self.config.CHAIN_ID,
-                    "vault": vault_address,
-                }
-                response = make_api_request(url, headers={}, params=params)
+            ## start with an earlier block to handle subgraph indexing delays
+            current_block = max(latest_block, 1)
 
-                if not response:
-                    logger.error("Unable to get borrowers from euler API")
-                    return False
+            subgraph_results = self.get_subgraph_accounts_with_debt(current_block, self.config.SUBGRAPH_URL)
+            if subgraph_results is None:
+                raise Exception("Couldn't retrieve accounts with debt from subgraph")
 
-                for vault_address in response["borrowers"]:
-                    seen_addresses.add(vault_address)
+            if latest_block is None:
+                raise Exception("Couldn't retrieve latest block from subgraph")
 
-                if i % 10 == 0:
-                    logger.info("Bootstrap progress: %s/%s vaults. %s accounts seen so far", i, len(vault_list), len(seen_addresses))
-
-            logger.info("Vault enumeration complete: %s unique accounts found", i)
+            seen_vaults = set()
 
             try:
-                for i, account_address in enumerate(seen_addresses):
-                    self.account_monitor.update_account_on_status_check_event(Web3.to_checksum_address(account_address), None)
+                for i, res in enumerate(subgraph_results):
+                    account = Web3.to_checksum_address(res["account"])
+                    vault = Web3.to_checksum_address(res["vault"])
+                    seen_vaults.add(vault)
+
+                    self.account_monitor.update_account_on_status_check_event(account, vault)
+
                     if i % 10 == 0:
-                        logger.info("Bootstrap loading account %s/%s", i, len(seen_addresses))
+                        logger.info("Bootstrap loading account %s/%s", i, len(subgraph_results))
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("EVCListener: Exception updating account %s in rapid bootstrap: %s",
-                             account_address, ex, exc_info=True)
+                             account, ex, exc_info=True)
                 return False
 
             logger.info("Bootstrap complete. %s vaults, %s accounts, %s seconds",
-                        len(vault_list), len(seen_addresses), time.time() - start_time)
+                        len(seen_vaults), len(subgraph_results), time.time() - start_time)
 
+            ## Monitor from an earlier block to handle re-orgs, etc
             self.account_monitor.latest_block = max(current_block - self.config.BATCH_SIZE, 1)
             logger.info("Starting account monitor from block %s", self.account_monitor.latest_block)
 
