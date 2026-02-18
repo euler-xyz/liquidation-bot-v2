@@ -66,6 +66,11 @@ class ChainConfig:
             raise ValueError(f"Missing RPC URL for {self._chain["name"]}. "
                            f"Env var {self._chain["RPC_NAME"]} not found")
 
+        subgraph_base = os.getenv("SUBGRAPH_URL_BASE")
+        if not subgraph_base:
+            raise ValueError("Missing SUBGRAPH_URL_BASE env var")
+        self.SUBGRAPH_URL = subgraph_base.rstrip("/") + self._chain["SUBGRAPH_PATH"]
+
         self.w3 = setup_w3(self.RPC_URL)
         self.mainnet_w3 = setup_w3(os.getenv("MAINNET_RPC_URL"))
 
