@@ -1180,20 +1180,25 @@ class EVCListener:
 
             seen_vaults = set()
 
-            try:
-                for i, res in enumerate(subgraph_results):
-                    account = Web3.to_checksum_address(res["account"])
-                    vault = Web3.to_checksum_address(res["vault"])
-                    seen_vaults.add(vault)
+            for i, res in enumerate(subgraph_results):
+                account = Web3.to_checksum_address(res["account"])
+                vault = Web3.to_checksum_address(res["vault"])
+                seen_vaults.add(vault)
 
-                    self.account_monitor.update_account_on_status_check_event(account, vault)
+                added = False
 
-                    if i % 10 == 0:
-                        logger.info("Bootstrap loading account %s/%s", i, len(subgraph_results))
-            except Exception as ex: # pylint: disable=broad-except
-                logger.error("EVCListener: Exception updating account %s in rapid bootstrap: %s",
-                             account, ex, exc_info=True)
-                return False
+                while added == False:
+                    try:
+                        self.account_monitor.update_account_on_status_check_event(account, vault)
+                        added = True
+                    except Exception as ex: # pylint: disable=broad-except
+                        delay = 10
+                        logger.error("EVCListener: Exception updating account %s in rapid bootstrap. Retrying in %s seconds: %s",
+                                    account, delay, ex, exc_info=True)
+                        time.sleep(delay)
+
+                if i % 10 == 0:
+                    logger.info("Bootstrap loading account %s/%s", i, len(subgraph_results))
 
             logger.info("Bootstrap complete. %s vaults, %s accounts, %s seconds",
                         len(seen_vaults), len(subgraph_results), time.time() - start_time)
