@@ -154,6 +154,35 @@ def make_api_request(url: str,
     response.raise_for_status()
     return response.json()
 
+
+@retry_request(logging.getLogger("liquidation_bot"))
+def make_api_request_post(url: str,
+                     headers: Dict[str, str],
+                     data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Make an API POST request with retry functionality.
+
+    Args:
+        url (str): The URL for the API request.
+        headers (Dict[str, str]): Headers for the request (will be extended with Content-Type).
+        data (Dict[str, Any]): Request body to be JSON-encoded.
+
+    Returns:
+        Optional[Dict[str, Any]]: JSON response if successful, None otherwise.
+    """
+    # Ensure Content-Type header is set (and allow caller override if needed)
+    headers = headers.copy()
+    headers.setdefault("Content-Type", "application/json")
+
+    response = requests.post(
+        url,
+        headers=headers,
+        data=json.dumps(data),
+        timeout=10
+    )
+    response.raise_for_status()
+    return response.json()
+
 def get_eth_usd_quote(amount: int = 10**18, config: ChainConfig = None):
     return config.eth_oracle.functions.getQuote(amount, config.MAINNET_ETH_ADDRESS, config.USD).call()
 
