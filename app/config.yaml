@@ -430,6 +430,7 @@ chains:
     EVC_DEPLOYMENT_BLOCK: 37722807
     EXPLORER_URL: "https://monad.socialscan.io/"
     RPC_NAME: "MONAD_RPC_URL"
+    SUBGRAPH_PATH: "/subgraphs/euler-simple-monad/latest/gn"
 
     # Deployed contract addresses
     contracts:
