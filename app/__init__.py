@@ -30,9 +30,6 @@ def create_app():
             chain_ids = None
             logging.info(f"Starting monitor with default chain id")
     
-    # Temp override for playground.
-    chain_ids = [8453]
-    
     monitor_thread = threading.Thread(target=start_monitor, args=(chain_ids,))
     monitor_thread.start()
 
