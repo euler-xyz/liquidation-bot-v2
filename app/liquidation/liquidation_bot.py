@@ -1386,32 +1386,45 @@ class Liquidator:
                         max_repay, seized_collateral_shares)
             return ({"profit": 0}, None)
 
-        swap_api_response = Quoter.get_swap_api_quote(
-            chain_id = config.CHAIN_ID,
-            token_in = collateral_asset,
-            token_out = borrowed_asset,
-            amount = int(seized_collateral_assets *.999),
-            min_amount_out = max_repay,
-            receiver = config.SWAPPER,
-            vault_in = collateral_vault_address,
-            account_in = config.SWAPPER,
-            account_out = config.SWAPPER,
-            swapper_mode = "0",
-            slippage = config.SWAP_SLIPPAGE,
-            deadline = int(time.time()) + config.SWAP_DEADLINE,
-            is_repay = False,
-            current_debt = max_repay,
-            target_debt = 0,
-            skip_sweep_deposit_out = True,
-            config=config
-        )
+        swap_data = []
+        if collateral_asset != borrowed_asset:
+            logger.info("Liquidator: Fetching the quote to swap the debt token into the collateral token")
 
-        logger.info("Liquidator: swap_api_response for account %s, collateral %s: %s", violator_address, collateral_vault_address, swap_api_response)
+            swap_api_response = Quoter.get_swap_api_quote(
+                    chain_id = config.CHAIN_ID,
+                    token_in = collateral_asset,
+                    token_out = borrowed_asset,
+                    amount = int(seized_collateral_assets *.999),
+                    min_amount_out = max_repay,
+                    receiver = config.SWAPPER,
+                    vault_in = collateral_vault_address,
+                    account_in = config.SWAPPER,
+                    account_out = config.SWAPPER,
+                    swapper_mode = "0",
+                    slippage = config.SWAP_SLIPPAGE,
+                    deadline = int(time.time()) + config.SWAP_DEADLINE,
+                    is_repay = False,
+                    current_debt = max_repay,
+                    target_debt = 0,
+                    skip_sweep_deposit_out = True,
+                    config=config
+            )
 
-        if not swap_api_response:
-            return ({"profit": 0}, None)
+            logger.info("Liquidator: swap_api_response for account %s, collateral %s: %s", violator_address, collateral_vault_address, swap_api_response)
 
-        amount_out = int(swap_api_response["amountOut"])
+            if not swap_api_response:
+                return ({"profit": 0}, None)
+
+            amount_out = int(swap_api_response["amountOut"])
+
+            for _, item in enumerate(swap_api_response["swap"]["multicallItems"]):
+                swap_data.append(item["data"])
+
+        else:
+            logger.info("Liquidator: Collateral and debt are the same token, not performing a swap")
+            amount_out = seized_collateral_assets
+
+
         leftover_borrow = amount_out - max_repay
 
         ## Disabled on non-mainnet chains, because gas is assumed to be negligible
@@ -1441,10 +1454,6 @@ class Liquidator:
             leftover_borrow_in_eth = leftover_borrow
 
         time.sleep(config.API_REQUEST_DELAY)
-
-        swap_data = []
-        for _, item in enumerate(swap_api_response["swap"]["multicallItems"]):
-            swap_data.append(item["data"])
 
         logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
                     "leftover_borrow: %s", seized_collateral_assets, amount_out,
