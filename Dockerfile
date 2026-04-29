@@ -1,4 +1,5 @@
-FROM python:3.12.5-slim AS builder
+ARG IMAGE_LINK=python:3.12.5-slim
+FROM ${IMAGE_LINK} AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -50,7 +51,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # =============================================================================
 # Stage 2: Runtime - minimal image with only what's needed to run
 # =============================================================================
-FROM python:3.12.5-slim AS runtime
+FROM ${IMAGE_LINK} AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
