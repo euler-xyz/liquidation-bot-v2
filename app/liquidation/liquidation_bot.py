@@ -9,6 +9,7 @@ import os
 import json
 import sys
 import math
+import httpx
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Dict, Any, Optional
@@ -492,6 +493,25 @@ class AccountMonitor:
                                              address, ex, exc_info=True)
                         if self.execute_liquidation:
                             try:
+                                # Phoenix Zero: warn if sequencer is congested.
+                                # During MEV storms, revert rates exceed 50% — failed liquidations
+                                # waste gas. RTT gives 27s lead time (documented May 17 2026, issue #50).
+                                # Fail-open: if oracle unreachable, proceed with liquidation.
+                                _chain_map = {42161: "arbitrum", 8453: "base", 10: "optimism", 1: "ethereum"}
+                                _chain = _chain_map.get(self.config.chain_id, "ethereum")
+                                try:
+                                    _health = httpx.get(
+                                        f"https://rtt.phoenix-ai.work/api/v1/safe?chain={_chain}",
+                                        timeout=0.5,
+                                    ).json()
+                                    if not _health.get("safe", True):
+                                        logger.warning(
+                                            "AccountMonitor: Sequencer congested (P99=%sms) — "
+                                            "liquidation tx for %s may revert",
+                                            _health.get("p99_ms"), address,
+                                        )
+                                except Exception:
+                                    pass  # fail-open
                                 tx_hash, tx_receipt = Liquidator.execute_liquidation(
                                     liquidation_data["tx"], self.config)
                                 if tx_hash and tx_receipt:
