@@ -10,8 +10,8 @@ WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libc6-dev \
-    git \
     curl \
+    git \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -20,18 +20,26 @@ RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="/root/.foundry/bin:${PATH}"
 RUN foundryup
 
+# Set up git configuration for forge
+RUN git config --global user.email "docker@example.com" && \
+    git config --global user.name "Docker Build" && \
+    git config --global init.defaultBranch main
+
 # Copy only files needed for Solidity build
 COPY contracts/ contracts/
 COPY foundry.toml .
 COPY remappings.txt .
 
-# Install forge-std without requiring git
+# Initialize git and install forge dependencies
+RUN git init && \
+    git add -A && \
+    git commit -m "Initial commit"
+
 RUN mkdir -p lib/forge-std && \
-    curl -L https://github.com/foundry-rs/forge-std/archive/refs/tags/v1.9.7.tar.gz \
-    | tar -xz --strip-components=1 -C lib/forge-std
+    git clone --depth 1 https://github.com/foundry-rs/forge-std.git lib/forge-std
 
 # Build Solidity contracts
-RUN forge build
+RUN forge install && forge build
 
 # Install Python dependencies into a virtual environment for clean copy
 RUN python -m venv /opt/venv
