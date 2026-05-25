@@ -1,4 +1,4 @@
-ARG IMAGE_LINK=python:3.12.5-slim
+ARG IMAGE_LINK=docker.io/library/python@sha256:cb2a026931ad98548889f820f852e3399cdf45af067577baba5e06d222bd08d1
 FROM ${IMAGE_LINK} AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -9,6 +9,7 @@ WORKDIR /build
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
     libc6-dev \
     curl \
     git \
