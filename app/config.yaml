@@ -449,3 +449,29 @@ chains:
     
       # PYTH address
       PYTH: "0x2880aB155794e7179c9eE2e38200202908C17B43"
+
+  999:
+    name: "HyperEVM"
+    EVC_DEPLOYMENT_BLOCK: 1980586
+    EXPLORER_URL: "https://hyperevmscan.io/"
+    RPC_NAME: "HYPEREVM_RPC_URL"
+    SUBGRAPH_PATH: "/subgraphs/euler-simple-hyperevm/1.0.2/gn"
+
+    # Deployed contract addresses
+    contracts:
+      LIQUIDATOR_CONTRACT: "0xFf3A59eF85BA4e0Ec75b0aD94573a169cab360Aa"
+
+      #EVK Addresses
+      EVC: "0xceAA7cdCD7dDBee8601127a9Abb17A974d613db4"
+      EVAULT_FACTORY: "0xcF5552580fD364cdBBFcB5Ae345f75674c59273A"
+      SWAPPER: "0xdb45C54E8100073DFB87d3D51F917A14fa565Fb0"
+      SWAP_VERIFIER: "0x2F6e6Ea234a4dEcA25249252cd21D258Bb1651b8"
+      
+      # Other relevant contracts & Units of Account
+      WETH: "0xBe6727B535545C67d5cAa73dEa54865B92CF7907"
+      USD: "0x0000000000000000000000000000000000000348"
+      BTC: "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB"
+    
+      # PYTH address
+      PYTH: "0xe9d69CdD6Fe41e7B621B4A688C5D1a68cB5c8ADc"
+
