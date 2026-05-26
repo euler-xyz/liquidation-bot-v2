@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Foundry
 RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="/root/.foundry/bin:${PATH}"
-RUN foundryup --tag nightly-bc77c5462e1d115591e374f8d3444b86010e127d
+RUN foundryup --install nightly-bc77c5462e1d115591e374f8d3444b86010e127d
 
 # Set up git configuration for forge
 RUN git config --global user.email "docker@example.com" && \
