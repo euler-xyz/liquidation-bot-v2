@@ -1,5 +1,7 @@
-ARG IMAGE_LINK=python:3.12.5-slim
-FROM ${IMAGE_LINK} AS builder
+ARG BUILDER_IMAGE=docker.io/library/python:3.12-slim-bookworm
+ARG RUNTIME_IMAGE=docker.io/library/python:3.12-slim-bookworm
+
+FROM ${BUILDER_IMAGE} AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -19,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Foundry
 RUN curl -L https://foundry.paradigm.xyz | bash
 ENV PATH="/root/.foundry/bin:${PATH}"
-RUN foundryup
+RUN foundryup --tag nightly-bc77c5462e1d115591e374f8d3444b86010e127d
 
 # Set up git configuration for forge
 RUN git config --global user.email "docker@example.com" && \
@@ -52,7 +54,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # =============================================================================
 # Stage 2: Runtime - minimal image with only what's needed to run
 # =============================================================================
-FROM ${IMAGE_LINK} AS runtime
+FROM ${RUNTIME_IMAGE} AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
