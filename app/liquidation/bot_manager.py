@@ -22,7 +22,6 @@ class ChainManager:
 
     def _initialize_chains(self):
         """Initialize components for each chain"""
-        print("CHAINS",self.chain_ids)
         for chain_id in self.chain_ids:
             # Load chain-specific config
             config = load_chain_config(chain_id)
