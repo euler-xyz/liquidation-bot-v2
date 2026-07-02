@@ -28,7 +28,8 @@ from app.liquidation.utils import (setup_logger,
                    post_unhealthy_account_on_slack,
                    post_error_notification,
                    get_eth_usd_quote,
-                   get_btc_usd_quote)
+                   get_btc_usd_quote,
+                   decode_error_string)
 
 from app.liquidation.config_loader import ChainConfig
 
@@ -95,12 +96,20 @@ class Vault:
                     True
                 ).call()
         except Exception as ex: # pylint: disable=broad-except
-            if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708": # E_NoLiability and E_NotController
-                logger.error("Vault: Failed to get account liquidity"
-                            " for account %s, controller %s: Contract error - %s",
-                            account_address, self.address, ex, exc_info=True)
+            if ex.args[0] == "0x43855d0f" or ex.args[0] == "0x6d588708": # E_NoLiability and E_NotController
+                return (balance, 0, 0)
+            if isinstance(ex.args[0], str) and ex.args[0].startswith("0xa6e68d63"): # PriceOracle_TooStale
+                staleness = int(ex.args[0][10:74], 16)
+                max_staleness = int(ex.args[0][74:138], 16)
+                logger.warning("Vault: Pull oracle price too stale for account %s,"
+                               " controller %s (staleness %ss > max %ss) and no Pyth"
+                               " feed ids detected for the vault; marking health unknown",
+                               account_address, self.address, staleness, max_staleness)
                 return (balance, 0, -1)
-            return (balance, 0, 0)
+            logger.error("Vault: Failed to get account liquidity"
+                        " for account %s, controller %s: Contract error - %s",
+                        account_address, self.address, ex, exc_info=True)
+            return (balance, 0, -1)
 
         return (balance, collateral_value, liability_value)
 
@@ -1322,6 +1331,17 @@ class Liquidator:
             except Exception as ex: # pylint: disable=broad-except
                 if ex.args[0] == "0x9b314d55": # E_BadCollateral
                     logger.debug("Liquidator: Skipping collateral %s because E_BadCollateral", collateral)
+                    continue
+
+                if isinstance(ex.args[0], str) and ex.args[0].startswith("0x436fa211"): # Swapper_SwapError
+                    # The swap route returned by the swap API reverts in simulation
+                    # (e.g. paused pool, unhealthy price feed in the route). Nothing
+                    # the bot can do differently — the position just isn't
+                    # liquidatable through this route right now.
+                    logger.warning("Liquidator: Swap simulation reverted for account %s,"
+                                   " collateral %s: %s — skipping",
+                                   violator_address, collateral,
+                                   decode_error_string(ex.args[0]))
                     continue
 
                 message = ("Exception simulating liquidation "

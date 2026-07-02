@@ -188,6 +188,25 @@ def make_api_request_post(url: str,
     response.raise_for_status()
     return response.json()
 
+def decode_error_string(error_data: str) -> str:
+    """
+    Best-effort decode of an ABI-encoded Error(string) revert reason nested
+    anywhere inside raw hex revert data (e.g. inside Swapper_SwapError's bytes
+    argument). Returns the original data if no Error(string) payload is found.
+    """
+    try:
+        hex_data = error_data[2:] if error_data.startswith("0x") else error_data
+        marker = "08c379a0"  # selector of Error(string)
+        idx = hex_data.find(marker)
+        if idx == -1:
+            return error_data
+        payload = hex_data[idx + len(marker):]
+        # abi encoding: offset (32 bytes) + length (32 bytes) + string data
+        length = int(payload[64:128], 16)
+        return bytes.fromhex(payload[128:128 + length * 2]).decode("utf-8", errors="replace")
+    except Exception: # pylint: disable=broad-except
+        return error_data
+
 def get_eth_usd_quote(amount: int = 10**18, config: ChainConfig = None):
     return config.eth_oracle.functions.getQuote(amount, config.MAINNET_ETH_ADDRESS, config.USD).call()
 
