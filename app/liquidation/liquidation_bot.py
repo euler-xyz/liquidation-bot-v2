@@ -1333,14 +1333,20 @@ class Liquidator:
                     logger.debug("Liquidator: Skipping collateral %s because E_BadCollateral", collateral)
                     continue
 
-                if isinstance(ex.args[0], str) and ex.args[0].startswith("0x436fa211"): # Swapper_SwapError
-                    # The swap route returned by the swap API reverts in simulation
-                    # (e.g. paused pool, unhealthy price feed in the route). Nothing
-                    # the bot can do differently — the position just isn't
-                    # liquidatable through this route right now.
-                    logger.warning("Liquidator: Swap simulation reverted for account %s,"
+                # Reverts that mean the position simply can't be liquidated through
+                # this route right now (paused pool, unhealthy feed in the swap
+                # route, missing token balance/approval for the repay). Nothing the
+                # bot can do differently — skip without a traceback or Slack post.
+                known_revert = None
+                if isinstance(ex.args[0], str):
+                    known_revert = {
+                        "0x436fa211": "Swapper_SwapError",
+                        "0x9773bb71": "E_TransferFromFailed",
+                    }.get(ex.args[0][:10])
+                if known_revert:
+                    logger.warning("Liquidator: Simulation reverted with %s for account %s,"
                                    " collateral %s: %s — skipping",
-                                   violator_address, collateral,
+                                   known_revert, violator_address, collateral,
                                    decode_error_string(ex.args[0]))
                     continue
 
