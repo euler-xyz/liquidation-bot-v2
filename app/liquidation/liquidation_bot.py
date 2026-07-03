@@ -534,11 +534,11 @@ class AccountMonitor:
                                         health_score,
                                     )
                                 else:
-                                    logger.info("Posting unhealthy account notification to slack for %s %s %s", self.chain_id, account.controller.vault_symbol, health_score)
-                                    post_unhealthy_account_on_slack(address, account.controller.address,
-                                                                    health_score,
-                                                                    account.value_borrowed, self.config)
-                                    logger.debug("Vault borrowed: %s", account.value_borrowed)
+                                    logger.info("Unhealthy account %s %s %s", self.chain_id, account.controller.vault_symbol, health_score)
+                                    # post_unhealthy_account_on_slack(address, account.controller.address,
+                                    #                                 health_score,
+                                    #                                 account.value_borrowed, self.config)
+                                    logger.info("Valut borrowed: %s", account.value_borrowed)
                                     if account.value_borrowed < self.config.SMALL_POSITION_THRESHOLD:
                                         self.recently_posted_low_value[account.address] = time.time()
                             except Exception as ex: # pylint: disable=broad-except
