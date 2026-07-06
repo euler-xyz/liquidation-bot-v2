@@ -5,6 +5,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import json
 import functools
+import os
 import time
 import traceback
 import requests
@@ -32,18 +33,22 @@ def setup_logger() -> logging.Logger:
         logging.Logger: Configured logger instance.
     """
     logger = logging.getLogger("liquidation_bot")
-    logger.setLevel(logging.DEBUG)
+    log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    logger.setLevel(log_level)
 
     logger.propagate = False
     logger.handlers.clear()
 
     console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
     file_handler = RotatingFileHandler(
         LOGS_PATH,
         mode="a",
         maxBytes=LOG_MAX_BYTES,
         backupCount=LOG_BACKUP_COUNT
     )
+    file_handler.setLevel(log_level)
 
     detailed_formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s\n%(exc_info)s")
@@ -182,6 +187,25 @@ def make_api_request_post(url: str,
     )
     response.raise_for_status()
     return response.json()
+
+def decode_error_string(error_data: str) -> str:
+    """
+    Best-effort decode of an ABI-encoded Error(string) revert reason nested
+    anywhere inside raw hex revert data (e.g. inside Swapper_SwapError's bytes
+    argument). Returns the original data if no Error(string) payload is found.
+    """
+    try:
+        hex_data = error_data[2:] if error_data.startswith("0x") else error_data
+        marker = "08c379a0"  # selector of Error(string)
+        idx = hex_data.find(marker)
+        if idx == -1:
+            return error_data
+        payload = hex_data[idx + len(marker):]
+        # abi encoding: offset (32 bytes) + length (32 bytes) + string data
+        length = int(payload[64:128], 16)
+        return bytes.fromhex(payload[128:128 + length * 2]).decode("utf-8", errors="replace")
+    except Exception: # pylint: disable=broad-except
+        return error_data
 
 def get_eth_usd_quote(amount: int = 10**18, config: ChainConfig = None):
     return config.eth_oracle.functions.getQuote(amount, config.MAINNET_ETH_ADDRESS, config.USD).call()
@@ -393,9 +417,11 @@ def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None
     try:
         response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
         response.raise_for_status()
-        print("Low health account report posted to Slack successfully.")
+        logging.getLogger("liquidation_bot").debug(
+            "Low health account report posted to Slack successfully.")
     except requests.RequestException as e:
-        print(f"Failed to post low health account report to Slack: {e}")
+        logging.getLogger("liquidation_bot").warning(
+            "Failed to post low health account report to Slack: %s", e)
 
 def post_error_notification(message, config: ChainConfig = None) -> None:
     """
@@ -419,6 +445,8 @@ def post_error_notification(message, config: ChainConfig = None) -> None:
     try:
         response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
         response.raise_for_status()
-        print("Error notification posted to Slack successfully.")
+        logging.getLogger("liquidation_bot").debug(
+            "Error notification posted to Slack successfully.")
     except requests.RequestException as e:
-        print("Failed to post error notification to Slack: %s", e)
+        logging.getLogger("liquidation_bot").warning(
+            "Failed to post error notification to Slack: %s", e)

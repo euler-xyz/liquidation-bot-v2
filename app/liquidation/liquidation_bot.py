@@ -28,7 +28,8 @@ from app.liquidation.utils import (setup_logger,
                    post_unhealthy_account_on_slack,
                    post_error_notification,
                    get_eth_usd_quote,
-                   get_btc_usd_quote)
+                   get_btc_usd_quote,
+                   decode_error_string)
 
 from app.liquidation.config_loader import ChainConfig
 
@@ -84,23 +85,31 @@ class Vault:
                 self.pyth_feed_ids = PullOracleHandler.get_feed_ids(self, self.config)
                 self.last_pyth_feed_ids_update = time.time()
             if self.pyth_feed_ids != None and len(self.pyth_feed_ids) > 0:
-                logger.info("Vault: Pyth Oracle found for vault %s, "
-                            "getting account liquidity through simulation", self.address)
+                logger.debug("Vault: Pyth Oracle found for vault %s, "
+                             "getting account liquidity through simulation", self.address)
                 collateral_value, liability_value = PullOracleHandler.get_account_values_with_pyth_batch_simulation(
                     self, account_address, self.pyth_feed_ids, self.config)
             else:
-                logger.info("Vault: Getting account liquidity normally for address %s in vault %s", account_address, self.address)
+                logger.debug("Vault: Getting account liquidity normally for address %s in vault %s", account_address, self.address)
                 (collateral_value, liability_value) = self.instance.functions.accountLiquidity(
                     Web3.to_checksum_address(account_address),
                     True
                 ).call()
         except Exception as ex: # pylint: disable=broad-except
-            if ex.args[0] != "0x43855d0f" and ex.args[0] != "0x6d588708": # E_NoLiability and E_NotController
-                logger.error("Vault: Failed to get account liquidity"
-                            " for account %s, controller %s: Contract error - %s",
-                            account_address, self.address, ex, exc_info=True)
+            if ex.args[0] == "0x43855d0f" or ex.args[0] == "0x6d588708": # E_NoLiability and E_NotController
+                return (balance, 0, 0)
+            if isinstance(ex.args[0], str) and ex.args[0].startswith("0xa6e68d63"): # PriceOracle_TooStale
+                staleness = int(ex.args[0][10:74], 16)
+                max_staleness = int(ex.args[0][74:138], 16)
+                logger.warning("Vault: Pull oracle price too stale for account %s,"
+                               " controller %s (staleness %ss > max %ss) and no Pyth"
+                               " feed ids detected for the vault; marking health unknown",
+                               account_address, self.address, staleness, max_staleness)
                 return (balance, 0, -1)
-            return (balance, 0, 0)
+            logger.error("Vault: Failed to get account liquidity"
+                        " for account %s, controller %s: Contract error - %s",
+                        account_address, self.address, ex, exc_info=True)
+            return (balance, 0, -1)
 
         return (balance, collateral_value, liability_value)
 
@@ -120,10 +129,10 @@ class Vault:
         Returns:
             Tuple[int, int]: A tuple containing (max_repay, seized_collateral).
         """
-        logger.info("Vault: Checking liquidation for account %s, collateral vault %s,"
-                    " liquidator address %s, borrowed asset %s",
-                    borower_address, collateral_address,
-                    liquidator_address, self.underlying_asset_address)
+        logger.debug("Vault: Checking liquidation for account %s, collateral vault %s,"
+                     " liquidator address %s, borrowed asset %s",
+                     borower_address, collateral_address,
+                     liquidator_address, self.underlying_asset_address)
 
         if len(self.pyth_feed_ids) > 0:
             (max_repay, seized_collateral) = PullOracleHandler.check_liquidation_with_pyth_batch_simulation(
@@ -216,17 +225,17 @@ class Account:
 
         self.value_borrowed = liability_value
         if self.controller.unit_of_account == self.config.WETH:
-            logger.info("Account: Getting a quote for %s WETH, unit of account %s",
-                        liability_value, self.controller.unit_of_account)
+            logger.debug("Account: Getting a quote for %s WETH, unit of account %s",
+                         liability_value, self.controller.unit_of_account)
             self.value_borrowed = get_eth_usd_quote(liability_value, self.config)
 
-            logger.info("Account: value borrowed: %s", self.value_borrowed)
+            logger.debug("Account: value borrowed: %s", self.value_borrowed)
         elif self.controller.unit_of_account == self.config.BTC:
-            logger.info("Account: Getting a quote for %s BTC, unit of account %s",
-                        liability_value, self.controller.unit_of_account)
+            logger.debug("Account: Getting a quote for %s BTC, unit of account %s",
+                         liability_value, self.controller.unit_of_account)
             self.value_borrowed = get_btc_usd_quote(liability_value, self.config)
 
-            logger.info("Account: value borrowed: %s", self.value_borrowed)
+            logger.debug("Account: value borrowed: %s", self.value_borrowed)
 
         # Special case for 0 liability: No borrow
         if liability_value == 0:
@@ -236,9 +245,9 @@ class Account:
 
         self.current_health_score = collateral_value / liability_value
 
-        logger.info("Account: %s health score: %s, Collateral Value: %s,"
-                    " Liability Value: %s", self.address, self.current_health_score,
-                    collateral_value, liability_value)
+        logger.debug("Account: %s health score: %s, Collateral Value: %s,"
+                     " Liability Value: %s", self.address, self.current_health_score,
+                     collateral_value, liability_value)
         return self.current_health_score
 
     def get_time_of_next_update(self) -> float:
@@ -395,7 +404,7 @@ class AccountMonitor:
         while self.running:
             with self.condition:
                 while self.update_queue.empty():
-                    logger.info("AccountMonitor: Waiting for queue to be non-empty.")
+                    logger.debug("AccountMonitor: Waiting for queue to be non-empty.")
                     self.condition.wait()
 
                 next_update_time, address = self.update_queue.get()
@@ -403,8 +412,8 @@ class AccountMonitor:
                 # check for special value that indicates
                 # account should be skipped & removed from queue
                 if next_update_time == -1:
-                    logger.info("AccountMonitor: %s has no position,"
-                                " skipping and removing from queue", address)
+                    logger.debug("AccountMonitor: %s has no position,"
+                                 " skipping and removing from queue", address)
                     continue
 
                 # if the time from queue does not match the time_of_next_update in the
@@ -412,7 +421,7 @@ class AccountMonitor:
                 # one can be dropped
                 account = self.accounts.get(address)
                 if account and next_update_time != account.time_of_next_update:
-                    logger.info("AccountMonitor: skipping stale update for %s", address)
+                    logger.debug("AccountMonitor: skipping stale update for %s", address)
                     continue
 
                 # if it's not time for the next item, put it back and wait until it is
@@ -445,7 +454,7 @@ class AccountMonitor:
                         address,
                         vault_address)
         else:
-            logger.info("AccountMonitor: Account %s already in list.", address)
+            logger.debug("AccountMonitor: Account %s already in list.", address)
 
         account = self.accounts[address]
 
@@ -471,7 +480,7 @@ class AccountMonitor:
                 logger.info("AccountMonitor: Installed new controller for account %s: %s", account.address, controller)
                 account.controller = self.track_new_vault(controller)
             elif len(controller_list) == 0:
-                logger.info("AccountMonitor: No controller found for account %s", account.address)
+                logger.debug("AccountMonitor: No controller found for account %s", account.address)
 
     def update_account_liquidity(self, address: str) -> None:
         """
@@ -488,7 +497,7 @@ class AccountMonitor:
                              address, exc_info=True)
                 return
 
-            logger.info("AccountMonitor: Updating %s liquidity.", address)
+            logger.debug("AccountMonitor: Updating %s liquidity.", address)
 
             try:
                 self.update_account_controller(account)
@@ -600,8 +609,8 @@ class AccountMonitor:
                 logger.info("AccountMonitor: %s next update time invalid (%s), scheduling for near future", address, account.time_of_next_update)
                 account.time_of_next_update = time.time() + 120 * random.uniform(0.5, 2)
 
-            logger.info("Account: %s next update scheduled for %s", account.address,
-                        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(account.time_of_next_update)))
+            logger.debug("Account: %s next update scheduled for %s", account.address,
+                         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(account.time_of_next_update)))
 
             with self.condition:
                 self.update_queue.put((account.time_of_next_update, address))
@@ -652,26 +661,26 @@ class AccountMonitor:
         """
         try:
             if local_save and os.path.exists(save_path):
-                print("SAVE PATH", save_path)
                 with open(save_path, "r", encoding="utf-8") as f:
                     state = json.load(f)
 
                 self.vaults = {address: Vault(address, self.config) for address in state["vaults"]}
-                logger.info("Loaded %s vaults: %s", len(self.vaults), list(self.vaults.keys()))
+                logger.info("Loaded %s vaults", len(self.vaults))
+                logger.debug("Loaded vaults: %s", list(self.vaults.keys()))
 
                 self.accounts = {address: Account.from_dict(data, self.vaults, self.config)
                                  for address, data in state["accounts"].items()}
                 logger.info("Loaded %s accounts:", len(self.accounts))
 
                 for address, account in self.accounts.items():
-                    logger.info("  Account %s: Controller: %s, "
-                                "Health Score: %s, "
-                                "Next Update: %s",
-                                address,
-                                account.controller.address,
-                                account.current_health_score,
-                                time.strftime("%Y-%m-%d %H:%M:%S",
-                                time.localtime(account.time_of_next_update)))
+                    logger.debug("  Account %s: Controller: %s, "
+                                 "Health Score: %s, "
+                                 "Next Update: %s",
+                                 address,
+                                 account.controller.address,
+                                 account.current_health_score,
+                                 time.strftime("%Y-%m-%d %H:%M:%S",
+                                 time.localtime(account.time_of_next_update)))
 
                 self.rebuild_queue()
 
@@ -702,15 +711,15 @@ class AccountMonitor:
                 account.update_liquidity()
 
                 if account.current_health_score == math.inf:
-                    logger.info("AccountMonitor: %s has no borrow, skipping", address)
+                    logger.debug("AccountMonitor: %s has no borrow, skipping", address)
                     continue
 
                 next_update_time = account.time_of_next_update
                 self.update_queue.put((next_update_time, address))
-                logger.info("AccountMonitor: %s added to queue"
-                            " with health score %s, next update at %s",
-                            address, account.current_health_score, time.strftime("%Y-%m-%d %H:%M:%S",
-                                                                 time.localtime(next_update_time)))
+                logger.debug("AccountMonitor: %s added to queue"
+                             " with health score %s, next update at %s",
+                             address, account.current_health_score, time.strftime("%Y-%m-%d %H:%M:%S",
+                                                                  time.localtime(next_update_time)))
             except Exception as ex: # pylint: disable=broad-except
                 logger.error("AccountMonitor: Failed to put account %s into rebuilt queue: %s",
                              address, ex, exc_info=True)
@@ -793,7 +802,7 @@ class PullOracleHandler:
 
     @staticmethod
     def get_account_values_with_pyth_batch_simulation(vault, account_address, feed_ids, config: ChainConfig):
-        update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
+        update_data = PullOracleHandler.get_pyth_update_data(feed_ids, config)
         update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
 
         liquidator = config.liquidator
@@ -808,7 +817,7 @@ class PullOracleHandler:
     @staticmethod
     def check_liquidation_with_pyth_batch_simulation(vault, liquidator_address, borrower_address,
                                                      collateral_address, feed_ids, config: ChainConfig):
-        update_data = PullOracleHandler.get_pyth_update_data(feed_ids)
+        update_data = PullOracleHandler.get_pyth_update_data(feed_ids, config)
         update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
 
         liquidator = config.liquidator
@@ -849,12 +858,12 @@ class PullOracleHandler:
                 try:
                     configured_oracle_name = configured_oracle.functions.name().call()
                 except Exception as ex: # pylint: disable=broad-except
-                    logger.info("PullOracleHandler: Error calling contract for oracle"
-                                " at %s, asset %s: %s", configured_oracle_address, asset, ex)
+                    logger.debug("PullOracleHandler: Error calling contract for oracle"
+                                 " at %s, asset %s: %s", configured_oracle_address, asset, ex)
                     continue
                 if configured_oracle_name == "PythOracle":
-                    logger.info("PullOracleHandler: Pyth oracle found for vault %s: "
-                                "Address - %s", vault.address, configured_oracle_address)
+                    logger.debug("PullOracleHandler: Pyth oracle found for vault %s: "
+                                 "Address - %s", vault.address, configured_oracle_address)
                     pyth_feed_ids.add(configured_oracle.functions.feedId().call().hex())
                 elif configured_oracle_name == "CrossAdapter":
                     pyth_ids = PullOracleHandler.resolve_cross_oracle(
@@ -893,19 +902,22 @@ class PullOracleHandler:
         return pyth_feed_ids
 
     @staticmethod
-    def get_pyth_update_data(feed_ids):
-        logger.info("PullOracleHandler: Getting update data for feeds: %s", feed_ids)
-        pyth_url = "https://hermes.pyth.network/v2/updates/price/latest?"
-        for feed_id in feed_ids:
-            pyth_url += "ids[]=" + feed_id + "&"
-        pyth_url = pyth_url[:-1]
+    def get_pyth_update_data(feed_ids, config: ChainConfig):
+        logger.debug("PullOracleHandler: Getting update data for feeds: %s", feed_ids)
+        # Base URL comes from config (defaults to public Hermes, but should point at
+        # our paid Liquify endpoint). The endpoint's API key, if any, is embedded in
+        # the URL, so compute the query separator instead of assuming a trailing "?".
+        pyth_url = config.PYTH_HERMES_URL
+        separator = "&" if "?" in pyth_url else "?"
+        query = "&".join("ids[]=" + feed_id for feed_id in feed_ids)
+        pyth_url = pyth_url + separator + query
 
         api_return_data = make_api_request(pyth_url, {}, {})
         return "0x" + api_return_data["binary"]["data"][0]
 
     @staticmethod
     def get_pyth_update_fee(update_data, config):
-        logger.info("PullOracleHandler: Getting update fee for data: %s", update_data)
+        logger.debug("PullOracleHandler: Getting update fee for data: %s", update_data)
         pyth = create_contract_instance(config.PYTH, config.PYTH_ABI_PATH, config)
         return pyth.functions.getUpdateFee([update_data]).call()
 
@@ -961,8 +973,8 @@ class EVCListener:
         """
         for attempt in range(max_retries):
             try:
-                logger.info("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
-                            start_block, end_block)
+                logger.debug("EVCListener: Scanning blocks %s to %s for AccountStatusCheck events.",
+                             start_block, end_block)
 
                 logs = self.evc_instance.events.AccountStatusCheck().get_logs(
                     fromBlock=start_block,
@@ -980,15 +992,15 @@ class EVCListener:
                                 vault_address)
 
                         if same_controller and startup_mode:
-                            logger.info("EVCListener: Account %s already seen with "
-                                        "controller %s, skipping", account_address, vault_address)
+                            logger.debug("EVCListener: Account %s already seen with "
+                                         "controller %s, skipping", account_address, vault_address)
                             continue
                     else:
                         seen_accounts.add(account_address)
 
-                    logger.info("EVCListener: AccountStatusCheck event found for account %s "
-                                "with controller %s, triggering monitor update.",
-                                account_address, vault_address)
+                    logger.debug("EVCListener: AccountStatusCheck event found for account %s "
+                                 "with controller %s, triggering monitor update.",
+                                 account_address, vault_address)
 
                     try:
                         self.account_monitor.update_account_on_status_check_event(
@@ -999,8 +1011,8 @@ class EVCListener:
                                      "on AccountStatusCheck event: %s",
                                      account_address, ex, exc_info=True)
 
-                logger.info("EVCListener: Finished scanning blocks %s to %s "
-                            "for AccountStatusCheck events.", start_block, end_block)
+                logger.debug("EVCListener: Finished scanning blocks %s to %s "
+                             "for AccountStatusCheck events.", start_block, end_block)
 
                 self.account_monitor.latest_block = end_block
                 return
@@ -1198,7 +1210,7 @@ class EVCListener:
                         time.sleep(delay)
 
                 if i % 10 == 0:
-                    logger.info("Bootstrap loading account %s/%s", i, len(subgraph_results))
+                    logger.debug("Bootstrap loading account %s/%s", i, len(subgraph_results))
 
             logger.info("Bootstrap complete. %s vaults, %s accounts, %s seconds",
                         len(seen_vaults), len(subgraph_results), time.time() - start_time)
@@ -1298,12 +1310,12 @@ class Liquidator:
         for collateral, collateral_vault in collateral_vaults.items():
             try:
                 if vault.address == collateral:
-                    logger.info("Liquidator: Skipping collateral %s because it is same as controller", collateral)
+                    logger.debug("Liquidator: Skipping collateral %s because it is same as controller", collateral)
                     continue
 
-                logger.info("Liquidator: Checking liquidation for "
-                            "account %s, borrowed asset %s, collateral asset %s",
-                            violator_address, borrowed_asset, collateral)
+                logger.debug("Liquidator: Checking liquidation for "
+                             "account %s, borrowed asset %s, collateral asset %s",
+                             violator_address, borrowed_asset, collateral)
 
                 liquidation_results = Liquidator.calculate_liquidation_profit(vault,
                                                                       violator_address,
@@ -1318,7 +1330,24 @@ class Liquidator:
                     max_profit_params = params
             except Exception as ex: # pylint: disable=broad-except
                 if ex.args[0] == "0x9b314d55": # E_BadCollateral
-                    logger.info("Liquidator: Skipping collateral %s because E_BadCollateral", collateral)
+                    logger.debug("Liquidator: Skipping collateral %s because E_BadCollateral", collateral)
+                    continue
+
+                # Reverts that mean the position simply can't be liquidated through
+                # this route right now (paused pool, unhealthy feed in the swap
+                # route, missing token balance/approval for the repay). Nothing the
+                # bot can do differently — skip without a traceback or Slack post.
+                known_revert = None
+                if isinstance(ex.args[0], str):
+                    known_revert = {
+                        "0x436fa211": "Swapper_SwapError",
+                        "0x9773bb71": "E_TransferFromFailed",
+                    }.get(ex.args[0][:10])
+                if known_revert:
+                    logger.warning("Liquidator: Simulation reverted with %s for account %s,"
+                                   " collateral %s: %s — skipping",
+                                   known_revert, violator_address, collateral,
+                                   decode_error_string(ex.args[0]))
                     continue
 
                 message = ("Exception simulating liquidation "
@@ -1382,13 +1411,13 @@ class Liquidator:
         seized_collateral_assets = collateral_vault.convert_to_assets(seized_collateral_shares)
 
         if max_repay == 0 or seized_collateral_shares == 0:
-            logger.info("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
-                        max_repay, seized_collateral_shares)
+            logger.debug("Liquidator: Max Repay %s, Seized Collateral %s, liquidation not possible",
+                         max_repay, seized_collateral_shares)
             return ({"profit": 0}, None)
 
         swap_data = []
         if collateral_asset != borrowed_asset:
-            logger.info("Liquidator: Fetching the quote to swap the debt token into the collateral token")
+            logger.debug("Liquidator: Fetching the quote to swap the debt token into the collateral token")
 
             swap_api_response = Quoter.get_swap_api_quote(
                     chain_id = config.CHAIN_ID,
@@ -1410,7 +1439,7 @@ class Liquidator:
                     config=config
             )
 
-            logger.info("Liquidator: swap_api_response for account %s, collateral %s: %s", violator_address, collateral_vault_address, swap_api_response)
+            logger.debug("Liquidator: swap_api_response for account %s, collateral %s: %s", violator_address, collateral_vault_address, swap_api_response)
 
             if not swap_api_response:
                 return ({"profit": 0}, None)
@@ -1421,7 +1450,7 @@ class Liquidator:
                 swap_data.append(item["data"])
 
         else:
-            logger.info("Liquidator: Collateral and debt are the same token, not performing a swap")
+            logger.debug("Liquidator: Collateral and debt are the same token, not performing a swap")
             amount_out = seized_collateral_assets
 
 
@@ -1448,16 +1477,16 @@ class Liquidator:
                 skip_sweep_deposit_out = True,
                 config=config
             )
-            logger.info("Liquidator: borrow_to_eth_response: %s", borrow_to_eth_response)
+            logger.debug("Liquidator: borrow_to_eth_response: %s", borrow_to_eth_response)
             leftover_borrow_in_eth = int(borrow_to_eth_response["amountOut"])
         else:
             leftover_borrow_in_eth = leftover_borrow
 
         time.sleep(config.API_REQUEST_DELAY)
 
-        logger.info("Liquidator: Seized collateral assets: %s, output amount: %s, "
-                    "leftover_borrow: %s", seized_collateral_assets, amount_out,
-                    leftover_borrow_in_eth)
+        logger.debug("Liquidator: Seized collateral assets: %s, output amount: %s, "
+                     "leftover_borrow: %s", seized_collateral_assets, amount_out,
+                     leftover_borrow_in_eth)
 
         # leftover_borrow_in_eth = 1
         if leftover_borrow_in_eth < 0:
@@ -1478,16 +1507,16 @@ class Liquidator:
                 config.PROFIT_RECEIVER
         )
 
-        logger.info("Liquidator: Liquidation params for account %s: %s", violator_address, params)
-        logger.info("Liquidator: Liquidation swap_data for account %s: %s", violator_address, swap_data)
+        logger.debug("Liquidator: Liquidation params for account %s: %s", violator_address, params)
+        logger.debug("Liquidator: Liquidation swap_data for account %s: %s", violator_address, swap_data)
 
         pyth_feed_ids = vault.pyth_feed_ids
 
         suggested_gas_price = int(config.w3.eth.gas_price * 1.2)
 
         if len(pyth_feed_ids)> 0:
-            logger.info("Liquidator: executing with pyth")
-            update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids)
+            logger.debug("Liquidator: executing with pyth")
+            update_data = PullOracleHandler.get_pyth_update_data(pyth_feed_ids, config)
             update_fee = PullOracleHandler.get_pyth_update_fee(update_data, config)
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateralWithPythOracle(
                 params, swap_data, [update_data]
@@ -1499,7 +1528,7 @@ class Liquidator:
                     "gasPrice": suggested_gas_price
                 })
         else:
-            logger.info("Liquidator: executing normally")
+            logger.debug("Liquidator: executing normally")
             liquidation_tx = liquidator_contract.functions.liquidateSingleCollateral(
                 params, swap_data
                 ).build_transaction({
@@ -1508,9 +1537,9 @@ class Liquidator:
                     "from": config.LIQUIDATOR_EOA,
                     "nonce": config.w3.eth.get_transaction_count(config.LIQUIDATOR_EOA)
                 })
-        logger.info("Leftover borrow in eth: %s", leftover_borrow_in_eth)
-        logger.info("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
-        logger.info("Suggested gas price: %s", suggested_gas_price)
+        logger.debug("Leftover borrow in eth: %s", leftover_borrow_in_eth)
+        logger.debug("Estimated gas: %s", config.w3.eth.estimate_gas(liquidation_tx))
+        logger.debug("Suggested gas price: %s", suggested_gas_price)
 
         net_profit = leftover_borrow_in_eth - (
             config.w3.eth.estimate_gas(liquidation_tx) * suggested_gas_price)
@@ -1519,7 +1548,7 @@ class Liquidator:
             ## On non-mainnet chains, assume gas cost is negligible
             net_profit = 1
 
-        logger.info("Net profit: %s", net_profit)
+        logger.debug("Net profit: %s", net_profit)
 
         return ({
             "tx": liquidation_tx, 
@@ -1539,8 +1568,9 @@ class Liquidator:
             liquidation_transaction (Dict[str, Any]): The liquidation transaction details.
         """
         try:
-            logger.info("Liquidator: Executing liquidation transaction %s...",
-                        liquidation_transaction)
+            logger.info("Liquidator: Executing liquidation transaction...")
+            logger.debug("Liquidator: liquidation transaction payload: %s",
+                         liquidation_transaction)
 
             signed_tx = config.w3.eth.account.sign_transaction(liquidation_transaction,
                                                         config.LIQUIDATOR_EOA_PRIVATE_KEY)
