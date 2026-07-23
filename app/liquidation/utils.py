@@ -254,7 +254,8 @@ def post_unhealthy_account_on_slack(account_address: str, vault_address: str,
         "username": "Liquidation Bot",
         "icon_emoji": ":robot_face:"
     }
-    requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
+    # Slack notifications disabled
+    # requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
 
 
 def post_liquidation_opportunity_on_slack(account_address: str, vault_address: str,
@@ -319,7 +320,8 @@ def post_liquidation_opportunity_on_slack(account_address: str, vault_address: s
         "username": "Liquidation Bot",
         "icon_emoji": ":robot_face:"
     }
-    requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
+    # Slack notifications disabled
+    # requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
 
 
 def post_liquidation_result_on_slack(account_address: str, vault_address: str,
@@ -361,7 +363,8 @@ def post_liquidation_result_on_slack(account_address: str, vault_address: str,
         "username": "Liquidation Bot",
         "icon_emoji": ":robot_face:"
     }
-    requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
+    # Slack notifications disabled
+    # requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
 
 def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None:
     """
@@ -414,14 +417,15 @@ def post_low_health_account_report(sorted_accounts, config: ChainConfig) -> None
         "icon_emoji": ":robot_face:"
     }
 
-    try:
-        response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
-        response.raise_for_status()
-        logging.getLogger("liquidation_bot").debug(
-            "Low health account report posted to Slack successfully.")
-    except requests.RequestException as e:
-        logging.getLogger("liquidation_bot").warning(
-            "Failed to post low health account report to Slack: %s", e)
+    # Slack notifications disabled
+    # try:
+    #     response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
+    #     response.raise_for_status()
+    #     logging.getLogger("liquidation_bot").debug(
+    #         "Low health account report posted to Slack successfully.")
+    # except requests.RequestException as e:
+    #     logging.getLogger("liquidation_bot").warning(
+    #         "Failed to post low health account report to Slack: %s", e)
 
 def post_error_notification(message, config: ChainConfig = None) -> None:
     """
@@ -442,11 +446,12 @@ def post_error_notification(message, config: ChainConfig = None) -> None:
         "icon_emoji": ":warning:"
     }
 
-    try:
-        response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
-        response.raise_for_status()
-        logging.getLogger("liquidation_bot").debug(
-            "Error notification posted to Slack successfully.")
-    except requests.RequestException as e:
-        logging.getLogger("liquidation_bot").warning(
-            "Failed to post error notification to Slack: %s", e)
+    # Slack notifications disabled
+    # try:
+    #     response = requests.post(config.SLACK_URL, json=slack_payload, timeout=10)
+    #     response.raise_for_status()
+    #     logging.getLogger("liquidation_bot").debug(
+    #         "Error notification posted to Slack successfully.")
+    # except requests.RequestException as e:
+    #     logging.getLogger("liquidation_bot").warning(
+    #         "Failed to post error notification to Slack: %s", e)
