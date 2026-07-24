@@ -63,19 +63,17 @@ class ChainConfig:
         self.SLACK_URL = os.getenv("SLACK_WEBHOOK_URL")
         self.RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
 
-        # Pyth price update endpoint. As of the Aug 2026 Pyth Core upgrade, requests
-        # must go to the upgraded Hermes host and carry a Pyth API key, which is sent
-        # as an "Authorization: Bearer <key>" header (NOT embedded in the URL). The
-        # host may be overridden via PYTH_HERMES_URL; the key comes from PYTH_API_KEY.
+        # Pyth price update endpoint. Defaults to the public Hermes endpoint, but
+        # should be pointed at our paid Liquify endpoint (full URL incl. API key)
+        # via the PYTH_HERMES_URL env var. The API key is embedded in the URL.
         self.PYTH_HERMES_URL = os.getenv(
-            "PYTH_HERMES_URL", "https://pyth.dourolabs.app/hermes/v2/updates/price/latest"
+            "PYTH_HERMES_URL", "https://hermes.pyth.network/v2/updates/price/latest"
         )
-        self.PYTH_API_KEY = os.getenv("PYTH_API_KEY")
-        if not self.PYTH_API_KEY:
-            raise ValueError(
-                "Missing PYTH_API_KEY env var. The Pyth Hermes endpoint requires an "
-                "API key sent as an 'Authorization: Bearer <key>' header. Obtain one "
-                "from Pyth Terminal (https://docs.pyth.network/price-feeds/core/upgrade)."
+        if "hermes.pyth.network" in self.PYTH_HERMES_URL:
+            logger.warning(
+                "PYTH_HERMES_URL not set; falling back to the PUBLIC Pyth Hermes "
+                "endpoint. Set PYTH_HERMES_URL to the Liquify endpoint before Pyth's "
+                "public endpoint upgrade to avoid rate limits/charges/downtime."
             )
 
         # Load chain-specific RPC from env using RPC_NAME from config
