@@ -2,12 +2,11 @@ import os
 from app.liquidation.utils import make_api_request, load_config, create_contract_instance
 from web3 import Web3
 
-# Honor the same endpoint override as the bot (Liquify endpoint, key embedded in URL).
-price_update_input_url = os.getenv(
-    "PYTH_HERMES_URL", "https://hermes.pyth.network/v2/updates/price/latest"
-)
+# Use the same official Hermes endpoint as the bot.
+price_update_input_url = "https://hermes.pyth.network/v2/updates/price/latest"
 
-headers = {}
+pyth_api_key = os.getenv("PYTH_API_KEY")
+headers = {"Authorization": f"Bearer {pyth_api_key}"} if pyth_api_key else {}
 
 separator = "&" if "?" in price_update_input_url else "?"
 price_update_input_url += separator
@@ -26,7 +25,7 @@ for feed in feeds:
 
 price_update_input_url = price_update_input_url[:-1]
 
-return_data = make_api_request(price_update_input_url, {}, {})
+return_data = make_api_request(price_update_input_url, headers, {})
 
 update_data = "0x" + return_data["binary"]["data"][0]
 

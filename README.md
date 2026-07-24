@@ -106,6 +106,8 @@ REQUIRED:
 
 - `{CHAIN}_RPC_URL` - RPC provider endpoint (Infura, Rivet, Alchemy etc.)
 
+- `PYTH_API_KEY` - Pyth API key for the Hermes price-update endpoint, sent as an `Authorization: Bearer` header (obtain from Pyth Terminal). Required as of the Aug 2026 Pyth Core upgrade.
+
 OPTIONAL:
 - `SLACK_WEBHOOK_URL` - Optional URL to post notifications to slack
 - `RISK_DASHBOARD_URL` - Optional, can include a link in slack notifications to manually liquidate a position
