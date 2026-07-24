@@ -904,15 +904,16 @@ class PullOracleHandler:
     @staticmethod
     def get_pyth_update_data(feed_ids, config: ChainConfig):
         logger.debug("PullOracleHandler: Getting update data for feeds: %s", feed_ids)
-        # Base URL comes from config (defaults to public Hermes, but should point at
-        # our paid Liquify endpoint). The endpoint's API key, if any, is embedded in
-        # the URL, so compute the query separator instead of assuming a trailing "?".
+        # Base URL comes from config (the upgraded Pyth Hermes host). The API key is
+        # sent as an Authorization: Bearer header rather than in the URL, so compute
+        # the query separator instead of assuming a trailing "?".
         pyth_url = config.PYTH_HERMES_URL
         separator = "&" if "?" in pyth_url else "?"
         query = "&".join("ids[]=" + feed_id for feed_id in feed_ids)
         pyth_url = pyth_url + separator + query
 
-        api_return_data = make_api_request(pyth_url, {}, {})
+        headers = {"Authorization": f"Bearer {config.PYTH_API_KEY}"}
+        api_return_data = make_api_request(pyth_url, headers, {})
         return "0x" + api_return_data["binary"]["data"][0]
 
     @staticmethod
