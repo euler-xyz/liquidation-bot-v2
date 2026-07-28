@@ -63,17 +63,13 @@ class ChainConfig:
         self.SLACK_URL = os.getenv("SLACK_WEBHOOK_URL")
         self.RISK_DASHBOARD_URL = os.getenv("RISK_DASHBOARD_URL")
 
-        # Pyth price update endpoint. Defaults to the public Hermes endpoint, but
-        # should be pointed at our paid Liquify endpoint (full URL incl. API key)
-        # via the PYTH_HERMES_URL env var. The API key is embedded in the URL.
-        self.PYTH_HERMES_URL = os.getenv(
-            "PYTH_HERMES_URL", "https://hermes.pyth.network/v2/updates/price/latest"
-        )
-        if "hermes.pyth.network" in self.PYTH_HERMES_URL:
+        # Pyth price update endpoint. Use the official Hermes endpoint; the API
+        # key is sent separately in the Authorization header by the caller.
+        self.PYTH_API_KEY = os.getenv("PYTH_API_KEY")
+        if not self.PYTH_API_KEY:
             logger.warning(
-                "PYTH_HERMES_URL not set; falling back to the PUBLIC Pyth Hermes "
-                "endpoint. Set PYTH_HERMES_URL to the Liquify endpoint before Pyth's "
-                "public endpoint upgrade to avoid rate limits/charges/downtime."
+                "PYTH_API_KEY not set; Hermes requests may fail after Pyth's "
+                "August 18, 2026 Core upgrade."
             )
 
         # Load chain-specific RPC from env using RPC_NAME from config
